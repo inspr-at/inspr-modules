@@ -86,8 +86,16 @@ in
 
     encryptedRoot = lib.mkOption {
       type        = lib.types.path;
-      default     = ../../secrets/agents;
-      description = "Source root for encrypted .age files. Contains shared/ and host/<hostname>/ subdirs.";
+      description = ''
+        Source root for encrypted .age files. Must contain `shared/` and
+        (optionally) `host/<hostname>/` subdirectories.
+
+        REQUIRED: no sensible default for a public library — the path
+        depends on the consumer flake's repo layout. A typical consumer
+        sets this to a path-literal pointing at their nixcfg's
+        `secrets/agents` directory.
+      '';
+      example = lib.literalExpression "../../secrets/agents";
     };
 
     decryptedDir = lib.mkOption {
