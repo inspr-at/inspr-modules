@@ -1,0 +1,63 @@
+name: check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  # Allow manual runs from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  flake-check:
+    name: nix flake check (all systems)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v27
+        with:
+          # Pin a recent stable version; bump as upstream nixpkgs updates land.
+          nix_path: nixpkgs=channel:nixos-unstable
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            accept-flake-config = true
+
+      - name: nix flake check (all systems)
+        run: nix flake check --all-systems --print-build-logs
+
+  build-secrets-audit:
+    name: build secrets-audit on ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v27
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            accept-flake-config = true
+
+      - name: Build secrets-audit
+        run: nix build .#secrets-audit --print-build-logs
+
+      - name: Verify --help is clean (regression test for INSPR-50)
+        run: |
+          out=$(./result/bin/secrets-audit --help)
+          first_line=$(echo "$out" | head -1)
+          # Must NOT start with "export" (that was the C7 symptom)
+          if [[ "$first_line" == export* ]]; then
+            echo "::error::secrets-audit --help leaked PATH-export as first line"
+            echo "First line was: $first_line"
+            exit 1
+          fi
+          echo "✓ --help first line: $first_line"

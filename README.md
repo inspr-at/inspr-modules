@@ -88,6 +88,48 @@ These modules emerged from the INSPR onboarding sessions documented in the (priv
 
 A "context flake" is anything that consumes inspr-modules + provides its own values: Markus's personal `nixcfg`, his BYTEPOETS work flake, his family flake, future paid-product flakes — each declares its own identity, hosts, and secrets, and gets the rest for free.
 
+## Versioning + deprecation policy
+
+Semantic versioning: **MAJOR.MINOR.PATCH** per [semver.org](https://semver.org/).
+
+- **PATCH** — bugfixes, doc improvements, no API surface changes
+- **MINOR** — new options, new modules, deprecations (still backward-compatible)
+- **MAJOR** — breaking changes (removals, semantic changes, renames without aliases)
+
+Option renames go through a **deprecation window**:
+
+1. New option lands in a MINOR release; old option is marked deprecated (`visible = false` in option docs; emits a `warnings = [ ... ]` at eval time) and continues to work as an alias.
+2. Old option is **removed** in the next MAJOR release; consumers have at least one MINOR cycle to migrate.
+3. Each deprecation + removal is recorded in [CHANGELOG.md](./CHANGELOG.md).
+
+**Example** (current — `inspr.secrets.agents.identityFile` → `identityFiles`):
+```nix
+# Old (still works, emits eval warning, removed in v0.2.0):
+inspr.secrets.agents.identityFile = "$HOME/.ssh/id_rsa";
+
+# New (preferred):
+inspr.secrets.agents.identityFiles = [
+  "$HOME/.ssh/id_ed25519"
+  "$HOME/.ssh/id_rsa"
+];
+```
+
+## Recovery scenarios
+
+What to do when things go wrong:
+
+| Scenario | What you'll see | Recovery |
+|---|---|---|
+| **User SSH key changes** (e.g., regenerated id_ed25519) | `agent-secrets` activation fails: `age: cannot decrypt …` | Re-rekey the .age files: add the new pubkey to your nixcfg's `secrets/secrets.nix` recipients, then `cd secrets && agenix --rekey`. The OLD key continues to decrypt until you remove it. |
+| **Activation half-completes** (e.g., one `.age` file is corrupt) | Partial decrypt; `set -e` exit; doctor flags missing secrets | The relock-trap (since v0.1.0) ensures the dir is still 0500 outside activation. Fix the corrupt `.age` file (or remove its declaration) and re-run `home-manager switch`. |
+| **Headscale / control server is down** | `inspr-doctor` flags `headscale_reachable` ✗ | Tailnet keeps working with last-known peers; no immediate action. Wait for control plane to recover. |
+| **Manual edit to `~/Secrets/age/decrypted/agents/`** | Directory is 0500 → write fails OR (if you chmod'd) overwritten on next switch | Don't manually edit. The dir is activation-managed. Re-encrypt the source `.age` file via `agenix -e`. |
+| **`paimos auth whoami` fails** but the API key materialized fine | API key may have been rotated upstream | Re-encrypt the `.age` file with the fresh key value, switch, retry. |
+| **`paimos.barta.cm` / your PAIMOS instance is down** | `paimos auth whoami` fails; doctor flags `paimos_auth` ✗ | Transient — wait. Local paimos config is still fine. |
+| **Eval-time error: "hostname could not be determined"** (since v0.1.0) | nix-rebuild fails immediately | Pass `hostname` via `extraSpecialArgs` in your homeConfigurations entry, OR set `inspr.secrets.agents.hostname = "your-host"` explicitly. |
+| **Eval-time error: "defaultInstance must be a key in instances"** (since v0.1.0) | nix-rebuild fails immediately | Typo in `inspr.paimos-cli.defaultInstance`, or you set it but never declared the corresponding instance. Fix and re-eval. |
+| **First fresh host: `agent-secrets` discovery returns zero** | Activation succeeds but dir is empty | Either you forgot to set `inspr.secrets.agents.encryptedRoot`, OR your repo's secrets/agents subdir is empty / not git-tracked. (Untracked files are invisible to flake eval.) |
+
 ## License
 
 MIT — deliberately permissive. This is a *library*; restrictive licenses on infrastructure modules would discourage exactly the adoption the mission depends on.
@@ -99,7 +141,9 @@ v0.1.0 — extracted from `markus-barta/nixcfg` on 2026-05-02. Tested on:
 - macOS workstation (imac0, x86_64-darwin)
 - NixOS server (csb0, x86_64-linux)
 
-via `inspr-doctor` (in the [inspr](https://github.com/markus-barta/inspr) umbrella repo).
+via `inspr-doctor` (private repo today; the script itself is published in
+the inspr-modules CHANGELOG once it's been generalized for non-Markus
+consumers — see roadmap).
 
 Roadmap:
 - NixOS-equivalent modules (currently HM-only — server-side `system_agenix_decrypted` is a doctor check, not yet a module here)

@@ -133,28 +133,77 @@ in
       '';
     };
 
-    identityFile = lib.mkOption {
-      type        = lib.types.str;
-      default     = "$HOME/.ssh/id_rsa";
+    identityFiles = lib.mkOption {
+      type        = lib.types.listOf lib.types.str;
+      default     = [
+        "$HOME/.ssh/id_ed25519"
+        "$HOME/.ssh/id_rsa"
+      ];
       description = ''
-        User SSH private key used by `age` for decryption. Must correspond
-        to a public key in the recipient list of every materialized secret.
-        Variable expansion happens at activation time (shell), so `$HOME`
-        is resolved per-user.
+        User SSH private keys `age` tries in order; the first one that
+        exists at activation time is used for decryption. The selected
+        key MUST correspond to a public key in the recipient list of
+        every materialized secret. Variable expansion happens at
+        activation time (shell), so `$HOME` is resolved per-user.
+
+        Default tries modern ed25519 first, falls back to RSA — covers
+        both fresh setups (which generate ed25519 by default) and older
+        ones (which used RSA).
+      '';
+    };
+
+    # Deprecated singular form. Prepended to `identityFiles` if set, so
+    # consumers using the old API still work — but they should migrate
+    # to the list form. Removal target: v0.2.0.
+    identityFile = lib.mkOption {
+      type        = lib.types.nullOr lib.types.str;
+      default     = null;
+      visible     = false;  # hidden from generated docs; keeps API surface clean
+      description = ''
+        DEPRECATED (since v0.1.1) — use `identityFiles` (list) instead.
+        If set, this value is prepended to `identityFiles` for backward
+        compatibility. Will be removed in v0.2.0.
       '';
     };
   };
 
   # Module config ----------------------------------------------------------
   config = lib.mkIf cfg.enable {
+    # Deprecation warning: emit at eval time if the old singular option
+    # is in use. (No assertion — we still honor it for backward compat.)
+    warnings = lib.optional (cfg.identityFile != null) ''
+      inspr.secrets.agents.identityFile is DEPRECATED — migrate to
+      `inspr.secrets.agents.identityFiles = [ "<path1>" "<path2>" ]`.
+      Will be removed in v0.2.0.
+    '';
+
     # Activation script — runs after Home Manager's writeBoundary so the
     # `age` CLI (installed via home.packages from agenix) is on PATH.
     home.activation.materializeAgentSecrets = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
       set -e
 
       DECRYPTED_DIR="${cfg.decryptedDir}"
-      IDENTITY="${cfg.identityFile}"
       AGE_BIN="${pkgs.age}/bin/age"
+
+      # Pick the first existing SSH identity from the configured list.
+      # Backward-compat: if the deprecated singular `identityFile` was set,
+      # it's prepended to the search order.
+      IDENTITY=""
+      ${lib.concatMapStringsSep "\n" (path: ''
+        if [[ -z "$IDENTITY" && -f "${path}" ]]; then
+          IDENTITY="${path}"
+        fi
+      '') (lib.optional (cfg.identityFile != null) cfg.identityFile ++ cfg.identityFiles)}
+
+      if [[ -z "$IDENTITY" ]]; then
+        echo "agent-secrets: ERROR — no SSH identity found among:" >&2
+        ${lib.concatMapStringsSep "\n" (path: ''
+          echo "  - ${path}" >&2
+        '') (lib.optional (cfg.identityFile != null) cfg.identityFile ++ cfg.identityFiles)}
+        echo "  Generate one with: ssh-keygen -t ed25519" >&2
+        exit 1
+      fi
+      echo "agent-secrets: using identity $IDENTITY"
 
       mkdir -p "$DECRYPTED_DIR"
       # Open the dir for writes during this activation. Lock it back to
