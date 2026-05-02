@@ -1,37 +1,34 @@
 # ─────────────────────────────────────────────────────────────────────────
-# modules/shared/agent-secrets.nix
+# inspr-modules/modules/home-manager/agent-secrets.nix
 #
-# Materialize agenix-encrypted "agent-exception" secrets to a read-only
-# decrypted folder consumable by interactive agents (and the user's own
-# tooling) via the env-file pattern: filename = variable name; contents =
-# variable value.
+# Materialize agenix-encrypted env files into a per-user "agent-exception"
+# directory at HM activation. Pairs with the env-file pattern (filename =
+# variable name; contents = `KEY=value`) for `set -a; source $FILE; …`
+# consumers.
 #
-# Architecture (see ~/Code/inspr/playbook.md → "Architecture — secrets /
-# agent-exception design"):
+# Architecture:
 #
-#   Encrypted side (in repo, agenix-managed):
-#     nixcfg/secrets/agents/shared/<NAME>.age          → all hosts
-#     nixcfg/secrets/agents/host/<hostname>/<NAME>.age → only that host
+#   Encrypted side (consumer's repo, agenix-managed):
+#     <encryptedRoot>/shared/<NAME>.age            → all hosts that opt in
+#     <encryptedRoot>/host/<hostname>/<NAME>.age   → only that host
 #
-#   Decrypted side (per host, activation-managed):
-#     /Users/mba/Secrets/age/decrypted/agents/<NAME>.env
+#   Decrypted side (per-host, activation-managed):
+#     <decryptedDir>/<NAME>.env
 #     mode 0400 (owner-read), dir mode 0500 (no manual writes)
 #     READ-ONLY, ONE-WAY, activation-owned lifecycle:
 #       rebuild = directory rebuilt against current declaration; orphans removed
 #
-# Daily interface (unchanged from today's manual env-file pattern):
-#   ( set -a; source /Users/mba/Secrets/age/decrypted/agents/<NAME>.env;
+# Daily interface:
+#   ( set -a; source <decryptedDir>/<NAME>.env;
 #     <command-that-uses-$NAME>; set +a )
 #
-# Phase: Phase 1 (agenix canonical for agent-subset, manual `agenix -e`).
-# Phase 2 will add a 1Password-tag-driven export script that generates
-# the .age files; this module's interface stays the same.
-#
 # Implementation note: this is a Home Manager STANDALONE module. It does
-# NOT use agenix's home-manager submodule because that submodule expects
-# nix-darwin / NixOS context. Instead it uses the `age` CLI directly at
-# activation time to decrypt the user-readable .age files (the user
-# `markus` must be in the recipient list of any secret materialized here).
+# NOT use agenix's HM submodule because that submodule expects nix-darwin /
+# NixOS context. Instead it uses the `age` CLI directly at activation time
+# to decrypt the .age files. The user identity (`identityFile`) MUST be
+# in the recipient list of every materialized secret.
+#
+# License: MIT (part of inspr-modules — see flake.nix).
 # ─────────────────────────────────────────────────────────────────────────
 { config, pkgs, lib, hostname ? null, ... }:
 
@@ -40,11 +37,27 @@ let
 
   # Helpers ----------------------------------------------------------------
 
-  # Determine the hostname (passed via flake's extraSpecialArgs, or fall
-  # back to runtime detection at activation time).
+  # Determine the hostname. Consumers that pass `hostname` via
+  # extraSpecialArgs (the typical case in HM-on-NixOS / mkDarwinHome
+  # patterns) get host-specific secret discovery for free. If neither
+  # `hostname` is passed nor `cfg.hostname` is set, we throw at eval time
+  # — silent zero-discovery is a worse failure mode than a clear error.
   hostnameValue =
-    if hostname != null then hostname
-    else "$(hostname -s)";
+    if cfg.hostname != null then cfg.hostname
+    else if hostname != null then hostname
+    else throw ''
+      inspr.secrets.agents: hostname could not be determined.
+
+      Provide it via either:
+        (a) extraSpecialArgs in your homeConfigurations entry:
+              extraSpecialArgs = { inherit inputs hostname; };
+        (b) the option:
+              inspr.secrets.agents.hostname = "your-host-name";
+
+      Without a hostname, host-specific secrets at
+      <encryptedRoot>/host/<hostname>/ are silently skipped — masking
+      misconfigurations as "this host has no secrets."
+    '';
 
   # Helper: list .age files in a directory (Nix-time, evaluated at flake
   # eval). Returns [] if the directory doesn't exist.
@@ -75,14 +88,12 @@ let
 in
 {
   # Module options ---------------------------------------------------------
-  # Namespace: `inspr.secrets.agents.*` — chosen for Pattern β. When this
-  # module is eventually extracted into the public `inspr-modules` flake,
-  # downstream consumers (Markus's personal nixcfg, BYTEPOETS flake, family
-  # flake, paid-product flakes) keep the same option path. Sibling
-  # categories like `inspr.secrets.projects.*` and `inspr.secrets.hosts.*`
-  # will follow for the Phase 3 Paimos / FleetCom integration.
+  # Namespace: `inspr.secrets.agents.*` — chosen for Pattern β (the public
+  # library exports modules under this namespace; sibling categories like
+  # `inspr.secrets.projects.*` and `inspr.secrets.hosts.*` may follow as
+  # the architecture matures).
   options.inspr.secrets.agents = {
-    enable = lib.mkEnableOption "materialize agent-exception secrets to /Users/mba/Secrets/age/decrypted/agents/";
+    enable = lib.mkEnableOption "materialize agent-exception secrets to <decryptedDir>";
 
     encryptedRoot = lib.mkOption {
       type        = lib.types.path;
@@ -103,16 +114,34 @@ in
       default     = "${config.home.homeDirectory}/Secrets/age/decrypted/agents";
       defaultText = lib.literalExpression ''"''${config.home.homeDirectory}/Secrets/age/decrypted/agents"'';
       description = ''
-        Where decrypted .env files are materialized. Activation owns this dir entirely.
-        Default derives from `config.home.homeDirectory` so the same module works for
-        any user (`mba` on M5 → /Users/mba/...; `markus` on imac0 → /Users/markus/...).
+        Where decrypted .env files are materialized. Activation owns this
+        dir entirely. Default derives from `config.home.homeDirectory` so
+        the same module works for any user without further configuration.
+      '';
+    };
+
+    hostname = lib.mkOption {
+      type        = lib.types.nullOr lib.types.str;
+      default     = null;
+      description = ''
+        Hostname used to locate host-specific secrets at
+        `<encryptedRoot>/host/<hostname>/`. When null, the module uses
+        the `hostname` argument passed via extraSpecialArgs (typical for
+        mkDarwinHome / nixos-rebuild patterns). If neither is set, the
+        module throws at eval time rather than silently skipping host
+        secrets.
       '';
     };
 
     identityFile = lib.mkOption {
       type        = lib.types.str;
       default     = "$HOME/.ssh/id_rsa";
-      description = "User SSH private key used by `age` for decryption. Must correspond to a public key in the recipient list of every materialized secret.";
+      description = ''
+        User SSH private key used by `age` for decryption. Must correspond
+        to a public key in the recipient list of every materialized secret.
+        Variable expansion happens at activation time (shell), so `$HOME`
+        is resolved per-user.
+      '';
     };
   };
 
@@ -131,6 +160,15 @@ in
       # Open the dir for writes during this activation. Lock it back to
       # 0500 (no manual writes possible) at the end of the script.
       chmod 0700 "$DECRYPTED_DIR"
+
+      # CRITICAL invariant: the decrypted dir is mode 0500 OUTSIDE
+      # activation, always. The chmod at the end of this script does
+      # that on success. The trap guarantees it on ANY failure path
+      # too — without this, a mid-loop decrypt failure (corrupt .age,
+      # missing recipient, age binary error) would leave the dir at
+      # 0700 until the next successful activation, allowing manual
+      # writes in the meantime. (Audit-flagged: INSPR-55.)
+      trap 'chmod 0500 "$DECRYPTED_DIR" 2>/dev/null || true' EXIT
 
       # Build the expected file set (computed at Nix eval time; baked into script)
       expected="${expectedBasenames}"
@@ -158,6 +196,9 @@ in
           *" $base "*) ;;  # expected, keep
           *)
             echo "agent-secrets: removing orphan $base"
+            # chflags is macOS-only (BSD nouchg flag clearing). The `|| true`
+            # makes this a silent no-op on Linux, which is correct (Linux
+            # doesn't use the immutable flag in this pipeline).
             chflags nouchg "$f" 2>/dev/null || true
             rm -f "$f"
             ;;
