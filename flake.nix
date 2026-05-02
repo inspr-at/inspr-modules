@@ -80,6 +80,16 @@
         checks =
           let
             secretsAuditPkg = pkgs.callPackage ./pkgs/secrets-audit { };
+
+            # Run the module-eval suite at FLAKE-EVAL time (not at build
+            # time). The suite's default.nix throws on failure, which
+            # surfaces here as an eval error if `moduleEvalReport` is
+            # forced. The runCommand below is just a thin wrapper that
+            # records the report into $out so we have a tangible artifact.
+            moduleEvalReport = import ./tests/module-eval {
+              inherit pkgs;
+              inherit (pkgs) lib;
+            };
           in
           {
             # Functional tests for the secrets-audit binary. Runs each
@@ -105,6 +115,21 @@
                   bash ./run-tests.sh
                 touch $out
               '';
+
+            # Module-eval tests (INSPR-72): exercise HM module options +
+            # assertions + eval-time throws via lib.evalModules + a stub
+            # HM harness. Catches regressions BEFORE `home-manager switch`
+            # — assertions firing at the right times, REQUIRED options
+            # staying required, deprecated options still warning, etc.
+            #
+            # The actual eval happens inside `moduleEvalReport` above
+            # (forced at flake-eval time). This derivation just persists
+            # the resulting summary report as a build artifact.
+            module-eval = pkgs.runCommand "module-eval-tests" { } ''
+              cat > $out <<'REPORT'
+              ${moduleEvalReport}
+              REPORT
+            '';
           };
       }
     );

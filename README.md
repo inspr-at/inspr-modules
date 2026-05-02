@@ -97,11 +97,12 @@ nix flake check --all-systems         # run every test on every supported system
 nix build .#checks.aarch64-darwin.secrets-audit-functional --print-build-logs
 ```
 
-### Tests today (v0.1.0)
+### Tests today
 
 | Check | Coverage |
 |---|---|
 | `secrets-audit-functional` | Drift detection logic (clean / declared-missing / orphan / commented-out fixtures); `--help` regression test for [INSPR-50](https://github.com/markus-barta/inspr-modules/commit/8fa4b37) (PATH-leak-in-help symptom that prompted the writeShellApplication migration) |
+| `module-eval` (since INSPR-72) | 21 sub-tests across the three HM modules, run via `lib.evalModules` + a stub HM harness (`tests/module-eval/harness.nix`). Verifies: assertions fire when they should (paimos-config), throws fire when they should (agent-secrets undefined hostname, git-identity unknown identity reference), defaults are sane (decryptedDir derives from homeDirectory, identityFiles tries ed25519 before rsa), required options stay required (encryptedRoot has no default), deprecated options still warn, `programs.git.includes` count matches context declarations. Runs entirely at flake-eval time — no activation, no real HM, no network. |
 
 ### Local dev (without nix sandbox)
 
@@ -112,8 +113,8 @@ nix build .#secrets-audit
 
 ### Roadmap
 
-- Module-eval tests for HM modules (assertions trigger correctly, defaults are sane) — needs a stub HM option harness via `lib.evalModules`. Filed as a follow-up ticket.
-- NixOS VM integration tests via `pkgs.testers.runNixOSTest` — heavy but the gold standard for "does activation actually work end-to-end."
+- ~~Module-eval tests for HM modules~~ — **shipped (INSPR-72)**, see above.
+- NixOS VM integration tests via `pkgs.testers.runNixOSTest` — heavy but the gold standard for "does activation actually work end-to-end." Filed as a follow-up.
 
 ## Versioning + deprecation policy
 

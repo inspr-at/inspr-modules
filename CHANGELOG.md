@@ -9,9 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Module-eval test suite** — `flake.checks.<system>.module-eval` runs 21 sub-tests across the three HM modules via `lib.evalModules` + a stub HM harness (`tests/module-eval/harness.nix`). Catches regressions BEFORE `home-manager switch`: assertions firing at the right times, REQUIRED options staying required, eval-time throws still throwing, deprecated options still warning, `programs.git.includes` count for git-identity contexts, etc. Sandbox-friendly, runs on every `nix flake check`. [INSPR-72]
+
+### Fixed
+
+- **`paimos-config` is now independently consumable** — previously referenced `config.inspr.secrets.agents.enable` directly, which failed eval (`attribute 'secrets' missing`) when `paimos-config` was imported without `agent-secrets`. Now uses `config.inspr.secrets.agents.enable or false` — modules can be picked à la carte. (Found by INSPR-72 module-eval suite — the kind of regression module-level eval catches that integration tests miss.)
+
 ### Planned
 
-- **Module-eval test suite** — exercise module assertions via `lib.evalModules` + a stub HM option harness. Catches regressions BEFORE switch (current functional tests catch them at the binary level only). [INSPR-72]
 - **NixOS VM integration tests** — `pkgs.testers.runNixOSTest` for end-to-end activation testing. Heavy but the gold standard.
 - **NixOS-equivalent modules** — server-side counterparts for the HM modules currently here (workstation-only).
 - **1Password tag-export integration** — Phase 2 secrets graduation (consumer-side script that materializes `.age` files from tagged 1Password items). [INSPR-23]

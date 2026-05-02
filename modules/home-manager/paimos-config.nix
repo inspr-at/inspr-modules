@@ -182,8 +182,11 @@ in
     home.activation.bootstrapPaimosConfig = lib.hm.dag.entryAfter (
       [ "writeBoundary" ]
       # If agent-secrets is also enabled, sequence after it so the env files
-      # are guaranteed to exist when our script reads them.
-      ++ lib.optional config.inspr.secrets.agents.enable "materializeAgentSecrets"
+      # are guaranteed to exist when our script reads them. The `or false`
+      # keeps this module independently consumable — without it, importing
+      # paimos-config without agent-secrets would fail eval with
+      # "attribute 'secrets' missing." (Found by INSPR-72 module-eval suite.)
+      ++ lib.optional (config.inspr.secrets.agents.enable or false) "materializeAgentSecrets"
     ) ''
       set -e
 
