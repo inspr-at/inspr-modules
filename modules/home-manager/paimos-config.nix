@@ -7,28 +7,35 @@
 # to use without the manual `paimos auth login --url ... --api-key ...` step.
 #
 # Pairs with:
-#   - modules/shared/agent-secrets.nix  (provides the materialized .env files)
-#   - paimos-cli in home.packages       (the binary that reads this config)
+#   - inspr.secrets.agents (provides the materialized .env files)
+#   - paimos-cli in home.packages (the binary that reads this config)
 #
-# Architecture (Pattern β-aligned with inspr.secrets.agents.*, inspr.git-identity.*):
+# Architecture:
 #   - Each named instance declares: URL + path to KEY=value env file + var name
 #   - Activation sources each env file in a subshell (scoped exposure),
 #     extracts the variable, writes ~/.paimos/config.yaml atomically
 #   - File mode 0600, dir mode 0700 — never world-readable
 #   - Idempotent: re-runs each activation; declarative wins over manual edits
 #   - Safe-degrade: missing env file → instance skipped with a stderr WARN
-#     (so `inspr.paimos-cli.enable = true` doesn't break activation if
-#      agent-secrets isn't yet populated, e.g. first-boot ordering edge cases)
+#     (so enabling this module without agent-secrets configured doesn't
+#      break activation; the YAML just won't include that instance)
 #
-# Closes NIX-96 gap #2.
-#
-# Usage:
-#   imports = [ ../../modules/shared/paimos-config.nix ];
+# Usage (consumer's home.nix):
+#   imports = [ inputs.inspr-modules.homeManagerModules.paimos-config ];
 #   inspr.paimos-cli = {
 #     enable = true;
-#     # `instances` has a sensible default (ppm only) — extend if you also
-#     # want pmo configured (set apiKeyEnvFile to the materialized PMOAPIKEY).
+#     defaultInstance = "mine";
+#     instances.mine = {
+#       url           = "https://your-paimos.example.com";
+#       apiKeyEnvFile = "/run/agenix/your-paimos-api-key";  # or ~/.../X.env
+#       apiKeyVar     = "PAIMOS_API_KEY";
+#     };
 #   };
+#
+# Note: `instances` defaults to `{}` — consumers MUST declare at least one
+# instance. There is no sensible cross-context default for a public library.
+#
+# License: MIT (part of inspr-modules — see flake.nix).
 #
 {
   config,
@@ -42,6 +49,14 @@ let
 
   # Build one YAML fragment per declared instance. Wraps each in a subshell
   # so the sourced env vars don't bleed into the next iteration.
+  #
+  # YAML safety (audit-flagged: INSPR-52):
+  #   - api_key is written as a SINGLE-QUOTED YAML scalar — that's a
+  #     literal string in YAML, which makes any character safe except
+  #     a single quote (escaped per spec by doubling: ' → '').
+  #   - Without this, leading `*`/`&`/`[`/`{` would be interpreted as
+  #     anchors/aliases/inline structures; embedded `:` would split
+  #     the key/value parse; embedded `#` would start a comment.
   mkInstanceFragment = name: inst: ''
     if [[ -f "${inst.apiKeyEnvFile}" ]]; then
       (
@@ -49,13 +64,21 @@ let
         # shellcheck disable=SC1090
         source "${inst.apiKeyEnvFile}"
         set +a
-        key_value="$(printenv ${lib.escapeShellArg inst.apiKeyVar})"
-        if [[ -n "$key_value" ]]; then
-          echo "    ${name}:"
-          echo "        url: ${inst.url}"
-          echo "        api_key: $key_value"
+        # printenv exits 1 (no output) if the var is unset; exits 0 with
+        # empty output if the var is set-but-empty. Distinguish — typo
+        # catches are valuable. (Audit-flagged: INSPR-62.)
+        if key_value="$(printenv ${lib.escapeShellArg inst.apiKeyVar})"; then
+          if [[ -n "$key_value" ]]; then
+            # YAML single-quote escape: each ' in the value becomes ''
+            escaped="''${key_value//\'/\'\'}"
+            echo "    ${name}:"
+            echo "        url: ${inst.url}"
+            echo "        api_key: '$escaped'"
+          else
+            echo "paimos-config: WARN ${name}: ${inst.apiKeyVar} is set but empty in ${inst.apiKeyEnvFile}; skipping" >&2
+          fi
         else
-          echo "paimos-config: WARN ${name}: ${inst.apiKeyVar} empty in ${inst.apiKeyEnvFile}; skipping" >&2
+          echo "paimos-config: WARN ${name}: ${inst.apiKeyVar} not set after sourcing ${inst.apiKeyEnvFile} (typo? wrong env file?); skipping" >&2
         fi
       )
     else
@@ -67,9 +90,8 @@ let
     lib.mapAttrsToList mkInstanceFragment cfg.instances
   );
 
-  # No default instances. The previous default (`ppm` → https://pm.barta.cm)
-  # was Markus-specific; for a public library there's no sensible default
-  # URL or secret-path to ship. Consumers MUST declare their own instances.
+  # No default instances. Consumers MUST declare their own — there's no
+  # cross-context-sensible default URL or secret-path for a public library.
   defaultInstances = { };
 in
 {
@@ -82,7 +104,7 @@ in
         Which configured instance becomes the default for `paimos` CLI
         invocations that don't pass `--instance`. Must be a key in `instances`.
       '';
-      example = "ppm";
+      example = "mine";
     };
 
     instances = lib.mkOption {
@@ -92,7 +114,7 @@ in
           - url           the instance's HTTPS endpoint
           - apiKeyEnvFile absolute path to a KEY=value env file (typically
                           materialized by inspr.secrets.agents)
-          - apiKeyVar     variable name inside that env file holding the API key
+          - apiKeyVar     variable name inside the env file holding the API key
         Activation sources each env file in a subshell, extracts the variable,
         and writes config.yaml atomically. Missing files → skipped with a WARN.
       '';
@@ -101,7 +123,7 @@ in
           options = {
             url = lib.mkOption {
               type = lib.types.str;
-              description = "Instance URL (e.g. https://pm.barta.cm)";
+              description = "Instance URL (e.g. https://your-paimos.example.com)";
             };
             apiKeyEnvFile = lib.mkOption {
               type = lib.types.str;
@@ -129,6 +151,28 @@ in
   };
 
   config = lib.mkIf cfg.enable {
+    # Eval-time invariants — fail loudly at switch time, not at paimos
+    # runtime with cryptic "instance not configured" errors.
+    # (Audit-flagged: INSPR-54 + INSPR-69.)
+    assertions = [
+      {
+        assertion = (lib.attrNames cfg.instances) != [ ];
+        message = ''
+          inspr.paimos-cli.enable = true requires at least one entry in
+          inspr.paimos-cli.instances. See `inspr.paimos-cli.instances`
+          example for the expected shape.
+        '';
+      }
+      {
+        assertion = lib.elem cfg.defaultInstance (lib.attrNames cfg.instances);
+        message = ''
+          inspr.paimos-cli.defaultInstance = "${cfg.defaultInstance}" must be a key
+          in inspr.paimos-cli.instances.
+          Declared instances: ${toString (lib.attrNames cfg.instances)}.
+        '';
+      }
+    ];
+
     home.activation.bootstrapPaimosConfig = lib.hm.dag.entryAfter (
       [ "writeBoundary" ]
       # If agent-secrets is also enabled, sequence after it so the env files
@@ -147,6 +191,10 @@ in
       # Build YAML in a tmpfile then mv atomically (so a partial write
       # never leaves the consumer reading a half-written file).
       tmp="$(mktemp "$CONFIG_DIR/.config.yaml.XXXXXX")"
+      # Cleanup on ANY exit path (success: mv removed it already; failure:
+      # this trap removes the orphan to avoid dotfile garbage accumulation).
+      # (Audit-flagged: INSPR-53.)
+      trap 'rm -f "$tmp"' EXIT
       chmod 0600 "$tmp"
 
       {
