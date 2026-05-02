@@ -70,9 +70,10 @@ let
         if key_value="$(printenv ${lib.escapeShellArg inst.apiKeyVar})"; then
           if [[ -n "$key_value" ]]; then
             # YAML single-quote escape: each ' in the value becomes ''
-            # (sed avoids Nix-string escape ambiguity with bash parameter
-            # expansion. printf+sed is the clearest portable approach.)
-            escaped=$(printf '%s' "$key_value" | sed "s/'/''/g")
+            # (Nix-string note: `'''` in source produces `''` in output —
+            # the standard escape for embedding two-single-quotes in a
+            # multi-line `''` Nix string.)
+            escaped=$(printf '%s' "$key_value" | sed "s/'/'''/g")
             echo "    ${name}:"
             echo "        url: ${inst.url}"
             echo "        api_key: '$escaped'"
