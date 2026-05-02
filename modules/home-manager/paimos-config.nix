@@ -74,7 +74,9 @@ let
             # 0x27 0x27 to represent a single 0x27). Hex escapes throughout
             # (no literal quote characters) keep this comment + script
             # safe inside Nix multi-line strings.
-            escaped=$(printf '%s' "$key_value" | awk '{ gsub(/\x27/, "\x27\x27"); print }')
+            # Explicit nix-store path so we don\x27t depend on PATH at
+            # activation time (HM activation has a sparse PATH).
+            escaped=$(printf '%s' "$key_value" | ${pkgs.gawk}/bin/awk '{ gsub(/\x27/, "\x27\x27"); print }')
             echo "    ${name}:"
             echo "        url: ${inst.url}"
             echo "        api_key: '$escaped'"
