@@ -1,35 +1,45 @@
 #!/usr/bin/env bash
 #
-# secrets-audit.sh — Detect drift between secrets/*.age and secrets/secrets.nix
-#
-# Usage:
-#   ./scripts/secrets-audit.sh           # Print report; exit 1 on any drift
-#   ./scripts/secrets-audit.sh --quiet   # Print only on drift; exit 1 on any drift
-#   ./scripts/secrets-audit.sh --json    # Machine-readable output (requires jq)
-#
-# Drift categories:
-#   declared-but-missing — declaration in secrets.nix has no file on disk
-#                          (probably planned secret not yet `agenix -e`'d, OR
-#                          stale declaration after a delete)
-#   on-disk-but-undeclared — file in secrets/ has no entry in secrets.nix
-#                            (orphan; unreachable by agenix --rekey, won't
-#                            decrypt to any host)
-#
-# Exit codes:
-#   0 — no drift
-#   1 — drift detected
-#   2 — usage / environment error
-#
-# Closes NIX-1330.
+# secrets-audit — drift detection between secrets/*.age and secrets.nix
+# (See `--help` for the full description.)
 #
 set -euo pipefail
 
-# Colors (mirror runbook-secrets.sh palette)
-RED=$'\033[0;31m'
-GREEN=$'\033[0;32m'
-YELLOW=$'\033[1;33m'
-CYAN=$'\033[0;36m'
-RESET=$'\033[0m'
+usage() {
+    cat <<'USAGE'
+secrets-audit — Detect drift between secrets/*.age and secrets/secrets.nix
+
+Usage:
+  secrets-audit              Print report; exit 1 on any drift
+  secrets-audit --quiet      Print only on drift; exit 1 on any drift
+  secrets-audit --json       Machine-readable output (requires jq)
+
+Drift categories:
+  declared-but-missing       declaration in secrets.nix has no file on disk
+                              (probably planned secret not yet `agenix -e`'d,
+                               OR stale declaration after a delete)
+  on-disk-but-undeclared     file in secrets/ has no entry in secrets.nix
+                              (orphan; unreachable by `agenix --rekey`,
+                               won't decrypt to any host)
+
+Exit codes:
+  0  no drift
+  1  drift detected
+  2  usage / environment error
+USAGE
+}
+
+# Color escapes — gated on stdout being a TTY, and respect NO_COLOR.
+# (Audit-flagged: INSPR-60.)
+if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
+    RED=$'\033[0;31m'
+    GREEN=$'\033[0;32m'
+    YELLOW=$'\033[1;33m'
+    CYAN=$'\033[0;36m'
+    RESET=$'\033[0m'
+else
+    RED='' GREEN='' YELLOW='' CYAN='' RESET=''
+fi
 
 # Args
 MODE="report" # report | quiet | json
@@ -38,7 +48,7 @@ case "${1:-}" in
 --quiet) MODE="quiet" ;;
 --json) MODE="json" ;;
 -h | --help)
-    sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//'
+    usage
     exit 0
     ;;
 *)
@@ -64,13 +74,16 @@ fi
 SECRETS_DIR="$REPO/secrets"
 SECRETS_NIX="$SECRETS_DIR/secrets.nix"
 
-# Build the two sets
-disk_list="$(find "$SECRETS_DIR" -name '*.age' -type f -print0 |
-    xargs -0 -n1 basename | sort -u)"
-# Some declarations include path prefix (e.g. "agents/shared/FOO.age"),
-# so also extract the full declared path.
-disk_paths="$(find "$SECRETS_DIR" -name '*.age' -type f -printf '%P\n' 2>/dev/null ||
-    find "$SECRETS_DIR" -name '*.age' -type f | sed "s|^$SECRETS_DIR/||")"
+# Build the disk set. Declarations include path prefix (e.g.
+# "agents/shared/FOO.age"), so we capture the full relative path.
+# `find -printf` is GNU-only; on BSD/macOS we fall back to sed-strip.
+# (Audit-flagged: INSPR-59 was unused `disk_list`; removed.)
+if disk_paths="$(find "$SECRETS_DIR" -name '*.age' -type f -printf '%P\n' 2>/dev/null)" &&
+    [[ -n "$disk_paths" ]]; then
+    : # GNU find branch succeeded
+else
+    disk_paths="$(find "$SECRETS_DIR" -name '*.age' -type f | sed "s|^$SECRETS_DIR/||")"
+fi
 disk_paths="$(echo "$disk_paths" | sort -u)"
 
 # Declared: anything in quoted form `"...age"` in secrets.nix.
