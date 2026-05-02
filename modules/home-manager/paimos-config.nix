@@ -69,11 +69,11 @@ let
         # catches are valuable. (Audit-flagged: INSPR-62.)
         if key_value="$(printenv ${lib.escapeShellArg inst.apiKeyVar})"; then
           if [[ -n "$key_value" ]]; then
-            # YAML single-quote escape: each ' in the value becomes ''
-            # (Nix-string note: `'''` in source produces `''` in output —
-            # the standard escape for embedding two-single-quotes in a
-            # multi-line `''` Nix string.)
-            escaped=$(printf '%s' "$key_value" | sed "s/'/'''/g")
+            # YAML single-quote escape: each ' (0x27) in the value becomes ''
+            # (uses hex escapes throughout to avoid Nix-string ambiguity
+            # with `''`-strings — embedding literal '' in a Nix `''`-string
+            # is genuinely tricky to get right across nix versions.)
+            escaped=$(printf '%s' "$key_value" | awk '{ gsub(/\x27/, "\x27\x27"); print }')
             echo "    ${name}:"
             echo "        url: ${inst.url}"
             echo "        api_key: '$escaped'"
