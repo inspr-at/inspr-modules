@@ -11,11 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Planned
 
-- **Tests** — `pkgs.testers.runNixOSTest` integration tests + bats unit tests for shell scripts
-- **CI** — GitHub Actions running `nix flake check --all-systems` on every PR
-- **NixOS-equivalent modules** — server-side counterparts for the HM modules currently here (workstation-only)
-- **1Password tag-export integration** — Phase 2 secrets graduation (consumer-side script that materializes `.age` files from tagged 1Password items)
-- **Doctor genericization** — extract the Markus-specific values from `inspr-doctor` into config so the same script runs against any consumer's setup
+- **Module-eval test suite** — exercise module assertions via `lib.evalModules` + a stub HM option harness. Catches regressions BEFORE switch (current functional tests catch them at the binary level only). [INSPR-72]
+- **NixOS VM integration tests** — `pkgs.testers.runNixOSTest` for end-to-end activation testing. Heavy but the gold standard.
+- **NixOS-equivalent modules** — server-side counterparts for the HM modules currently here (workstation-only).
+- **1Password tag-export integration** — Phase 2 secrets graduation (consumer-side script that materializes `.age` files from tagged 1Password items). [INSPR-23]
+- **Doctor genericization** — extract Markus-specific values from `inspr-doctor` into config so the same script runs against any consumer's setup. [INSPR-44 follow-up]
 
 ---
 
@@ -40,6 +40,16 @@ Initial Pattern β extraction from [markus-barta/nixcfg](https://github.com/mark
 - **Tmpfile cleanup** — `paimos-config` activation now uses `trap rm -f EXIT` to clean up the YAML tmpfile on any failure. No more dotfile garbage in `~/.paimos/`. (closes audit finding H2)
 - **Hostname silent-default footgun** — `agent-secrets` now throws a clear eval-time error if hostname can't be determined (was: literal string `"$(hostname -s)"` which silently produced zero host-specific secret discovery). New explicit `hostname` option as alternate path. (closes audit finding C8)
 - **`secrets-audit` packaging** — switched from `mkDerivation + postFixup-sed-injection` to `writeShellApplication`. The previous form broke `--help` (the PATH-export sed injection collided with the help-extraction sed). Now `--help` is clean; closure is automatic-minimum; shellcheck runs at build time. (closes audit findings C7 + H6 + M2 + O4)
+
+- **Functional test suite** — `flake.checks.<system>.secrets-audit-functional` runs 7 sub-tests: drift detection across 4 fixtures (clean / declared-missing / orphan / commented-out) plus a `--help` regression test for INSPR-50/C7. Sandbox-friendly, runs on every `nix flake check` + every CI push. (closes audit finding O1, partial — module-eval tests deferred to INSPR-72)
+
+- **GitHub Actions CI** — `.github/workflows/check.yml` runs `nix flake check --all-systems` on push + PR + manual trigger; cross-builds `secrets-audit` on Ubuntu + macOS; includes a regression test that `--help` doesn't leak the PATH export. (closes audit finding O2)
+
+### Documentation
+
+- **CHANGELOG.md** (this file) — keepachangelog.com format. (closes audit finding O3)
+- **README** — added "Testing" section (how to run + roadmap), "Versioning + deprecation policy" section (semver interpretation + 1-MINOR-cycle deprecation window), "Recovery scenarios" table (9 common failure modes + fixes). (closes audit findings O5 + O7)
+- **All module headers + option descriptions** stripped of Markus-specific identifiers, paths, and roadmap details. Public-library-appropriate framing throughout. (closes audit findings C1 + C2 + C3 + C4 + C6)
 
 ### Changed
 
