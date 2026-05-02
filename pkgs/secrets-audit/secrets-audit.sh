@@ -57,17 +57,28 @@ case "${1:-}" in
     ;;
 esac
 
-# Resolve nixcfg root. Try in order:
-#   1. cwd's git toplevel (the common case: invoked from inside nixcfg)
-#   2. this script's own location's parent (lets external callers like
-#      inspr-doctor invoke the audit by absolute path from any cwd)
-REPO="$(git rev-parse --show-toplevel 2>/dev/null || true)"
-if [[ -z "$REPO" || ! -f "$REPO/secrets/secrets.nix" ]]; then
+# Resolve repo root (the directory containing `secrets/secrets.nix`). Try in order:
+#   1. $INSPR_AUDIT_REPO env override (explicit, useful for tests + scripted callers)
+#   2. cwd itself if it has secrets/secrets.nix (the fixture/test case)
+#   3. cwd's git toplevel (common case: invoked from anywhere inside the repo)
+#   4. this script's own location's parent (absolute-path invocation fallback)
+REPO=""
+if [[ -n "${INSPR_AUDIT_REPO:-}" && -f "$INSPR_AUDIT_REPO/secrets/secrets.nix" ]]; then
+    REPO="$INSPR_AUDIT_REPO"
+elif [[ -f "$PWD/secrets/secrets.nix" ]]; then
+    REPO="$PWD"
+elif REPO_TOP="$(git rev-parse --show-toplevel 2>/dev/null)" && [[ -f "$REPO_TOP/secrets/secrets.nix" ]]; then
+    REPO="$REPO_TOP"
+else
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    REPO="$(cd "$SCRIPT_DIR/.." && pwd)"
+    REPO_PARENT="$(cd "$SCRIPT_DIR/.." 2>/dev/null && pwd)"
+    if [[ -f "$REPO_PARENT/secrets/secrets.nix" ]]; then
+        REPO="$REPO_PARENT"
+    fi
 fi
-if [[ ! -f "$REPO/secrets/secrets.nix" ]]; then
-    echo "${RED}error:${RESET} cannot locate nixcfg repo (no secrets/secrets.nix found)" >&2
+if [[ -z "$REPO" ]]; then
+    echo "${RED}error:${RESET} cannot locate repo (no secrets/secrets.nix found in cwd, git toplevel, or script-adjacent)" >&2
+    echo "  Hint: set INSPR_AUDIT_REPO=/path/to/repo, or cd into the repo root first." >&2
     exit 2
 fi
 

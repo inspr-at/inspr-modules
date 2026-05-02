@@ -72,6 +72,40 @@
         packages = {
           secrets-audit = pkgs.callPackage ./pkgs/secrets-audit { };
         };
+
+        # ── Test suite (run via `nix flake check`) ───────────────────────
+        # Each check is a derivation that succeeds (touches $out) if its
+        # test passes, fails the build otherwise. Sandbox-friendly — no
+        # network, all deps via nativeBuildInputs.
+        checks =
+          let
+            secretsAuditPkg = pkgs.callPackage ./pkgs/secrets-audit { };
+          in
+          {
+            # Functional tests for the secrets-audit binary. Runs each
+            # fixture (clean / declared-missing / orphan / with-comments)
+            # through the binary and asserts exit codes + output content.
+            # Includes a regression test for INSPR-50 (--help PATH leak).
+            secrets-audit-functional = pkgs.runCommand "secrets-audit-functional"
+              {
+                nativeBuildInputs = [
+                  pkgs.bash
+                  pkgs.coreutils
+                  pkgs.gnugrep
+                  pkgs.gnused
+                  secretsAuditPkg
+                ];
+              }
+              ''
+                # Copy the tests dir into the sandbox (sources are read-only by default)
+                cp -r ${./tests} ./tests
+                chmod -R u+w ./tests
+                cd ./tests/secrets-audit
+                SECRETS_AUDIT=${secretsAuditPkg}/bin/secrets-audit \
+                  bash ./run-tests.sh
+                touch $out
+              '';
+          };
       }
     );
 }

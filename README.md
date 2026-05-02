@@ -88,6 +88,33 @@ These modules emerged from the INSPR onboarding sessions documented in the (priv
 
 A "context flake" is anything that consumes inspr-modules + provides its own values: Markus's personal `nixcfg`, his BYTEPOETS work flake, his family flake, future paid-product flakes — each declares its own identity, hosts, and secrets, and gets the rest for free.
 
+## Testing
+
+Test suite lives under `tests/` and is exposed via `flake.checks.<system>.*`:
+
+```bash
+nix flake check --all-systems         # run every test on every supported system
+nix build .#checks.aarch64-darwin.secrets-audit-functional --print-build-logs
+```
+
+### Tests today (v0.1.0)
+
+| Check | Coverage |
+|---|---|
+| `secrets-audit-functional` | Drift detection logic (clean / declared-missing / orphan / commented-out fixtures); `--help` regression test for [INSPR-50](https://github.com/markus-barta/inspr-modules/commit/8fa4b37) (PATH-leak-in-help symptom that prompted the writeShellApplication migration) |
+
+### Local dev (without nix sandbox)
+
+```bash
+nix build .#secrets-audit
+./tests/secrets-audit/run-tests.sh
+```
+
+### Roadmap
+
+- Module-eval tests for HM modules (assertions trigger correctly, defaults are sane) — needs a stub HM option harness via `lib.evalModules`. Filed as a follow-up ticket.
+- NixOS VM integration tests via `pkgs.testers.runNixOSTest` — heavy but the gold standard for "does activation actually work end-to-end."
+
 ## Versioning + deprecation policy
 
 Semantic versioning: **MAJOR.MINOR.PATCH** per [semver.org](https://semver.org/).

@@ -26,6 +26,9 @@ jobs:
             accept-flake-config = true
 
       - name: nix flake check (all systems)
+        # Runs all `checks.<system>.*` derivations including the
+        # secrets-audit-functional test suite (tests/secrets-audit/).
+        # See README → Testing for details.
         run: nix flake check --all-systems --print-build-logs
 
   build-secrets-audit:
