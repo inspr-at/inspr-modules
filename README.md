@@ -16,6 +16,13 @@ Reusable Home Manager modules + utilities from the [INSPR](https://inspr.at) ini
 | `ssh-authorized` | `inspr.ssh.authorized` | Declarative `~/.ssh/authorized_keys` via aliased key map + trust list. Manages a marker-delimited block; lines outside the markers (Headscale deploy keys, GitHub Actions OIDC, recovery keys) are preserved across activations. Sorted output → byte-identical regardless of input order. Throws at eval time if `trust` references an undeclared alias. **Rich keys form** (since INSPR-77) supports per-key `{ status; note; }` metadata for grandfathering: `legacy` keys render with a `[legacy]` tag for fleet-wide audit, `revoked` keys keep the declaration as historical record but are not admitted (and throw if accidentally left in `trust`). |
 | `default` | (aggregate) | Imports all four above. Consumers wanting à-la-carte should import individual modules. |
 
+### NixOS modules
+
+| Module | Namespace | What it does |
+|---|---|---|
+| `ssh-authorized` | `inspr.ssh.authorized` | System-side counterpart to the HM `ssh-authorized` (since INSPR-73). Same shared keyring (rich-key form, `status: active \| legacy \| revoked`) but renders into `users.users.<u>.openssh.authorizedKeys.keys` (which NixOS materializes as `/etc/ssh/authorized_keys.d/<u>`). **Multi-user**: `inspr.ssh.authorized.users.<name>.{trust, force, extraKeys}`. **`force = true`** wraps the rendered list in `lib.mkForce` to displace upstream-injected keys (e.g. server-home / hokage profiles); default `false` merges via list concatenation. Throws at eval time on undeclared alias OR revoked-in-trust. Define the `keys` keyring in a plain-Nix file imported at BOTH NixOS-module scope (for this module) AND HM scope (for the HM module) — single source of truth across both. |
+| `default` | (aggregate) | Imports all NixOS modules. |
+
 ### Packages
 
 | Package | What it does |
@@ -103,7 +110,7 @@ nix build .#checks.aarch64-darwin.secrets-audit-functional --print-build-logs
 | Check | Coverage |
 |---|---|
 | `secrets-audit-functional` | Drift detection logic (clean / declared-missing / orphan / commented-out fixtures); `--help` regression test for [INSPR-50](https://github.com/markus-barta/inspr-modules/commit/8fa4b37) (PATH-leak-in-help symptom that prompted the writeShellApplication migration) |
-| `module-eval` (since INSPR-72) | 33 sub-tests across the four HM modules, run via `lib.evalModules` + a stub HM harness (`tests/module-eval/harness.nix`). Verifies: assertions fire when they should (paimos-config), throws fire when they should (agent-secrets undefined hostname, git-identity unknown identity reference, ssh-authorized undeclared trust alias OR revoked-key-in-trust), defaults are sane (decryptedDir derives from homeDirectory, identityFiles tries ed25519 before rsa), required options stay required (encryptedRoot has no default), deprecated options still warn, `programs.git.includes` count matches context declarations, ssh-authorized output is deterministic regardless of input order, ssh-authorized rich keys form supports legacy/revoked grandfathering with declaration preservation. Runs entirely at flake-eval time — no activation, no real HM, no network. |
+| `module-eval` (since INSPR-72) | 47 sub-tests across the four HM modules + the NixOS module (since INSPR-73), run via `lib.evalModules` + stub HM and NixOS harnesses (`tests/module-eval/harness.nix`). Verifies: assertions fire when they should (paimos-config), throws fire when they should (agent-secrets undefined hostname, git-identity unknown identity reference, ssh-authorized undeclared trust alias OR revoked-key-in-trust on BOTH HM + NixOS variants), defaults are sane (decryptedDir derives from homeDirectory, identityFiles tries ed25519 before rsa), required options stay required (encryptedRoot has no default), deprecated options still warn, `programs.git.includes` count matches context declarations, ssh-authorized output is deterministic regardless of input order, ssh-authorized rich keys form supports legacy/revoked grandfathering with declaration preservation, NixOS variant supports multi-user rendering and `force` toggle for displacing upstream injection. Runs entirely at flake-eval time — no activation, no real HM, no network. |
 
 ### Local dev (without nix sandbox)
 

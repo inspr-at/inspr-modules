@@ -155,6 +155,87 @@ let
         # No message — see comment above on Nix limitation.
       };
 
+  # ── NixOS-shaped option-set stub ────────────────────────────────────────
+  # Mirrors the slice of NixOS options our `nixosModules.*` write into.
+  # Same minimalism as the HM stub: structural-only; we are not validating
+  # that activation snippets parse, that systemd units are well-formed,
+  # etc. We only assert that evaluation succeeds/fails at the right times
+  # and that the rendered values are what we expect.
+  #
+  # Currently covers what `nixosModules.ssh-authorized` writes
+  # (users.users.<u>.openssh.authorizedKeys.keys + warnings + assertions).
+  # Extend as new NixOS modules land.
+  stubNixosModule = { lib, ... }: {
+    options = {
+      users = {
+        users = lib.mkOption {
+          type = lib.types.attrsOf (lib.types.submodule {
+            options = {
+              openssh = {
+                authorizedKeys = {
+                  keys = lib.mkOption {
+                    type    = lib.types.listOf lib.types.str;
+                    default = [ ];
+                  };
+                };
+              };
+            };
+          });
+          default = { };
+        };
+      };
+      warnings = lib.mkOption {
+        type    = lib.types.listOf lib.types.str;
+        default = [ ];
+      };
+      assertions = lib.mkOption {
+        type    = lib.types.listOf (lib.types.submodule {
+          options = {
+            assertion = lib.mkOption { type = lib.types.bool; };
+            message   = lib.mkOption { type = lib.types.str;  };
+          };
+        });
+        default = [ ];
+      };
+    };
+  };
+
+  # ── NixOS-module eval helper ────────────────────────────────────────────
+  # Same shape as `evalModule` (return `{ success; config; warnings; ... }`
+  # records, propagate eval throws as `success = false`), but uses the
+  # NixOS-shaped stub instead of HM-shaped. Use this from tests for
+  # `nixosModules.*` modules.
+  evalNixosModule = { module, config ? { }, extraArgs ? { } }:
+    let
+      evaluated = lib.evalModules {
+        modules = [
+          stubNixosModule
+          module
+          { inherit config; }
+          { _module.args = { inherit pkgs; } // extraArgs; }
+        ];
+      };
+
+      # Force the testable surface deeply enough that lazy throws
+      # (e.g. revoked-in-trust) fire during eval rather than later.
+      forced = builtins.deepSeq {
+        inherit (evaluated.config) users warnings assertions;
+      } evaluated;
+
+      result = builtins.tryEval forced;
+    in
+      if result.success
+      then {
+        success    = true;
+        config     = evaluated.config;
+        assertions = evaluated.config.assertions;
+        warnings   = evaluated.config.warnings;
+        failedAssertions = lib.filter (a: !a.assertion) evaluated.config.assertions;
+      }
+      else {
+        success = false;
+      };
+
   # ── Test result aggregator ──────────────────────────────────────────────
   # Each test is `{ name; assertion = bool; }`. This collapses a list of
   # them into a `{ total; passed; failedTests = [ "[suite] testname" ] }`
@@ -171,5 +252,5 @@ let
     };
 
 in {
-  inherit evalModule runTests;
+  inherit evalModule evalNixosModule runTests;
 }

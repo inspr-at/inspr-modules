@@ -23,6 +23,12 @@
 #                                       via aliased key map + trust list,
 #                                       with marker-block coexistence.
 #   homeManagerModules.default         Aggregate of all four above.
+#   nixosModules.ssh-authorized        System-side counterpart to the HM
+#                                       ssh-authorized — manages
+#                                       users.users.<u>.openssh.authorizedKeys.keys
+#                                       from the same keyring (multi-user,
+#                                       status-filtered, force-toggleable).
+#   nixosModules.default               Aggregate of all NixOS modules.
 #   packages.<system>.secrets-audit    Bash script: detect drift between
 #                                       secrets/*.age and secrets.nix
 #                                       declarations.
@@ -64,6 +70,17 @@
         paimos-config = ./modules/home-manager/paimos-config.nix;
         ssh-authorized = ./modules/home-manager/ssh-authorized.nix;
         default = ./modules/home-manager/default.nix;
+      };
+
+      # ── NixOS modules ──────────────────────────────────────────────────
+      # System-side modules — same `inspr.<name>.*` option namespace as
+      # the HM modules where applicable, but render into NixOS-native
+      # option spots (e.g. `users.users.<u>.openssh.authorizedKeys.keys`).
+      # Consumers import at NixOS-module scope (top-level
+      # configuration.nix or shared profile).
+      nixosModules = {
+        ssh-authorized = ./modules/nixos/ssh-authorized.nix;
+        default = ./modules/nixos/default.nix;
       };
     }
     // flake-utils.lib.eachDefaultSystem (
