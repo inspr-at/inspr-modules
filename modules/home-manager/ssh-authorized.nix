@@ -373,13 +373,19 @@ in
           END {
             # Defensive: if begin marker was present but end marker was
             # missing (truncated file?), the in_block flag would still be
-            # set here. We've already printed the new block, so the rest
-            # of the file is gone — that's the right outcome (the file
-            # was already corrupt; we cleanly replaced it).
+            # set here. We have already printed the new block, so the
+            # rest of the file is gone — that is the right outcome (the
+            # file was already corrupt; we cleanly replaced it).
+            #
+            # NOTE: NO APOSTROPHES in comments inside this awk block.
+            # The whole awk script is wrapped in bash single quotes;
+            # any apostrophe terminates the bash string and bash then
+            # tries to parse the awk syntax as bash. Use full forms
+            # (we have, that is, does not, etc.) instead of contractions.
             if (printed_block == 0) {
-              # Should not be reachable given the outer if-grep above, but
-              # be paranoid: append the new block if for any reason the
-              # match failed inside awk.
+              # Should not be reachable given the outer if-grep above,
+              # but be paranoid: append the new block if for any reason
+              # the match failed inside awk.
               while ((getline line < blockfile) > 0) print line
               close(blockfile)
             }
