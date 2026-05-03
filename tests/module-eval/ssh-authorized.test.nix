@@ -182,6 +182,114 @@ let
         };
         in !r.success;
     }
+
+    # ── INSPR-77 tests (rich keys form) ─────────────────────────────────
+
+    # ── Rich form with status=legacy + note ─────────────────────────────
+    # The activation script bakes the managed block into a /nix/store file
+    # via `pkgs.writeText`. We can't directly inspect that file's content
+    # from eval (would require IFD), but we can assert the activation
+    # script string references the new managedBlockFile derivation and
+    # successfully evaluated. The "byte-identical determinism" test below
+    # complements this by proving the renderer is consistent.
+    {
+      name = "rich form with status=legacy + note evaluates cleanly";
+      assertion =
+        let r = evalModule {
+          module = sshAuthorized;
+          config = {
+            inspr.ssh.authorized.enable = true;
+            inspr.ssh.authorized.keys = {
+              "shared-rsa-pre-2026" = {
+                key    = "ssh-rsa AAAAB3NzaC1yc2EAAAA0000 markus";
+                status = "legacy";
+                note   = "shared pre-2026 RSA; retire after ed25519 rollout";
+              };
+            };
+            inspr.ssh.authorized.trust = [ "shared-rsa-pre-2026" ];
+          };
+        };
+        in r.success
+           && r.config.warnings == [ ]
+           && lib.hasInfix "1 keys admitted" (activationFor r);
+    }
+
+    # ── Mixed string + rich in same `keys` map ──────────────────────────
+    # The `lib.types.either str submodule` accepts both forms in the same
+    # attrset. The renderer normalizes via `normalizeKey` so downstream
+    # logic doesn't care which form was used.
+    {
+      name = "mixed string + rich keys in same map both work";
+      assertion =
+        let r = evalModule {
+          module = sshAuthorized;
+          config = {
+            inspr.ssh.authorized.enable = true;
+            inspr.ssh.authorized.keys = {
+              "alice@simple" = baseKeys."alice@m1";  # bare string
+              "bob-rich" = {                          # rich form
+                key    = baseKeys."bob@m2";
+                status = "active";
+              };
+            };
+            inspr.ssh.authorized.trust = [ "alice@simple" "bob-rich" ];
+          };
+        };
+        in r.success
+           && r.config.warnings == [ ]
+           && lib.hasInfix "2 keys admitted" (activationFor r);
+    }
+
+    # ── status=revoked + alias IN trust → throws ────────────────────────
+    # The "did you forget to remove from trust" footgun. Revoked keys are
+    # supposed to keep the declaration around as historical record but
+    # NOT be admitted. Putting one in `trust` is contradictory.
+    {
+      name = "revoked alias also in trust fails eval";
+      assertion =
+        let r = evalModule {
+          module = sshAuthorized;
+          config = {
+            inspr.ssh.authorized.enable = true;
+            inspr.ssh.authorized.keys = {
+              "old-deploy-key" = {
+                key    = "ssh-ed25519 AAAA... old-deploy";
+                status = "revoked";
+                note   = "compromised 2026-04-15; retired";
+              };
+            };
+            inspr.ssh.authorized.trust = [ "old-deploy-key" ];
+          };
+        };
+        in !r.success;
+    }
+
+    # ── status=revoked + alias NOT in trust → succeeds, declaration kept
+    # The intended terminal state for retired keys: declaration preserved
+    # as historical record (so anyone reading the config sees what USED
+    # to be trusted and why), but no admittance.
+    {
+      name = "revoked alias absent from trust evaluates cleanly (declaration preserved)";
+      assertion =
+        let r = evalModule {
+          module = sshAuthorized;
+          config = {
+            inspr.ssh.authorized.enable = true;
+            inspr.ssh.authorized.keys = {
+              "old-deploy-key" = {
+                key    = "ssh-ed25519 AAAA... old-deploy";
+                status = "revoked";
+                note   = "compromised 2026-04-15; retired";
+              };
+              "current-deploy" = baseKeys."alice@m1";  # active
+            };
+            inspr.ssh.authorized.trust = [ "current-deploy" ];  # only current admitted
+          };
+        };
+        in r.success
+           && r.config.warnings == [ ]
+           && lib.hasInfix "1 keys admitted" (activationFor r);
+    }
   ];
 
 in

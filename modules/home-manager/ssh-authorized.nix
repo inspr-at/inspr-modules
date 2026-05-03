@@ -48,6 +48,35 @@
 # managed blocks regardless of input order — useful for diff review and
 # git noise minimization.
 #
+# Rich key form (since INSPR-77)
+# ──────────────────────────────
+# Each entry in `keys` accepts EITHER a string (the key itself) OR a
+# submodule `{ key; status?; note?; }`:
+#
+#   keys = {
+#     # Simple form — still supported, treated as `status = "active"`
+#     "alice@simple" = "ssh-ed25519 AAAA... alice";
+#
+#     # Rich form — for grandfathering / audit
+#     "shared-rsa-pre-2026" = {
+#       key    = "ssh-rsa AAAA... markus";
+#       status = "legacy";
+#       note   = "shared RSA pre-2026; retire after per-host ed25519 rollout";
+#     };
+#   };
+#
+# Status values:
+#   - "active"  (default) — admitted normally, no comment-line tagging
+#   - "legacy"  — admitted, but rendered with `[legacy]` tag in the comment
+#                 line for fleet-wide visibility (so a future inspr-doctor
+#                 or FleetCom dashboard can inventory pending retirements)
+#   - "revoked" — NOT admitted to authorized_keys. The declaration stays
+#                 as historical record. Throws at eval time if a revoked
+#                 alias also appears in `trust` — that's the "I forgot to
+#                 remove from trust" footgun caught early.
+#
+# When `note` is set, it's appended as ` (<note>)` to the comment line.
+#
 # What this module does NOT do (filed as follow-ups)
 # ──────────────────────────────────────────────────
 #   - INSPR-73: NixOS-side variant rendering into
@@ -67,18 +96,36 @@
 let
   cfg = config.inspr.ssh.authorized;
 
-  # Look up a key by alias; throw with full context on miss. Silent
-  # fall-through (e.g. emitting a key labeled "ghost" with no body) would
-  # be a real footgun — empty-body lines in authorized_keys are silently
-  # ignored by sshd, so the host would just stop trusting that alias
-  # without any warning. Throw makes the misconfiguration visible at
-  # `nix flake check` time.
+  # Normalize the simple-string form into the rich-record canonical form.
+  # Consumers can declare a key as either a bare string or a full submodule
+  # — internally we always operate on `{ key; status; note; }`. (INSPR-77)
+  normalizeKey =
+    value:
+    if builtins.isString value then
+      {
+        key = value;
+        status = "active";
+        note = null;
+      }
+    else
+      value;
+
+  # Look up a key by alias and return its canonical record. Throws with
+  # full context on miss. Silent fall-through (e.g. emitting a key labeled
+  # "ghost" with no body) would be a real footgun — empty-body lines in
+  # authorized_keys are silently ignored by sshd, so the host would just
+  # stop trusting that alias without any warning. Throw makes the
+  # misconfiguration visible at `nix flake check` time.
   keyByAlias =
     alias:
-    cfg.keys.${alias} or (throw ''
-      inspr.ssh.authorized: alias "${alias}" listed in `trust` but not declared in `keys`.
-      Declared aliases: ${toString (lib.attrNames cfg.keys)}
-    '');
+    let
+      raw =
+        cfg.keys.${alias} or (throw ''
+          inspr.ssh.authorized: alias "${alias}" listed in `trust` but not declared in `keys`.
+          Declared aliases: ${toString (lib.attrNames cfg.keys)}
+        '');
+    in
+    normalizeKey raw;
 
   # Sort the trust list at eval time. Determinism property: two consumers
   # with equivalent inputs always produce a byte-identical managed block,
@@ -86,20 +133,50 @@ let
   # activation diff or cause spurious git noise on rebuilds.
   sortedTrust = lib.sort (a: b: a < b) cfg.trust;
 
-  # Render the managed block. Each admitted alias contributes two lines:
-  # a `# alias: <name>` comment for human-readable audit trail, then the
-  # key body itself. Whole block is enclosed in begin/end markers so the
-  # activation script can replace it in-place without disturbing the rest
-  # of the file.
+  # Render one trust entry → list of [commentLine, keyBody]. Status drives
+  # the comment-line decoration:
+  #   "active"  → "# alias: <name>"
+  #   "legacy"  → "# alias: <name> [legacy]"
+  #   "revoked" → THROWS (revoked aliases must NOT be in trust — see
+  #               INSPR-77; status was meant to keep the declaration as
+  #               historical record while removing the admission)
+  # Notes are appended as " (<note>)" suffix on any non-throwing status.
+  renderEntry =
+    alias:
+    let
+      meta = keyByAlias alias;
+      statusTag =
+        if meta.status == "active" then
+          ""
+        else if meta.status == "legacy" then
+          " [legacy]"
+        else
+          throw ''
+            inspr.ssh.authorized: alias "${alias}" is in `trust` but its
+            declaration has status = "revoked". Revoked keys MUST NOT be
+            admitted — the whole point of the revoked status is "kept as
+            historical record, no longer admitted."
+
+            Either:
+              (a) remove "${alias}" from `trust` (preferred — declaration
+                  stays in `keys` as an audit trail of past admittance), or
+              (b) change status back to "active" / "legacy" if the
+                  revocation was premature.
+          '';
+      noteSuffix = if meta.note != null then " (${meta.note})" else "";
+      commentLine = "# alias: ${alias}${statusTag}${noteSuffix}";
+    in
+    [
+      commentLine
+      meta.key
+    ];
+
+  # Render the managed block. Each admitted alias contributes two lines
+  # (comment + key body). Whole block enclosed in begin/end markers so
+  # the activation script can replace it in-place without disturbing the
+  # rest of the file.
   managedBlock = lib.concatStringsSep "\n" (
-    [ cfg.markerBegin ]
-    ++ lib.flatten (
-      map (alias: [
-        "# alias: ${alias}"
-        (keyByAlias alias)
-      ]) sortedTrust
-    )
-    ++ [ cfg.markerEnd ]
+    [ cfg.markerBegin ] ++ lib.flatten (map renderEntry sortedTrust) ++ [ cfg.markerEnd ]
   );
 
   # The managed block as a Nix-store file. Written once at eval time;
@@ -113,12 +190,59 @@ in
     enable = lib.mkEnableOption "declarative SSH authorized_keys management via aliased key map";
 
     keys = lib.mkOption {
-      type = lib.types.attrsOf lib.types.str;
+      type = lib.types.attrsOf (
+        lib.types.either lib.types.str (
+          lib.types.submodule {
+            options = {
+              key = lib.mkOption {
+                type = lib.types.str;
+                description = ''
+                  The full SSH public key string (the entire
+                  `ssh-<type> <material> <comment>` line as it would
+                  appear in `authorized_keys`).
+                '';
+              };
+              status = lib.mkOption {
+                type = lib.types.enum [
+                  "active"
+                  "legacy"
+                  "revoked"
+                ];
+                default = "active";
+                description = ''
+                  Lifecycle status of this key (since INSPR-77):
+                    - "active"  (default): admitted normally; no extra
+                      comment-line decoration
+                    - "legacy":  admitted, but rendered with `[legacy]`
+                      tag in the comment line for fleet-wide visibility
+                      (so a future inspr-doctor / FleetCom dashboard can
+                      inventory pending retirements)
+                    - "revoked": NOT admitted to authorized_keys. The
+                      declaration stays in `keys` as historical record.
+                      Throws at eval time if the alias is also in
+                      `trust` (catches the "I forgot to remove from
+                      trust" footgun).
+                '';
+              };
+              note = lib.mkOption {
+                type = lib.types.nullOr lib.types.str;
+                default = null;
+                description = ''
+                  Free-form annotation appended as ` (<note>)` to the
+                  comment line in rendered authorized_keys. Use for
+                  retirement plans, ownership info, or any other
+                  audit-relevant context.
+                '';
+              };
+            };
+          }
+        )
+      );
       default = { };
       description = ''
-        Named SSH public keys: alias → full key string (the entire
-        `ssh-<type> <material> <comment>` line as it would appear in
-        `authorized_keys`).
+        Named SSH public keys: alias → either a bare key string (simple
+        form) or a `{ key; status?; note?; }` submodule (rich form).
+        Both forms are accepted in the same map.
 
         Aliases are arbitrary identifiers — common conventions are
         `<user>@<host>` (e.g. `"markus@m5"`) or `<purpose>` (e.g.
@@ -126,12 +250,22 @@ in
         the rendered authorized_keys for audit traceability.
 
         Declaring a key here does NOT admit it — see `trust`.
+
+        See module header for the rich-form semantics (status / note /
+        revoked).
       '';
       example = lib.literalExpression ''
         {
+          # Simple form
           "markus@m5"    = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA... markus@m5";
           "markus@imac0" = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA... markus@imac0";
-          "deploy@gpc0"  = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA... deploy@gpc0";
+
+          # Rich form — for grandfathering / audit
+          "shared-rsa-pre-2026" = {
+            key    = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQ... markus";
+            status = "legacy";
+            note   = "shared RSA pre-2026; retire after per-host ed25519 rollout (Q3 2026)";
+          };
         }
       '';
     };
