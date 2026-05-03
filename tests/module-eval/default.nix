@@ -18,6 +18,7 @@ let
     ./agent-secrets.test.nix
     ./paimos-config.test.nix
     ./git-identity.test.nix
+    ./ssh-authorized.test.nix
   ];
 
   results = map (f: import f { inherit harness lib; }) testFiles;

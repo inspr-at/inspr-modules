@@ -11,7 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Module-eval test suite** — `flake.checks.<system>.module-eval` runs 21 sub-tests across the three HM modules via `lib.evalModules` + a stub HM harness (`tests/module-eval/harness.nix`). Catches regressions BEFORE `home-manager switch`: assertions firing at the right times, REQUIRED options staying required, eval-time throws still throwing, deprecated options still warning, `programs.git.includes` count for git-identity contexts, etc. Sandbox-friendly, runs on every `nix flake check`. [INSPR-72]
+- **`homeManagerModules.ssh-authorized`** — Declarative `~/.ssh/authorized_keys` management via aliased key map + trust list. Consumer declares `keys = { "alias" = "ssh-... comment"; }` and `trust = [ "alias-1" "alias-2" ]`; module renders a marker-delimited block in `~/.ssh/authorized_keys`. **Co-existence guarantee**: only the marker block is managed; lines outside it (Headscale deploy keys, GitHub Actions OIDC, recovery keys) are preserved across activations. Activation script writes the file directly (mode 0600) instead of symlinking from `/nix/store`, so OpenSSH `StrictModes` is satisfied. Trust list sorted at eval time → byte-identical output regardless of input order (no spurious git noise on rebuilds). Throws at eval time if `trust` references an alias not in `keys` (silent fall-through would be an audit-defeating footgun — sshd silently ignores empty-body lines). 8 module-eval sub-tests cover the option surface, throw paths, determinism, custom markers, and the empty-trust warning. [INSPR-43]
+- **Module-eval test suite** — `flake.checks.<system>.module-eval` runs 29 sub-tests across the four HM modules via `lib.evalModules` + a stub HM harness (`tests/module-eval/harness.nix`). Catches regressions BEFORE `home-manager switch`: assertions firing at the right times, REQUIRED options staying required, eval-time throws still throwing, deprecated options still warning, `programs.git.includes` count for git-identity contexts, etc. Sandbox-friendly, runs on every `nix flake check`. [INSPR-72]
 
 ### Fixed
 
@@ -20,7 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Planned
 
 - **NixOS VM integration tests** — `pkgs.testers.runNixOSTest` for end-to-end activation testing. Heavy but the gold standard.
-- **NixOS-equivalent modules** — server-side counterparts for the HM modules currently here (workstation-only).
+- **NixOS-equivalent modules** — server-side counterparts for the HM modules currently here (workstation-only). [INSPR-24 Stage 4 + INSPR-73]
+- **`ssh-authorized` keyring layout** — file-per-key under `keys/<alias>.pub` for fleet-scale (~10+ keys); current inline form stays supported. [INSPR-74]
+- **`ssh-authorized` build-time validation** — pipe each key through `ssh-keygen -l` (or a regex) at eval to catch typos before activation. [INSPR-75]
 - **1Password tag-export integration** — Phase 2 secrets graduation (consumer-side script that materializes `.age` files from tagged 1Password items). [INSPR-23]
 - **Doctor genericization** — extract Markus-specific values from `inspr-doctor` into config so the same script runs against any consumer's setup. [INSPR-44 follow-up]
 

@@ -11,5 +11,6 @@
     ./agent-secrets.nix
     ./git-identity.nix
     ./paimos-config.nix
+    ./ssh-authorized.nix
   ];
 }

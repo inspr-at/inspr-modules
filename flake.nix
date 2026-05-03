@@ -19,7 +19,10 @@
 #                                       includeIf rules.
 #   homeManagerModules.paimos-config   Auto-bootstrap ~/.paimos/config.yaml
 #                                       from materialized agent secrets.
-#   homeManagerModules.default         Aggregate of all three above.
+#   homeManagerModules.ssh-authorized  Declarative ~/.ssh/authorized_keys
+#                                       via aliased key map + trust list,
+#                                       with marker-block coexistence.
+#   homeManagerModules.default         Aggregate of all four above.
 #   packages.<system>.secrets-audit    Bash script: detect drift between
 #                                       secrets/*.age and secrets.nix
 #                                       declarations.
@@ -59,6 +62,7 @@
         agent-secrets = ./modules/home-manager/agent-secrets.nix;
         git-identity = ./modules/home-manager/git-identity.nix;
         paimos-config = ./modules/home-manager/paimos-config.nix;
+        ssh-authorized = ./modules/home-manager/ssh-authorized.nix;
         default = ./modules/home-manager/default.nix;
       };
     }
