@@ -87,14 +87,16 @@ In your `home.nix`:
 }
 ```
 
-## Architecture notes
+## Architecture notes — the atelier pattern
 
-These modules emerged from the INSPR onboarding sessions documented in the (private) `inspr` umbrella repo. The design pattern — Pattern β — separates:
+These modules emerged from the INSPR onboarding sessions documented in the (private) `inspr` umbrella repo. The design pattern is **the atelier** (formerly called "Pattern β" in older docs — same architecture, more memorable name).
 
-- **Universal mechanics** (this library: how to materialize secrets, how to compose git includeIfs, how to write a paimos config)
-- **Per-context values** (your flake: identities, instance URLs, fleet patterns)
+**Atelier metaphor:** imagine a master's workshop where the *tools* (mechanics) are publicly shared, but each *artist's commissions* (per-context values) stay private to that artist. INSPR is structured the same way:
 
-A "context flake" is anything that consumes inspr-modules + provides its own values: Markus's personal `nixcfg`, his BYTEPOETS work flake, his family flake, future paid-product flakes — each declares its own identity, hosts, and secrets, and gets the rest for free.
+- **The atelier — universal mechanics** (this library: how to materialize secrets, how to compose git includeIfs, how to write a paimos config). Public, OSS, MIT-licensed. Reusable across every context.
+- **Each studio — per-context values** (your flake: identities, instance URLs, fleet patterns). Private to that context. Never shared between studios.
+
+A "studio" (context flake) is anything that consumes inspr-modules + provides its own values: Markus's personal `nixcfg`, his BYTEPOETS work flake, his family flake, future paid-product flakes — each declares its own identity, hosts, and secrets, and gets the rest for free from the shared atelier.
 
 ## Testing
 

@@ -6,10 +6,12 @@
 # Mission: "where your inspirations live" — democratize software dev by
 # letting anyone consume the same primitives Markus uses on his own fleet.
 #
-# Pattern β graduation: this is the public library that "context flakes"
-# (Markus's nixcfg, BYTEPOETS flake, family flake, future paid-product
-# flakes) consume — so each context provides only its identity-specific
-# values and gets the rest for free.
+# Atelier-pattern graduation: this is the shared atelier — the public
+# library that "studios" (context flakes: Markus's nixcfg, BYTEPOETS
+# flake, family flake, future paid-product flakes) consume. Each studio
+# provides only its identity-specific values; the rest comes from the
+# atelier for free. See README.md "atelier pattern" for the full metaphor.
+# (Older docs called this "Pattern β" — same architecture, opaque name.)
 #
 # Exports:
 #   homeManagerModules.agent-secrets   Materialize agenix-encrypted env files
@@ -47,7 +49,7 @@
 # the mission depends on.
 #
 {
-  description = "INSPR — reusable Home Manager modules and utilities (Pattern β public library)";
+  description = "INSPR atelier — reusable Home Manager + NixOS modules and utilities (the public, shared mechanics layer)";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";

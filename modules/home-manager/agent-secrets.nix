@@ -88,10 +88,10 @@ let
 in
 {
   # Module options ---------------------------------------------------------
-  # Namespace: `inspr.secrets.agents.*` — chosen for Pattern β (the public
-  # library exports modules under this namespace; sibling categories like
-  # `inspr.secrets.projects.*` and `inspr.secrets.hosts.*` may follow as
-  # the architecture matures).
+  # Namespace: `inspr.secrets.agents.*` — chosen for the atelier pattern (the
+  # public library, i.e. this atelier, exports modules under this namespace;
+  # sibling categories like `inspr.secrets.projects.*` and
+  # `inspr.secrets.hosts.*` may follow as the architecture matures).
   options.inspr.secrets.agents = {
     enable = lib.mkEnableOption "materialize agent-exception secrets to <decryptedDir>";
 
