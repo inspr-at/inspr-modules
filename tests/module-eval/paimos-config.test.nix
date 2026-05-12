@@ -136,6 +136,97 @@ let
         };
         in !r.success;
     }
+
+    # ── INSPR-174: urlEnvFile + urlVar instance evaluates cleanly ────────
+    # Happy path for the new URL-from-env-file option. PMO-shaped instance
+    # where URL comes from agenix-encrypted env file rather than Nix literal.
+    {
+      name = "INSPR-174: instance with urlEnvFile + urlVar evaluates cleanly";
+      assertion =
+        let r = evalModule {
+          module = paimosConfig;
+          config = {
+            inspr.paimos-cli.enable          = true;
+            inspr.paimos-cli.defaultInstance = "work";
+            inspr.paimos-cli.instances.work = {
+              urlEnvFile    = "/run/agenix/work-url";
+              urlVar        = "WORKURL";
+              apiKeyEnvFile = "/run/agenix/work-api-key";
+              apiKeyVar     = "WORKAPIKEY";
+            };
+          };
+        };
+        in r.success && r.failedAssertions == [ ];
+    }
+
+    # ── INSPR-174: both url AND urlEnvFile set → assertion fires ─────────
+    # Mutual exclusion: declaring both is ambiguous. Catch at eval time.
+    {
+      name = "INSPR-174: instance with both url and urlEnvFile triggers assertion";
+      assertion =
+        let r = evalModule {
+          module = paimosConfig;
+          config = {
+            inspr.paimos-cli.enable          = true;
+            inspr.paimos-cli.defaultInstance = "conflict";
+            inspr.paimos-cli.instances.conflict = {
+              url           = "https://x.example.com";
+              urlEnvFile    = "/run/agenix/x-url";
+              urlVar        = "XURL";
+              apiKeyEnvFile = "/run/agenix/x-key";
+              apiKeyVar     = "XAPIKEY";
+            };
+          };
+        };
+        in r.success
+           && lib.any (a: lib.hasInfix "exactly ONE of" a.message)
+                      r.failedAssertions;
+    }
+
+    # ── INSPR-174: neither url nor urlEnvFile set → assertion fires ──────
+    # Same invariant from the other side: forgetting both is invalid.
+    {
+      name = "INSPR-174: instance with neither url nor urlEnvFile triggers assertion";
+      assertion =
+        let r = evalModule {
+          module = paimosConfig;
+          config = {
+            inspr.paimos-cli.enable          = true;
+            inspr.paimos-cli.defaultInstance = "noUrl";
+            inspr.paimos-cli.instances.noUrl = {
+              # both url and urlEnvFile omitted (default null)
+              apiKeyEnvFile = "/run/agenix/k";
+              apiKeyVar     = "KEY";
+            };
+          };
+        };
+        in r.success
+           && lib.any (a: lib.hasInfix "exactly ONE of" a.message)
+                      r.failedAssertions;
+    }
+
+    # ── INSPR-174: urlEnvFile set but urlVar null → assertion fires ──────
+    # urlEnvFile alone is useless — we need urlVar to know what to extract.
+    {
+      name = "INSPR-174: urlEnvFile without urlVar triggers assertion";
+      assertion =
+        let r = evalModule {
+          module = paimosConfig;
+          config = {
+            inspr.paimos-cli.enable          = true;
+            inspr.paimos-cli.defaultInstance = "incomplete";
+            inspr.paimos-cli.instances.incomplete = {
+              urlEnvFile    = "/run/agenix/x";
+              # urlVar omitted
+              apiKeyEnvFile = "/run/agenix/k";
+              apiKeyVar     = "KEY";
+            };
+          };
+        };
+        in r.success
+           && lib.any (a: lib.hasInfix "urlVar is null" a.message)
+                      r.failedAssertions;
+    }
   ];
 
 in
