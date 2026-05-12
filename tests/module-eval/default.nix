@@ -16,8 +16,9 @@ let
 
   testFiles = [
     ./agent-secrets.test.nix
-    ./paimos-config.test.nix
+    ./git-atelier-credentials.test.nix
     ./git-identity.test.nix
+    ./paimos-config.test.nix
     ./ssh-authorized.test.nix
     ./nixos-ssh-authorized.test.nix
   ];

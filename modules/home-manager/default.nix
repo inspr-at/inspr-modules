@@ -9,6 +9,7 @@
 {
   imports = [
     ./agent-secrets.nix
+    ./git-atelier-credentials.nix
     ./git-identity.nix
     ./paimos-config.nix
     ./ssh-authorized.nix

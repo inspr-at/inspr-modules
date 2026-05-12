@@ -88,6 +88,15 @@ let
           type    = lib.types.listOf lib.types.unspecified;
           default = [ ];
         };
+        # `home.file` for modules that render dotfile content via HM
+        # (e.g., inspr.git.atelier.<name> writes known_hosts.d/inspr-*).
+        # Stub-level type is unspecified — we don't validate that the
+        # values are well-formed `home.file` entries, only that the path
+        # mapping is rendered as expected.
+        file = lib.mkOption {
+          type    = lib.types.attrsOf lib.types.unspecified;
+          default = { };
+        };
       };
       programs = lib.mkOption {
         type    = lib.types.attrsOf lib.types.unspecified;
