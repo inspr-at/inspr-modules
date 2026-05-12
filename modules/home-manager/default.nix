@@ -9,6 +9,7 @@
 {
   imports = [
     ./agent-secrets.nix
+    ./devenv-direnv-fix.nix
     ./git-atelier-credentials.nix
     ./git-identity.nix
     ./paimos-config.nix

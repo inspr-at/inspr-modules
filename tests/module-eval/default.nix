@@ -16,6 +16,7 @@ let
 
   testFiles = [
     ./agent-secrets.test.nix
+    ./devenv-direnv-fix.test.nix
     ./git-atelier-credentials.test.nix
     ./git-identity.test.nix
     ./paimos-config.test.nix

@@ -74,6 +74,7 @@
       # and configure via the `inspr.<name>.*` option namespace.
       homeManagerModules = {
         agent-secrets = ./modules/home-manager/agent-secrets.nix;
+        devenv-direnv-fix = ./modules/home-manager/devenv-direnv-fix.nix;
         git-atelier-credentials = ./modules/home-manager/git-atelier-credentials.nix;
         git-identity = ./modules/home-manager/git-identity.nix;
         paimos-config = ./modules/home-manager/paimos-config.nix;
