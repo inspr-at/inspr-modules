@@ -64,11 +64,33 @@
 let
   cfg = config.inspr.devenv.direnv-fix;
 
-  # Build-time derivation: take devenv's canonical direnvrc, sed-rename, write
-  # to a store path. The two sanity asserts at the end will fail the build
-  # if the rename didn't actually do anything — that's the canary for
-  # upstream API drift (someone renamed the function in devenv proper, or
-  # devenv direnvrc output format changed in a breaking way).
+  # Build-time derivation: take devenv's canonical direnvrc, sed-rename ALL
+  # function names that collide with nix-direnv, write to a store path.
+  #
+  # Three colliding functions (verified 2026-05-12 via diff against
+  # nix-direnv 3.1.1's exported function set on imac0):
+  #   - _nix_direnv_preflight  → renamed _devenv_preflight
+  #     (the original collision; without this fix, `use nix` fails with
+  #      `--no-warn-dirty: command not found` because `_nix_direnv_nix`
+  #      is left empty)
+  #   - _nix_import_env        → renamed _devenv_import_env
+  #     (devenv's signature takes raw env content as $1; nix-direnv's
+  #      takes a profile_rc PATH as $1. When devenv's shadows nix-direnv's,
+  #      `use nix` fails with `<path>.rc: Permission denied` because the
+  #      function tries to eval the file path as shell code rather than
+  #      reading its contents.)
+  #   - _nix_export_or_unset   → renamed _devenv_export_or_unset
+  #     (functionally similar in both libs, but distinct enough that
+  #      shadowing risks subtle bugs; rename for safety + symmetry)
+  #
+  # Devenv ALREADY namespaces some of its private functions correctly
+  # (`_devenv_watches`, `use_devenv`) — these three are just oversights.
+  # Filing upstream is the proper fix; this module is the workaround.
+  #
+  # Build-time sanity asserts catch upstream API drift: if any renamed
+  # marker is missing OR any old `_nix_*` collision name remains in the
+  # output, the build fails with a clear INSPR-175 message rather than
+  # silently producing a still-broken file.
   patchedDirenvrc =
     pkgs.runCommand "z-devenv-patched.sh"
       {
@@ -76,24 +98,29 @@ let
       }
       ''
         ${cfg.devenvPackage}/bin/devenv direnvrc \
-          | sed 's/_nix_direnv_preflight/_devenv_preflight/g' \
+          | sed -e 's/_nix_direnv_preflight/_devenv_preflight/g' \
+                -e 's/_nix_import_env/_devenv_import_env/g' \
+                -e 's/_nix_export_or_unset/_devenv_export_or_unset/g' \
           > $out
 
-        # Sanity: rename must have produced at least one marker
-        # (function definition + one caller = 2 in the current devenv 2.x).
-        if ! grep -q "_devenv_preflight" $out ; then
-          echo "INSPR-175: ERROR — rename produced no _devenv_preflight markers." >&2
-          echo "  devenv direnvrc may have changed its function names." >&2
-          echo "  Check the module and devenv upstream." >&2
-          exit 1
-        fi
+        # Positive sanity: each renamed marker must be present.
+        for marker in _devenv_preflight _devenv_import_env _devenv_export_or_unset ; do
+          if ! grep -q "$marker" $out ; then
+            echo "INSPR-175: ERROR — rename produced no '$marker' marker." >&2
+            echo "  devenv direnvrc may have changed function names upstream." >&2
+            echo "  Check the module + devenv direnvrc output." >&2
+            exit 1
+          fi
+        done
 
-        # Inverse sanity: no _nix_direnv_preflight should remain.
-        if grep -q "_nix_direnv_preflight" $out ; then
-          echo "INSPR-175: ERROR — rename incomplete; _nix_direnv_preflight still present." >&2
-          echo "  sed didn't catch all occurrences. Check the module." >&2
-          exit 1
-        fi
+        # Inverse sanity: no colliding _nix_* name should remain.
+        for collision in _nix_direnv_preflight _nix_import_env _nix_export_or_unset ; do
+          if grep -q "$collision" $out ; then
+            echo "INSPR-175: ERROR — rename incomplete; '$collision' still present." >&2
+            echo "  sed didn't catch all occurrences. Check the module." >&2
+            exit 1
+          fi
+        done
       '';
 in
 {
