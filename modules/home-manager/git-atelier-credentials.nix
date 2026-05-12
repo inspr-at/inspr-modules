@@ -22,18 +22,32 @@
 # SSH key, access tokens). GitHub Apps and analogous forge-rich primitives
 # are non-portable by design and stay opt-in escape hatches.
 #
-# Strategies (MVP shows A; B and C are option-typed but throw on use —
-# INSPR-168 follow-ups will implement them):
+# Strategies (A + B implemented; C option-typed but throws on use —
+# INSPR-170 lands Strategy B; Strategy C remains an INSPR-168 follow-up):
 #   A. Per-repo SSH deploy key  — least-privilege, never-rotate, per-host
 #                                  per-repo scope. Best for SERVERS pushing
-#                                  their own config (Markus's msbp pattern).
-#   B. Per-host user SSH key    — host-level identity, account-federated.
-#                                  Best for WORKSTATIONS.
+#                                  their own config (one repo, one key).
+#   B. Per-host user SSH key    — account-federated identity (one key per
+#                                  host × identity, registered on the GH
+#                                  account, inherits all repo access + org
+#                                  memberships). Best for WORKSTATIONS that
+#                                  need push/pull across many repos under
+#                                  one identity, and the canonical answer
+#                                  to the recurring "this machine doesn't
+#                                  have permission to that service" friction.
 #   C. Bot user / access token  — covers HTTPS git + gh CLI + GraphQL.
 #                                  Best for multi-repo automation when
-#                                  rotation is the point (otherwise prefer A).
+#                                  rotation is the point (otherwise prefer B).
 #
-# Usage — Strategy A (per-repo deploy key, the MVP-implemented strategy):
+# Per-atelier commit author identity (independent of credential strategy):
+#   inspr.git.atelier.<name>.git.{userName, userEmail, workspacePath} sets
+#   user.name + user.email scoped to either a workspace path (via gitdir:
+#   includeIf) or the forge-owner remote URL pattern (via hasconfig:
+#   includeIf, git 2.36+). So commits to BYTEPOETS repos can attribute to
+#   bytepoets-mba while commits to markus-barta repos attribute to
+#   markus-barta — automatic, declarative, no per-repo `git config` toil.
+#
+# Usage — Strategy A (per-repo deploy key; servers, narrow scope):
 #
 #   inspr.git.atelier.bytepoets = {
 #     enable = true;
@@ -47,6 +61,31 @@
 #       pubKey = "ssh-ed25519 AAA…";   # documentation field (audit only)
 #     };
 #   };
+#
+# Usage — Strategy B (per-host user SSH key; workstations, federated access):
+#
+#   inspr.git.atelier.bytepoets = {
+#     enable = true;
+#     forge = {
+#       kind  = "github";
+#       url   = "https://github.com";
+#       owner = "BYTEPOETS";
+#     };
+#     credentials.userKey = {
+#       privateKeyPath = "/run/agenix/m5-bytepoets-userkey";
+#       pubKey = "ssh-ed25519 AAA…";   # registered on bytepoets-mba account
+#     };
+#     git = {
+#       userName  = "bytepoets-mba";
+#       userEmail = "mba@bytepoets.com";
+#       workspacePath = "~/Code/BYTEPOETS";   # commits in this dir attribute to bytepoets-mba
+#     };
+#   };
+#
+# After rebuild on m5/imac0/imacw, any `git clone git@github.com:BYTEPOETS/<any>.git`
+# or `git clone https://github.com/BYTEPOETS/<any>.git` is transparently rewritten
+# to `git@git-bytepoets:BYTEPOETS/<any>.git`, authenticated by m5's bytepoets userKey,
+# with commits in that workspace attributed to bytepoets-mba.
 #
 # Consumer is responsible for:
 #   - agenix declaration in secrets/secrets.nix
@@ -108,53 +147,11 @@ let
     ];
   };
 
-  # ── Per-deploy-key rendering ────────────────────────────────────────────
-  # For each (atelierName, repoName, deployKey) tuple, produce:
-  #   - SSH match block keyed by alias `<forgeHost>-<atelier>-<repo>`
-  #   - git url.insteadOf rewrite mapping HTTPS + direct-SSH forms to the
-  #     aliased SSH host
-  mkDeployKeyAlias = atelierName: repoName: "${forgeHost cfg.${atelierName}.forge.url}-${atelierName}-${repoName}";
-
-  mkDeployKeyMatchBlock =
-    atelierName: atelier: repoName: deployKey:
-    let
-      host = forgeHost atelier.forge.url;
-      alias = "${host}-${atelierName}-${repoName}";
-    in {
-      ${alias} = {
-        hostname       = host;
-        user           = "git";
-        identityFile   = deployKey.privateKeyPath;
-        identitiesOnly = true;
-        extraOptions = {
-          # Look up host key under the canonical host name (forge host)
-          # rather than the alias. Lets one known_hosts entry cover ALL
-          # aliased SSH paths to this forge.
-          HostKeyAlias = host;
-        } // lib.optionalAttrs atelier.manageKnownHosts {
-          # Read user-managed known_hosts file too, so the forge's host
-          # keys (rendered to known_hosts.d below) are trusted.
-          UserKnownHostsFile = "~/.ssh/known_hosts ~/.ssh/known_hosts.d/inspr-git-atelier-${atelierName}";
-        };
-      };
-    };
-
-  mkDeployKeyUrlRewrite =
-    atelierName: atelier: repoName: _deployKey:
-    let
-      host = forgeHost atelier.forge.url;
-      alias = "${host}-${atelierName}-${repoName}";
-      owner = atelier.forge.owner;
-    in {
-      "git@${alias}:${owner}/${repoName}".insteadOf = [
-        "${atelier.forge.url}/${owner}/${repoName}"
-        "${atelier.forge.url}/${owner}/${repoName}.git"
-        "git@${host}:${owner}/${repoName}"
-        "git@${host}:${owner}/${repoName}.git"
-      ];
-    };
-
-  # ── Validate strategy choice + collect rendered config per atelier ──────
+  # ── Validate strategy choice + forge kind (eager throws) ────────────────
+  # validateAtelier throws if the atelier's credential strategy isn't
+  # actually implementable. Forced eagerly via builtins.seq from the
+  # renderers so the throw surfaces at config-eval time (real HM switch
+  # or eval-modules test), not silently lost.
   validateAtelier =
     atelierName: atelier:
     let
@@ -162,31 +159,24 @@ let
       hasUserKey    = atelier.credentials.userKey != null;
       hasToken      = atelier.credentials.token != null;
     in
-    if !(hasDeployKeys || hasUserKey || hasToken)
-    then throw ''
+    if hasToken then throw ''
+      inspr.git.atelier."${atelierName}".credentials.token: Strategy C
+      (PAT / bot-user token) is option-typed but not yet implemented.
+      See INSPR-168 follow-up. Use Strategy A (deployKeys) or Strategy B
+      (userKey) for now, or contribute the impl.
+    ''
+    else if !hasDeployKeys && !hasUserKey then throw ''
       inspr.git.atelier."${atelierName}": no credentials declared.
       Set at least one of:
-        - credentials.deployKeys.<repo> (Strategy A, MVP)
-        - credentials.userKey           (Strategy B, throws — INSPR-168 follow-up)
-        - credentials.token             (Strategy C, throws — INSPR-168 follow-up)
+        - credentials.deployKeys.<repo> (Strategy A — per-repo, servers)
+        - credentials.userKey           (Strategy B — per-identity, workstations)
+        - credentials.token             (Strategy C — throws, INSPR-168 follow-up)
     ''
-    else if hasUserKey then throw ''
-      inspr.git.atelier."${atelierName}".credentials.userKey: Strategy B
-      (per-host user SSH key) is option-typed but not yet implemented in
-      the MVP. See INSPR-168 follow-up. Use Strategy A (deployKeys) for
-      now, or contribute the impl.
-    ''
-    else if hasToken then throw ''
-      inspr.git.atelier."${atelierName}".credentials.token: Strategy C
-      (PAT / bot-user token) is option-typed but not yet implemented in
-      the MVP. See INSPR-168 follow-up. Use Strategy A (deployKeys) for
-      now, or contribute the impl.
-    ''
-    else atelier;
+    else true;  # sentinel value — non-null so callers can `builtins.seq` it
 
   # Forge-kind support gate. MVP supports any forge that uses ssh git@
-  # transport with deploy keys (all of them in practice). The kind field
-  # is captured for documentation + future forge-specific rendering
+  # transport with deploy keys (all enum values in practice). The kind
+  # field is captured for documentation + future forge-specific rendering
   # (e.g., GitHub Apps under Strategy G1).
   validateForgeKind =
     atelierName: atelier:
@@ -196,33 +186,186 @@ let
       inspr.git.atelier."${atelierName}".forge.kind = "${atelier.forge.kind}":
       not recognized. Supported (MVP): ${lib.concatStringsSep ", " supportedForMvp}.
     ''
-    else atelier;
+    else true;
 
-  # ── Per-atelier renderers (top-level config aggregators) ────────────────
+  # ── Per-atelier renderers ────────────────────────────────────────────────
+  # Direct attrset construction via lib.listToAttrs — avoids lib.mkMerge,
+  # which doesn't unwrap when the target option is `unspecified`-typed
+  # (e.g., in test stubs; harmless but breaks deep-eq assertions).
   enabledAteliers = lib.filterAttrs (_: a: a.enable) cfg;
 
-  renderedMatchBlocks = lib.mkMerge (
-    lib.flatten (
-      lib.mapAttrsToList (
-        atelierName: atelier:
-          let _ = validateAtelier atelierName (validateForgeKind atelierName atelier); in
-          lib.mapAttrsToList
-            (repoName: dk: mkDeployKeyMatchBlock atelierName atelier repoName dk)
-            atelier.credentials.deployKeys
+  renderedMatchBlocks = lib.listToAttrs (
+    lib.concatLists (
+      lib.mapAttrsToList (atelierName: atelier:
+        # Force validation BEFORE rendering this atelier's contributions.
+        # builtins.seq forces its first arg, then returns its second; a
+        # throw in validateAtelier/validateForgeKind propagates here.
+        builtins.seq
+          (validateAtelier atelierName atelier)
+          (builtins.seq
+            (validateForgeKind atelierName atelier)
+            (lib.mapAttrsToList (repoName: dk:
+              let
+                host = forgeHost atelier.forge.url;
+                alias = "${host}-${atelierName}-${repoName}";
+              in {
+                name = alias;
+                value = {
+                  hostname       = host;
+                  user           = "git";
+                  identityFile   = dk.privateKeyPath;
+                  identitiesOnly = true;
+                  extraOptions = {
+                    # Look up host key under canonical forge host name
+                    # rather than the alias. One known_hosts entry covers
+                    # ALL aliased SSH paths to this forge.
+                    HostKeyAlias = host;
+                  } // lib.optionalAttrs atelier.manageKnownHosts {
+                    UserKnownHostsFile = "~/.ssh/known_hosts ~/.ssh/known_hosts.d/inspr-git-atelier-${atelierName}";
+                  };
+                };
+              }
+            ) atelier.credentials.deployKeys)
+          )
       ) enabledAteliers
     )
   );
 
-  renderedUrlRewrites = lib.mkMerge (
-    lib.flatten (
-      lib.mapAttrsToList (
-        atelierName: atelier:
-          lib.mapAttrsToList
-            (repoName: dk: mkDeployKeyUrlRewrite atelierName atelier repoName dk)
-            atelier.credentials.deployKeys
+  renderedUrlRewrites = lib.listToAttrs (
+    lib.concatLists (
+      lib.mapAttrsToList (atelierName: atelier:
+        if !atelier.rewriteUrls then [ ] else
+        lib.mapAttrsToList (repoName: _dk:
+          let
+            host = forgeHost atelier.forge.url;
+            alias = "${host}-${atelierName}-${repoName}";
+            owner = atelier.forge.owner;
+          in {
+            name = "git@${alias}:${owner}/${repoName}";
+            value.insteadOf = [
+              "${atelier.forge.url}/${owner}/${repoName}"
+              "${atelier.forge.url}/${owner}/${repoName}.git"
+              "git@${host}:${owner}/${repoName}"
+              "git@${host}:${owner}/${repoName}.git"
+            ];
+          }
+        ) atelier.credentials.deployKeys
       ) enabledAteliers
     )
   );
+
+  # ── Strategy B renderers ─────────────────────────────────────────────────
+  # One SSH alias per atelier (not per-repo as in Strategy A). The alias
+  # name is `git-<atelierName>` — short, identity-scoped, persona-clear.
+  # URL rewrites are owner-prefix scoped: `git@github.com:OWNER/` →
+  # `git@git-<atelier>:OWNER/`. Git's prefix-match semantics make this
+  # cover every repo under that owner automatically (no per-repo wiring).
+  #
+  # Co-existence with Strategy A: if an atelier declares BOTH a userKey
+  # and deployKeys for specific repos, git's "longest insteadOf match
+  # wins" rule routes deploy-key repos through their narrow alias and
+  # everything-else-under-the-owner through the userKey alias.
+  enabledUserKeyAteliers = lib.filterAttrs
+    (_: a: a.credentials.userKey != null) enabledAteliers;
+
+  renderedUserKeyMatchBlocks = lib.listToAttrs (
+    lib.mapAttrsToList (atelierName: atelier:
+      let
+        host = forgeHost atelier.forge.url;
+        alias = "git-${atelierName}";
+      in
+        builtins.seq
+          (validateAtelier atelierName atelier)
+          (builtins.seq
+            (validateForgeKind atelierName atelier)
+            {
+              name = alias;
+              value = {
+                hostname       = host;
+                user           = "git";
+                identityFile   = atelier.credentials.userKey.privateKeyPath;
+                identitiesOnly = true;
+                extraOptions = {
+                  HostKeyAlias = host;
+                } // lib.optionalAttrs atelier.manageKnownHosts {
+                  UserKnownHostsFile =
+                    "~/.ssh/known_hosts ~/.ssh/known_hosts.d/inspr-git-atelier-${atelierName}";
+                };
+              };
+            })
+    ) enabledUserKeyAteliers
+  );
+
+  renderedUserKeyUrlRewrites = lib.listToAttrs (
+    lib.mapAttrsToList (atelierName: atelier:
+      let
+        host = forgeHost atelier.forge.url;
+        alias = "git-${atelierName}";
+        owner = atelier.forge.owner;
+      in {
+        name = "git@${alias}:${owner}/";
+        value.insteadOf = [
+          "${atelier.forge.url}/${owner}/"
+          "git@${host}:${owner}/"
+        ];
+      }
+    ) (lib.filterAttrs (_: a: a.rewriteUrls) enabledUserKeyAteliers)
+  );
+
+  # ── Per-atelier author identity renderers ────────────────────────────────
+  # Each atelier with git.userName or git.userEmail set produces:
+  #   1. A standalone gitconfig fragment at
+  #      ~/.config/git/inspr-atelier-<name>.gitconfig containing [user] entries
+  #   2. An includeIf entry in the main gitconfig that loads that fragment
+  #      conditionally, scoped by either:
+  #      - `gitdir:<workspacePath>/**` (path-based, preferred when set —
+  #         intuitive, predictable, matches even non-INSPR clones in that dir)
+  #      - `hasconfig:remote.*.url:**<forgeHost>*<owner>/**` (URL-based fallback,
+  #         git 2.36+ — auto-matches any clone of that owner's repos regardless
+  #         of which directory they live in)
+  enabledIdentityAteliers = lib.filterAttrs
+    (_: a: a.git.userName != null || a.git.userEmail != null) enabledAteliers;
+
+  identityFragmentPath = atelierName:
+    ".config/git/inspr-atelier-${atelierName}.gitconfig";
+
+  renderedIdentityFragments = lib.listToAttrs (
+    lib.mapAttrsToList (atelierName: atelier: {
+      name = identityFragmentPath atelierName;
+      value.text =
+        let
+          name  = atelier.git.userName;
+          email = atelier.git.userEmail;
+        in ''
+          # Managed by inspr.git.atelier."${atelierName}" — do not hand-edit.
+          # Scoped via includeIf in the main gitconfig (gitdir-based if
+          # workspacePath set, else remote-URL-based).
+          [user]
+          ${lib.optionalString (name  != null) "  name = ${name}"}
+          ${lib.optionalString (email != null) "  email = ${email}"}
+        '';
+    }) enabledIdentityAteliers
+  );
+
+  renderedIdentityIncludes = lib.mapAttrsToList (atelierName: atelier:
+    let
+      host  = forgeHost atelier.forge.url;
+      owner = atelier.forge.owner;
+      fragPath = "~/${identityFragmentPath atelierName}";
+    in
+      if atelier.git.workspacePath != null
+      then {
+        condition = "gitdir:${atelier.git.workspacePath}/";
+        path      = fragPath;
+      }
+      else {
+        # hasconfig requires git 2.36+ (April 2022). Pattern matches any
+        # remote URL containing both the forge host AND the owner — works
+        # for HTTPS, plain SSH, and post-rewrite alias SSH alike.
+        condition = "hasconfig:remote.*.url:*${host}*${owner}/*";
+        path      = fragPath;
+      }
+  ) enabledIdentityAteliers;
 
   # known_hosts files (one per atelier that opts into management).
   renderedKnownHosts = lib.listToAttrs (
@@ -354,6 +497,50 @@ in
             '';
           };
 
+          git = {
+            userName = lib.mkOption {
+              type = lib.types.nullOr lib.types.str;
+              default = null;
+              description = ''
+                Per-atelier git author name (`user.name`). When set, a
+                gitconfig fragment is rendered and `includeIf`-loaded so
+                commits in scope of this atelier are authored under this
+                identity. Scope is determined by `workspacePath` (gitdir
+                match — preferred when set) or by the forge-owner remote
+                URL pattern (hasconfig match, git 2.36+).
+              '';
+              example = "bytepoets-mba";
+            };
+            userEmail = lib.mkOption {
+              type = lib.types.nullOr lib.types.str;
+              default = null;
+              description = ''
+                Per-atelier git author email (`user.email`). Same scoping
+                semantics as `userName`.
+              '';
+              example = "mba@bytepoets.com";
+            };
+            workspacePath = lib.mkOption {
+              type = lib.types.nullOr lib.types.str;
+              default = null;
+              description = ''
+                Optional. When set, the per-atelier author identity is
+                scoped to repos under this directory via
+                `includeIf "gitdir:<path>/"`. Path-based scoping is the
+                preferred form: intuitive, predictable, and works on git
+                versions older than 2.36.
+
+                When null, scoping falls back to remote-URL matching
+                (`includeIf "hasconfig:remote.*.url:*<forgeHost>*<owner>/*"`)
+                which requires git 2.36+ but auto-matches any clone of an
+                atelier-owner's repos regardless of directory.
+
+                Tilde (`~`) is honored by git, so `~/Code/BYTEPOETS` works.
+              '';
+              example = "~/Code/BYTEPOETS";
+            };
+          };
+
           credentials = {
             deployKeys = lib.mkOption {
               default = { };
@@ -400,15 +587,41 @@ in
             userKey = lib.mkOption {
               default = null;
               description = ''
-                Strategy B — per-host user SSH key (account-federated).
-                **Not yet implemented in MVP** — option-typed for forward
-                compatibility; throws at eval time if used. See INSPR-168
-                follow-ups.
+                Strategy B — per-host user SSH key (account-federated). One
+                key per (host × identity), registered on the forge user
+                account; inherits all repo access + org memberships granted
+                to that user. The canonical answer to the recurring "this
+                machine doesn't have permission to that service" friction.
+
+                Renders an SSH alias `git-<atelierName>` with `IdentityFile`
+                pointing at the agenix-decrypted privkey, plus an owner-glob
+                URL rewrite (`git@<host>:OWNER/` → `git@git-<atelier>:OWNER/`)
+                so every repo under the atelier's `forge.owner` is reached
+                through this key automatically.
               '';
               type = lib.types.nullOr (lib.types.submodule {
                 options = {
-                  privateKeyPath = lib.mkOption { type = lib.types.str; };
-                  pubKey = lib.mkOption { type = lib.types.str; };
+                  privateKeyPath = lib.mkOption {
+                    type = lib.types.str;
+                    description = ''
+                      Filesystem path to the decrypted private SSH key.
+                      Consumer is responsible for materializing this via
+                      `age.secrets.<name>` (NixOS-level) with owner=<user>
+                      and mode=0600. Typical value: /run/agenix/<name>.
+                    '';
+                    example = "/run/agenix/m5-bytepoets-userkey";
+                  };
+                  pubKey = lib.mkOption {
+                    type = lib.types.str;
+                    description = ''
+                      Public half of the SSH keypair, in OpenSSH single-line
+                      format. Documentation + audit field only — not used by
+                      the module at runtime. Recommended: include comment
+                      identifying host + identity + date so the GH-side key
+                      listing stays auditable.
+                    '';
+                    example = "ssh-ed25519 AAAAC3Nz… m5-bytepoets-userkey@bytepoets-mba 2026-05-12";
+                  };
                 };
               });
             };
@@ -438,18 +651,29 @@ in
   config = lib.mkIf (enabledAteliers != { }) {
     programs.ssh = {
       enable = true;
-      matchBlocks = renderedMatchBlocks;
+      # Strategy A produces per-repo match blocks; Strategy B produces one
+      # per-atelier match block. Namespaces don't collide (A uses
+      # `<host>-<atelier>-<repo>`, B uses `git-<atelier>`), so a plain merge
+      # via `//` is safe.
+      matchBlocks = renderedMatchBlocks // renderedUserKeyMatchBlocks;
     };
 
     programs.git = lib.mkIf (
-      lib.any (a: a.rewriteUrls && a.credentials.deployKeys != { })
-              (lib.attrValues enabledAteliers)
+      let aa = lib.attrValues enabledAteliers; in
+        lib.any (a: a.rewriteUrls && a.credentials.deployKeys != { }) aa
+        || lib.any (a: a.rewriteUrls && a.credentials.userKey != null) aa
+        || enabledIdentityAteliers != { }
     ) {
       enable = lib.mkDefault true;
-      extraConfig.url = renderedUrlRewrites;
+      # Same merge story as matchBlocks: Strategy A rewrites are repo-specific
+      # (`OWNER/REPO`), Strategy B is owner-prefix (`OWNER/`). Git's "longest
+      # insteadOf wins" rule means A takes precedence over B when both apply
+      # to the same URL — desired behaviour (narrowest scope wins).
+      extraConfig.url = renderedUrlRewrites // renderedUserKeyUrlRewrites;
+      includes = renderedIdentityIncludes;
     };
 
-    home.file = renderedKnownHosts;
+    home.file = renderedKnownHosts // renderedIdentityFragments;
 
     warnings = knownHostsWarnings;
   };
