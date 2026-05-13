@@ -82,7 +82,7 @@ let
            && r.config.programs.ssh.matchBlocks."github.com-bytepoets-bpnixcfg".identityFile
                 == "/run/agenix/test-bp-bpnixcfg-deploy-key"
            && r.config.programs.ssh.matchBlocks."github.com-bytepoets-bpnixcfg".identitiesOnly == true
-           && (r.config.programs.git.extraConfig.url
+           && (r.config.programs.git.settings.url
                  ? "git@github.com-bytepoets-bpnixcfg:BYTEPOETS/bpnixcfg");
     }
 
@@ -126,8 +126,8 @@ let
            && r.config.programs.ssh.matchBlocks."git-personal".identityFile
                 == "/run/agenix/m5-personal-userkey"
            && r.config.programs.ssh.matchBlocks."git-personal".identitiesOnly == true
-           && (r.config.programs.git.extraConfig.url ? "git@git-personal:markus-barta/")
-           && r.config.programs.git.extraConfig.url."git@git-personal:markus-barta/".insteadOf
+           && (r.config.programs.git.settings.url ? "git@git-personal:markus-barta/")
+           && r.config.programs.git.settings.url."git@git-personal:markus-barta/".insteadOf
                 == [
                      "https://github.com/markus-barta/"
                      "git@github.com:markus-barta/"
@@ -160,8 +160,8 @@ let
            # Strategy B alias (per-atelier, owner-glob)
            && (r.config.programs.ssh.matchBlocks ? "git-bytepoets")
            # Both URL rewrites present
-           && (r.config.programs.git.extraConfig.url ? "git@github.com-bytepoets-bpnixcfg:BYTEPOETS/bpnixcfg")
-           && (r.config.programs.git.extraConfig.url ? "git@git-bytepoets:BYTEPOETS/");
+           && (r.config.programs.git.settings.url ? "git@github.com-bytepoets-bpnixcfg:BYTEPOETS/bpnixcfg")
+           && (r.config.programs.git.settings.url ? "git@git-bytepoets:BYTEPOETS/");
     }
 
     # ── Per-atelier author identity (workspacePath form, gitdir-scoped) ────

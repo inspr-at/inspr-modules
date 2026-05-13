@@ -111,12 +111,20 @@
 {
   config,
   lib,
+  options,
   pkgs,
   ...
 }:
 
 let
   cfg = config.inspr.git.atelier;
+
+  # HM ≥25.05 introduces `programs.ssh.enableDefaultConfig` and warns when
+  # `programs.ssh.enable = true` without explicit opt-out. Older HM versions
+  # don't have the option — so we conditionally set it only when the
+  # consumer's HM exposes it. INSPR-172 deprecation cleanup, 2026-05-13.
+  hasEnableDefaultConfig =
+    options ? programs && options.programs ? ssh && options.programs.ssh ? enableDefaultConfig;
 
   # ── Forge URL → host (strip scheme + trailing slash) ────────────────────
   forgeHost =
@@ -648,33 +656,61 @@ in
     ));
   };
 
-  config = lib.mkIf (enabledAteliers != { }) {
-    programs.ssh = {
-      enable = true;
-      # Strategy A produces per-repo match blocks; Strategy B produces one
-      # per-atelier match block. Namespaces don't collide (A uses
-      # `<host>-<atelier>-<repo>`, B uses `git-<atelier>`), so a plain merge
-      # via `//` is safe.
-      matchBlocks = renderedMatchBlocks // renderedUserKeyMatchBlocks;
-    };
+  config = lib.mkIf (enabledAteliers != { }) (lib.mkMerge [
+    {
+      programs.ssh = {
+        enable = true;
+        # Strategy A produces per-repo match blocks; Strategy B produces one
+        # per-atelier match block. Namespaces don't collide (A uses
+        # `<host>-<atelier>-<repo>`, B uses `git-<atelier>`), so a plain merge
+        # via `//` is safe.
+        matchBlocks = renderedMatchBlocks // renderedUserKeyMatchBlocks;
+      };
 
-    programs.git = lib.mkIf (
-      let aa = lib.attrValues enabledAteliers; in
-        lib.any (a: a.rewriteUrls && a.credentials.deployKeys != { }) aa
-        || lib.any (a: a.rewriteUrls && a.credentials.userKey != null) aa
-        || enabledIdentityAteliers != { }
-    ) {
-      enable = lib.mkDefault true;
-      # Same merge story as matchBlocks: Strategy A rewrites are repo-specific
-      # (`OWNER/REPO`), Strategy B is owner-prefix (`OWNER/`). Git's "longest
-      # insteadOf wins" rule means A takes precedence over B when both apply
-      # to the same URL — desired behaviour (narrowest scope wins).
-      extraConfig.url = renderedUrlRewrites // renderedUserKeyUrlRewrites;
-      includes = renderedIdentityIncludes;
-    };
+      programs.git = lib.mkIf (
+        let aa = lib.attrValues enabledAteliers; in
+          lib.any (a: a.rewriteUrls && a.credentials.deployKeys != { }) aa
+          || lib.any (a: a.rewriteUrls && a.credentials.userKey != null) aa
+          || enabledIdentityAteliers != { }
+      ) {
+        enable = lib.mkDefault true;
+        # Same merge story as matchBlocks: Strategy A rewrites are repo-specific
+        # (`OWNER/REPO`), Strategy B is owner-prefix (`OWNER/`). Git's "longest
+        # insteadOf wins" rule means A takes precedence over B when both apply
+        # to the same URL — desired behaviour (narrowest scope wins).
+        # NB: `settings.url` is the HM ≥25.05 name (renamed from `extraConfig.url`,
+        # INSPR-172 deprecation cleanup, 2026-05-13).
+        settings.url = renderedUrlRewrites // renderedUserKeyUrlRewrites;
+        includes = renderedIdentityIncludes;
+      };
 
-    home.file = renderedKnownHosts // renderedIdentityFragments;
+      home.file = renderedKnownHosts // renderedIdentityFragments;
 
-    warnings = knownHostsWarnings;
-  };
+      warnings = knownHostsWarnings;
+    }
+
+    # ── HM ≥25.05 enableDefaultConfig deprecation handling (INSPR-172) ─────
+    # Newer HM versions warn at activation if `programs.ssh.enable=true` and
+    # `programs.ssh.enableDefaultConfig` is left at its default of `true`.
+    # We set it to false (opt-out of the legacy auto-inject) and re-declare
+    # the previously-injected defaults under `matchBlocks."*"` via mkDefault
+    # so consumer flakes keep their historical behaviour but can override.
+    # Guarded so older HM (no `enableDefaultConfig` option) still evaluates
+    # cleanly.
+    (lib.mkIf hasEnableDefaultConfig {
+      programs.ssh.enableDefaultConfig = lib.mkDefault false;
+      programs.ssh.matchBlocks."*" = {
+        forwardAgent = lib.mkDefault false;
+        addKeysToAgent = lib.mkDefault "no";
+        compression = lib.mkDefault false;
+        serverAliveInterval = lib.mkDefault 0;
+        serverAliveCountMax = lib.mkDefault 3;
+        hashKnownHosts = lib.mkDefault false;
+        userKnownHostsFile = lib.mkDefault "~/.ssh/known_hosts";
+        controlMaster = lib.mkDefault "no";
+        controlPath = lib.mkDefault "~/.ssh/master-%r@%n:%p";
+        controlPersist = lib.mkDefault "no";
+      };
+    })
+  ]);
 }
