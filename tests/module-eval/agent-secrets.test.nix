@@ -119,15 +119,16 @@ let
     }
 
     # ── decryptedDir default derives from home.homeDirectory ─────────────
-    # Default is `${homeDirectory}/Secrets/age/decrypted/agents`. The stub
-    # sets homeDirectory = "/home/test-user", so we expect that prefix.
+    # Default is `${homeDirectory}/.inspr/secrets/agents` (INSPR-164
+    # canonical path doctrine, 2026-05-13). The stub sets homeDirectory =
+    # "/home/test-user", so we expect that prefix.
     {
-      name = "decryptedDir default derives from home.homeDirectory";
+      name = "decryptedDir default derives from home.homeDirectory (canonical inspr path)";
       assertion =
         let r = evalModule { module = agentSecrets; config = { }; };
         in r.success
            && r.config.inspr.secrets.agents.decryptedDir
-              == "/home/test-user/Secrets/age/decrypted/agents";
+              == "/home/test-user/.inspr/secrets/agents";
     }
 
     # ── identityFiles default ordering (INSPR-58) ────────────────────────

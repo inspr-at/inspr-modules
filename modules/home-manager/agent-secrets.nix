@@ -111,12 +111,24 @@ in
 
     decryptedDir = lib.mkOption {
       type        = lib.types.str;
-      default     = "${config.home.homeDirectory}/Secrets/age/decrypted/agents";
-      defaultText = lib.literalExpression ''"''${config.home.homeDirectory}/Secrets/age/decrypted/agents"'';
+      default     = "${config.home.homeDirectory}/.inspr/secrets/agents";
+      defaultText = lib.literalExpression ''"''${config.home.homeDirectory}/.inspr/secrets/agents"'';
       description = ''
         Where decrypted .env files are materialized. Activation owns this
         dir entirely. Default derives from `config.home.homeDirectory` so
         the same module works for any user without further configuration.
+
+        Path doctrine (INSPR-164, 2026-05-13): the canonical decrypted-side
+        path is `~/.inspr/secrets/agents/<NAME>.env`. Hosts referencing this
+        path can rely on it being identical fleet-wide, so cross-repo docs
+        and helper scripts stay drift-free. Consumers may override for
+        legacy compatibility, but new code should target the canonical
+        default.
+
+        Older inspr-modules versions (≤2026-05-12) defaulted to
+        `~/Secrets/age/decrypted/agents/`. Consumers upgrading from that
+        default should either accept the new path (and update references)
+        or pin the legacy path explicitly via this option.
       '';
     };
 
