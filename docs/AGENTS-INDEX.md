@@ -37,6 +37,39 @@ Synthesized 2026-05-14 from 556 Phase-2 raw rules with 35 Phase-3 cluster collap
 - Merged rules list ALL contributing sources in provenance (not just newest).
 - The 4 `merge-broaden` rules from B4 also carry the synthesis note in their provenance line.
 
-## Phase 5 migration plan (preview)
+## Phase 5 migration: COMPLETED 2026-05-14
 
-Phase 5 will (a) copy `AGENTS-CORE.md` + `AGENTS-PROFILE-MARKUS.md` + all `AGENTS-AGENT-*.md` files into `inspr-modules/docs/`; (b) replace each repo's root `AGENTS.md` with the corresponding `<repo>-AGENTS.md.template` from this staging directory (renaming the file to `AGENTS.md` and dropping the `.template` suffix); and (c) wire the `tools/inspr-doctor` checker to verify every live `AGENTS.md` references the canonical inspr-modules links and that no orphan rules remain in the per-repo files.
+Phase 5 shipped end-to-end. Per-step commit refs:
+
+| Step | Commit | Repo | What |
+|---|---|---|---|
+| 5.1 | `e7a79d2` | inspr-modules | canonical files land in `docs/` |
+| 5.2 | `ab4c587d` | nixcfg | `AGENTS.md` → root real file (topology inversion) |
+| 5.3 | `ceaf7cb7` | nixcfg | `+agents/rules/SYSOP{,-GB}.md` trimmed to operational reference (rule sections moved upstream) |
+| 5.4 | `589cc6f` | fleetcom | `AGENTS.md` layered header + Secret-Safety dup retired |
+| 5.5 | `c288cb9` | inspr | `AGENTS.md` marker (intentional 0-rule overlay) |
+| 5.6 | `55415c6a` | nixcfg | cross-ref sweep (4 slash-cmd files + 2 broken symlinks + `+agents/README.md` rewrite) |
+
+### Phase 5.QA1 — Loader follow-up (2026-05-14, post-QA)
+
+Phase-5 QA surfaced that the per-repo `CLAUDE.md` symlinks → `AGENTS.md` (thin overlay) did **not** pull upstream rules into Claude Code's session context — markdown URL pointers are static text, not auto-fetched. **Fix**: vendored inspr-modules as a `git submodule` at `./doctrine/` in each consuming repo, replaced each `CLAUDE.md` symlink with a real file containing `@-refs` that cascade-load the layered files (`@./doctrine/docs/AGENTS-CORE.md`, `@./doctrine/docs/AGENTS-PROFILE-MARKUS.md`, `@./AGENTS.md`). Slash commands (`/ops`, `/ocbots`, `/oc-modelupdate`) likewise updated to `@-ref` their applicable role overlay (`AGENTS-AGENT-SYSOP.md`, etc.) so role rules load on demand. Empirically verified — Claude Code's @-ref behavior is documented (5-hop transitive include, relative paths from file location).
+
+Per-repo loader commits:
+
+| Commit | Repo | What |
+|---|---|---|
+| `adc2bf5f` | nixcfg | submodule + CLAUDE.md @-ref loader + 3 slash-cmd role overlay refs |
+| `a2ea35a` | fleetcom | submodule + CLAUDE.md @-ref loader |
+| `baa41e7` | inspr | submodule + CLAUDE.md @-ref loader |
+| `9f3870a` | inspr-modules | CLAUDE.md @-ref loader (no submodule — IS the upstream) |
+
+After this fix: a fresh Claude session in nixcfg loads ~407 rules in context (199 universal + 153 markus profile + 55 nixcfg-specific) instead of the 55 it had between Phase 5.2 and Phase 5.QA1.
+
+### Provenance footers (historical citations — not live links)
+
+Every rule in the layer files carries a `*<sub>src: …</sub>*` provenance footer. These are **point-in-time citations from Phase 2 extraction (2026-05-14)** — they record where the rule was found in the source tree at extraction time. Two consequences worth knowing:
+
+- **Refs to `~/Code/nixcfg/+agents/rules/AGENTS.md`** point at a file deleted by Phase 5.2 (the canonical content moved to root `nixcfg/AGENTS.md` + this directory). 74 such refs across CORE, PROFILE-MARKUS, and the nixcfg overlay. To research a rule's original wording, use `git show <pre-2026-05-14-commit>:+agents/rules/AGENTS.md` (the file is preserved in git history forever).
+- **Refs to SYSOP.md / SYSOP-GB.md with line numbers** target files that still exist but were trimmed by Phase 5.3 — line numbers have drifted (~59 refs). To find the original line, use `git log --follow -p +agents/rules/SYSOP.md` and search for the rule excerpt at the extraction commit.
+
+Future provenance regeneration (re-run `synthesize.py` against current source files) is a deferred follow-up — the historical citations are intentionally preserved as-is to maintain extraction lineage.
