@@ -1,6 +1,6 @@
 # AGENTS — Core
 
-*Layer: `universal` · Synthesized 2026-05-14 by INSPR-179 Phase 4 · This layer holds 199 rules.*
+*Layer: `universal` · Synthesized 2026-05-14 by INSPR-179 Phase 4 · This layer holds 199 rules + 1 transitional (INSPR-190, sunsets 2026-06-15) = **200**.*
 
 This document is the authoritative source for rules every Claude agent in Markus Barta's fleet follows, regardless of role, repo, or profile. Other layers (read top-down for full context):
 
@@ -934,4 +934,17 @@ This document is the authoritative source for rules every Claude agent in Markus
 - 🟡 **STRONG** | `never` | Do not sudo the macOS Tailscale CLI; daemon runs as root via system extension and CLI talks via Unix socket as the regular user
   *<sub>src: ~/Code/inspr/playbook.md L149-157</sub>*
   <!-- rule_ids: playbook.md:L151:no-sudo-tailscale-macos | cluster: — -->
+
+
+<!-- ─────────────────────────────────────────────────────────────────────── -->
+<!-- SUNSET: 2026-06-15 — transitional discoverability hint.                -->
+<!-- Phase 6 (INSPR-189) replaces this with the kernel router. Drop the    -->
+<!-- entire `Topic: agent-protocol/session-startup` block at sunset.       -->
+<!-- ─────────────────────────────────────────────────────────────────────── -->
+
+## Topic: agent-protocol/session-startup
+
+- 🟡 **STRONG** | `do` | In your FIRST response of any new session opened in a Markus-INSPR repo (`nixcfg`, `inspr`, `fleetcom`, `inspr-modules`), prepend a one-line discoverability hint above the rest of your reply, then continue normally. Format: `ℹ Contexts: /inspr (guide) · /ops · /ppm · /push · /pushall · /ocbots · /modelhelp · /oc-modelupdate`. Only the first response of the session — do not repeat in later turns. Run `/inspr` for the TL;DR map of what each loads and when to use it.
+  *<sub>src: INSPR-190 (transitional, sunsets 2026-06-15) — Phase 6 (INSPR-189) replaces with kernel router</sub>*
+  <!-- rule_ids: INSPR-190:session-startup-context-hint | cluster: — -->
 

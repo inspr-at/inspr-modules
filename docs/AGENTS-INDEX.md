@@ -13,7 +13,7 @@ Synthesized 2026-05-14 from 556 Phase-2 raw rules with 35 Phase-3 cluster collap
 
 | File | Scope tag | Rules | Target deployment path | Description |
 |---|---|---|---|---|
-| AGENTS-CORE.md | `universal` | 199 | inspr-modules/docs/AGENTS-CORE.md | Universal rules — apply to every Claude agent regardless of role/profile/repo. |
+| AGENTS-CORE.md | `universal` | 199 + 1 transitional | inspr-modules/docs/AGENTS-CORE.md | Universal rules — apply to every Claude agent regardless of role/profile/repo. (+1 INSPR-190 startup hint, sunsets 2026-06-15.) |
 | AGENTS-PROFILE-MARKUS.md | `profile:markus` | 153 | inspr-modules/docs/AGENTS-PROFILE-MARKUS.md | Markus Barta's personal preferences (style, pacing, tooling). |
 | AGENTS-AGENT-SYSOP.md | `agent:sysop` | 34 | inspr-modules/docs/AGENTS-AGENT-SYSOP.md | SYSOP role overlay — fleet-wide system operations. |
 | AGENTS-AGENT-SYSOP-GB.md | `agent:sysop-gb` | 20 | inspr-modules/docs/AGENTS-AGENT-SYSOP-GB.md | SYSOP-GB role overlay — Greenbox-restricted ops. |
@@ -64,6 +64,17 @@ Per-repo loader commits:
 | `9f3870a` | inspr-modules | CLAUDE.md @-ref loader (no submodule — IS the upstream) |
 
 After this fix: a fresh Claude session in nixcfg loads ~407 rules in context (199 universal + 153 markus profile + 55 nixcfg-specific) instead of the 55 it had between Phase 5.2 and Phase 5.QA1.
+
+## Phase 6 — Doctrine kernel + domain-pack tiering (planned, INSPR-189)
+
+Day-12's auto-loaded doctrine triggers Claude Code's >40k char performance warning per session in nixcfg (CORE 64k + PROFILE-MARKUS 47k). **Phase 6** will introduce a 3-tier model (KERNEL ≤10k always-on + DOMAIN PACKS loaded by slash command + composable ADD-ON LAYERS) targeting <10% of today's always-on budget. See INSPR-189 for the full migration plan.
+
+### Transitional period: `/inspr` + startup hint (INSPR-190, sunsets 2026-06-15)
+
+Until Phase 6 ships:
+
+- **`/inspr`** slash command (canonical at `inspr-modules/commands/inspr.md`, symlinked from each consuming repo's `+agents/commands/inspr.md`) — TL;DR map of all available slash commands + doctrine layer structure + how to add new doctrine.
+- **Startup hint** — single-rule addition to `AGENTS-CORE.md` (topic `agent-protocol/session-startup`) instructs every agent to prepend a one-line `ℹ Contexts: …` discoverability hint above the first response of every new session. Tagged with `<!-- SUNSET: 2026-06-15 -->`; Phase 6's kernel router replaces it.
 
 ### Provenance footers (historical citations — not live links)
 
