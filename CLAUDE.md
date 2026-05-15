@@ -1,15 +1,13 @@
 <!--
-  Layered doctrine loader for Claude Code sessions opened in this repo.
+  Layered doctrine loader for Claude Code sessions opened in inspr-modules itself.
 
-  Other tools (Cursor, OpenCode, Zed, Codex CLI, etc.) read AGENTS.md
-  instead — but inspr-modules is the upstream doctrine source, so there's
-  no per-repo thin overlay here. The canonical layered files are right
-  next to this loader in ./docs/.
+  POST-PHASE-6 (INSPR-189, 2026-05-15):
+  Auto-loaded doctrine = KERNEL only. Domain-specific rules load on demand
+  via slash commands (/dev, /ops, /secrets, /nix, /ppm, /style, /incident).
+  Kernel includes the slash-command router; run /inspr for the TL;DR map.
 
-  This file makes Claude sessions opened in inspr-modules itself
-  load the same layered context that consuming repos (nixcfg, fleetcom,
-  inspr) load via their ./doctrine/ submodule pointing here.
+  Pre-Phase-6 sessions auto-loaded ~127k chars (CORE 64k + PROFILE-MARKUS 47k +
+  per-repo AGENTS.md). Post-Phase-6 ≤10k chars in this repo (kernel only).
 -->
 
-@./docs/AGENTS-CORE.md
-@./docs/AGENTS-PROFILE-MARKUS.md
+@./docs/AGENTS-KERNEL.md

@@ -1,6 +1,8 @@
-# Phase 4 Layered Doctrine — Index
+# Layered Doctrine — Index
 
-Synthesized 2026-05-14 from 556 Phase-2 raw rules with 35 Phase-3 cluster collapses → 521 canonical rules across 12 layer files.
+**Phase 6 shipped 2026-05-15** (INSPR-189). Auto-loaded budget reduced from ~127 k chars to ≤25 k. Kernel-only auto-load + on-demand domain packs via slash commands.
+
+Phase 4 (synthesized 2026-05-14) produced the 521 canonical rules across 12 layer files from 556 Phase-2 raw rules with 35 Phase-3 cluster collapses. Phase 6 carved those into a kernel + domain packs without dropping content (CORE.md and PROFILE-MARKUS.md remain on-demand-only).
 
 ## Decision provenance
 
@@ -11,9 +13,37 @@ Synthesized 2026-05-14 from 556 Phase-2 raw rules with 35 Phase-3 cluster collap
 
 ## Files
 
-| File | Scope tag | Rules | Target deployment path | Description |
-|---|---|---|---|---|
-| AGENTS-CORE.md | `universal` | 199 + 1 transitional | inspr-modules/docs/AGENTS-CORE.md | Universal rules — apply to every Claude agent regardless of role/profile/repo. (+1 INSPR-190 startup hint, sunsets 2026-06-15.) |
+### Auto-loaded by CLAUDE.md (always-on)
+
+| File | Scope tag | Loaded as | Description |
+|---|---|---|---|
+| **AGENTS-KERNEL.md** | `kernel` | `@./doctrine/docs/AGENTS-KERNEL.md` in every CLAUDE.md | **NEW (Phase 6)** — universal hard-safety + identity + slash-command router. ≤10 k chars. The ONLY auto-loaded doctrine post-Phase-6. |
+| **`<repo>/AGENTS.md`** | `repo:*` | `@./AGENTS.md` in every CLAUDE.md | Per-repo delta (nixcfg / fleetcom / inspr). |
+
+### On-demand domain packs (loaded by slash commands, Phase 6 NEW)
+
+| Pack | Loaded by | Description |
+|---|---|---|
+| AGENTS-DOMAIN-DEV.md | `/dev` | Git workflow depth, build/test gates, code style, dev tooling |
+| AGENTS-DOMAIN-SECRETS.md | `/secrets`, `/incident` | agenix pipeline, env-file pattern, 1P CLI, secret-leak protocol |
+| AGENTS-DOMAIN-NIX.md | `/nix` | nix-darwin, Home Manager, devenv, NixOS modules + activation |
+| AGENTS-DOMAIN-OPS.md | `/ops` | Fleet ops, SSH matrix, infra, tailscale, fleet-state |
+| AGENTS-DOMAIN-PPM.md | `/ppm` | Paimos CLI, ticket conventions, project landscape, API endpoints |
+
+### On-demand reference / role overlays
+
+| File | Scope tag | Loaded by | Description |
+|---|---|---|---|
+| AGENTS-CORE.md | `universal` | exhaustive ref (rarely loaded directly) | **Pre-Phase-6 always-loaded file** (199 rules, 64 k chars). Now reference-only; the kernel + domain packs cover the actively-needed subset. |
+| AGENTS-PROFILE-MARKUS.md | `profile:markus` | `/style` | Full Markus profile (153 rules) — depth beyond kernel's identity minimum. |
+| AGENTS-AGENT-SYSOP.md | `agent:sysop` | `/ops` | SYSOP role overlay |
+| AGENTS-AGENT-SYSOP-GB.md | `agent:sysop-gb` | (Gerhard's `/ops` variant) | SYSOP-GB role overlay |
+| AGENTS-AGENT-OPENCLAW-OPS.md | `agent:openclaw-ops` | `/ocbots` (effectively) | OPENCLAW-OPS role overlay |
+| AGENTS-AGENT-FLEET-DECISION.md | `agent:fleet-decision` | (cross-fleet decision agents) | FLEET-DECISION role overlay |
+| AGENTS-AGENT-PPM.md | `agent:ppm` | `/ppm` | PPM role overlay |
+| AGENTS-AGENT-PPM-READONLY.md | `agent:ppm-readonly` | `/ppm` (read-only mode) | PPM read-only overlay |
+| AGENTS-AGENT-DEV.md | `agent:dev` | `/dev` | DEV role overlay |
+| AGENTS-CORE.md (legacy single-file row, kept for compat) | `universal` | reference | Universal rules — apply to every Claude agent regardless of role/profile/repo. |
 | AGENTS-PROFILE-MARKUS.md | `profile:markus` | 153 | inspr-modules/docs/AGENTS-PROFILE-MARKUS.md | Markus Barta's personal preferences (style, pacing, tooling). |
 | AGENTS-AGENT-SYSOP.md | `agent:sysop` | 34 | inspr-modules/docs/AGENTS-AGENT-SYSOP.md | SYSOP role overlay — fleet-wide system operations. |
 | AGENTS-AGENT-SYSOP-GB.md | `agent:sysop-gb` | 20 | inspr-modules/docs/AGENTS-AGENT-SYSOP-GB.md | SYSOP-GB role overlay — Greenbox-restricted ops. |
@@ -65,16 +95,25 @@ Per-repo loader commits:
 
 After this fix: a fresh Claude session in nixcfg loads ~407 rules in context (199 universal + 153 markus profile + 55 nixcfg-specific) instead of the 55 it had between Phase 5.2 and Phase 5.QA1.
 
-## Phase 6 — Doctrine kernel + domain-pack tiering (planned, INSPR-189)
+## Phase 6 — Doctrine kernel + domain-pack tiering (SHIPPED 2026-05-15, INSPR-189)
 
-Day-12's auto-loaded doctrine triggers Claude Code's >40k char performance warning per session in nixcfg (CORE 64k + PROFILE-MARKUS 47k). **Phase 6** will introduce a 3-tier model (KERNEL ≤10k always-on + DOMAIN PACKS loaded by slash command + composable ADD-ON LAYERS) targeting <10% of today's always-on budget. See INSPR-189 for the full migration plan.
+Day-12's auto-loaded doctrine triggered Claude Code's >40k char performance warning per session in nixcfg (CORE 64k + PROFILE-MARKUS 47k). **Phase 6 shipped 2026-05-15**:
 
-### Transitional period: `/inspr` + startup hint (INSPR-190, sunsets 2026-06-15)
+- **Kernel** (`AGENTS-KERNEL.md`, ~10 k) — always-on, replaces CORE+PROFILE in CLAUDE.md auto-load
+- **Domain packs** (`AGENTS-DOMAIN-{DEV,SECRETS,NIX,OPS,PPM}.md`, ~5–10 k each) — NEW, loaded on demand by slash commands
+- **Slash commands** (`/dev /secrets /nix /ops /ppm /style /incident /inspr`) — each `@-ref`s its target pack(s)
+- **CORE.md and PROFILE-MARKUS.md** preserved for exhaustive reference (load via `/style` or direct Read); not auto-loaded
 
-Until Phase 6 ships:
+Result: nixcfg session opens with **≤25 k chars** (kernel + nixcfg/AGENTS.md) instead of ~127 k. >80 % reduction. >40 k warning gone.
 
-- **`/inspr`** slash command (canonical at `inspr-modules/commands/inspr.md`, symlinked from each consuming repo's `+agents/commands/inspr.md`) — TL;DR map of all available slash commands + doctrine layer structure + how to add new doctrine.
-- **Startup hint** — single-rule addition to `AGENTS-CORE.md` (topic `agent-protocol/session-startup`) instructs every agent to prepend a one-line `ℹ Contexts: …` discoverability hint above the first response of every new session. Tagged with `<!-- SUNSET: 2026-06-15 -->`; Phase 6's kernel router replaces it.
+The transitional INSPR-190 startup-hint rule (added 2026-05-15 morning, tagged sunset 2026-06-15) was DROPPED in this Phase 6 commit because the kernel router supersedes it.
+
+### Phase 6 commits
+
+| Commit | Repo | What |
+|---|---|---|
+| _(this commit)_ | inspr-modules | NEW AGENTS-KERNEL.md + 5 NEW AGENTS-DOMAIN-*.md + 5 NEW slash commands (dev, secrets, nix, style, incident) + CLAUDE.md → kernel-only loader + AGENTS-CORE.md drop transitional startup-hint topic + commands/inspr.md updated + AGENTS-INDEX rewrite |
+| _(per-repo)_ | nixcfg, fleetcom, inspr | doctrine bump + CLAUDE.md → kernel-only loader + new slash-command symlinks |
 
 ### Provenance footers (historical citations — not live links)
 

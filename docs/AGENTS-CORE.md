@@ -1,6 +1,6 @@
 # AGENTS — Core
 
-*Layer: `universal` · Synthesized 2026-05-14 by INSPR-179 Phase 4 · This layer holds 199 rules + 1 transitional (INSPR-190, sunsets 2026-06-15) = **200**.*
+*Layer: `universal` · Synthesized 2026-05-14 by INSPR-179 Phase 4 · This layer holds 199 rules. (Post-Phase-6: this file is no longer auto-loaded; it remains as exhaustive reference. Slash commands `/dev /ops /secrets /nix /ppm /style /incident` load topic-relevant domain packs on demand.)*
 
 This document is the authoritative source for rules every Claude agent in Markus Barta's fleet follows, regardless of role, repo, or profile. Other layers (read top-down for full context):
 
@@ -935,16 +935,9 @@ This document is the authoritative source for rules every Claude agent in Markus
   *<sub>src: ~/Code/inspr/playbook.md L149-157</sub>*
   <!-- rule_ids: playbook.md:L151:no-sudo-tailscale-macos | cluster: — -->
 
-
-<!-- ─────────────────────────────────────────────────────────────────────── -->
-<!-- SUNSET: 2026-06-15 — transitional discoverability hint.                -->
-<!-- Phase 6 (INSPR-189) replaces this with the kernel router. Drop the    -->
-<!-- entire `Topic: agent-protocol/session-startup` block at sunset.       -->
-<!-- ─────────────────────────────────────────────────────────────────────── -->
-
-## Topic: agent-protocol/session-startup
-
-- 🟡 **STRONG** | `do` | In your FIRST response of any new session opened in a Markus-INSPR repo (`nixcfg`, `inspr`, `fleetcom`, `inspr-modules`), prepend a one-line discoverability hint above the rest of your reply, then continue normally. Format: `ℹ Contexts: /inspr (guide) · /ops · /ppm · /push · /pushall · /ocbots · /modelhelp · /oc-modelupdate`. Only the first response of the session — do not repeat in later turns. Run `/inspr` for the TL;DR map of what each loads and when to use it.
-  *<sub>src: INSPR-190 (transitional, sunsets 2026-06-15) — Phase 6 (INSPR-189) replaces with kernel router</sub>*
-  <!-- rule_ids: INSPR-190:session-startup-context-hint | cluster: — -->
-
+<!--
+  Note: the `agent-protocol/session-startup` topic added 2026-05-15 morning
+  (INSPR-190 transitional startup-hint, tagged sunset 2026-06-15) was
+  REMOVED later the same day by INSPR-189 Phase 6. The kernel
+  (AGENTS-KERNEL.md) router supersedes that transitional hint.
+-->
