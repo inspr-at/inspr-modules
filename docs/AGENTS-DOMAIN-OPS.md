@@ -46,7 +46,7 @@ On macOS, `/etc/ssh/*.pub` is world-readable — read pubkeys via plain `cat`, n
 ## Pattern: fleet inventory
 
 - 🟡 Query **FleetCom** (`fleet.barta.cm`) as the canonical live source for fleet inventory. Never assume static lists.
-- 🔴 **msbp is decommissioned** (2026-05-12). Do NOT propose SSH, rebuilds, or routing work to msbp; any workflow using it as a proxy must find another path.
+- 🟡 **msbp ownership migrated** (2026-05-02, INSPR-24 Stage 2). The host is alive and runs Percy/Percaival, but its NixOS config now lives in `BYTEPOETS/bpnixcfg` (not personal `nixcfg`). Route msbp config edits + Docker compose paths through `~/Code/BYTEPOETS/bpnixcfg/hosts/miniserver-bp/` on the workstation, or `~/Code/bpnixcfg/...` on the host itself. Tickets for msbp belong in PMO/**BPOPS26** (epic BPOPS26-99), not personal PPM/NIX.
 
 ## Pattern: host recovery
 

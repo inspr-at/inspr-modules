@@ -713,9 +713,9 @@ This document is the authoritative source for Markus Barta's personal preference
 
 ## Topic: infra/fleet-state
 
-- 🟡 **STRONG** | `dont` | Do NOT propose SSH, rebuilds, or routing work to msbp; it was decommissioned 2026-05-12 and any workflow using it as proxy must find another path
-  *<sub>src: ~/.claude/.../memory/project_fleetcom.md L17</sub>*
-  <!-- rule_ids: project_fleetcom.md:L17:msbp-decommissioned | cluster: — -->
+- 🟡 **STRONG** | `prefer` | msbp ownership migrated to BYTEPOETS/bpnixcfg on 2026-05-02 (INSPR-24 Stage 2). Host is alive (runs Percy/Percaival); only its config home moved. Route msbp config edits via `~/Code/BYTEPOETS/bpnixcfg/hosts/miniserver-bp/` and msbp tickets to PMO/BPOPS26 (epic BPOPS26-99), not personal NIX.
+  *<sub>src: INSPR-24 Stage 2 migration · BPOPS26-99 epic</sub>*
+  <!-- rule_ids: bpops26-99:msbp-now-in-bpnixcfg | cluster: — -->
 
 
 ## Topic: infra/tailscale
