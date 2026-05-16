@@ -10,7 +10,26 @@ Detailed rules for Paimos/PPM ticket work: `paimos` CLI, ticket conventions, pro
 
 ## Auth
 
-- 🔴 Auth via `( set -a; source ~/.inspr/secrets/agents/PPMAPIKEY.env; cmd; set +a )` — exposes `$PPMAPIKEY` to the wrapped command only.
+Two auth surfaces — DON'T conflate them:
+
+**1. `paimos` CLI** — uses macOS Keychain (entry `paimos-cli/<instance>`) on macOS, Secret Service / KWallet on Linux, Credential Manager on Windows. Seeded once per host via `paimos auth login` at the keyboard. Verify with `paimos auth whoami`. Headless / CI fallback: set `PAIMOS_API_KEY` env-var (overrides keyring lookup).
+
+- 🟡 **Onboarding new macOS host**: run `paimos auth login` interactively at the iMac/Mac keyboard (not over SSH — Keychain access is unreliable from non-GUI sessions). Pre-fill with `--api-key "$PPMAPIKEY"` to skip the prompt if the env-file is already in place:
+  ```bash
+  bash -lc 'set -a; . ~/.inspr/secrets/agents/PPMAPIKEY.env; set +a; paimos auth login --url https://pm.barta.cm --api-key "$PPMAPIKEY" --name ppm'
+  ```
+- 🟡 After `paimos auth login`, daily invocation is just `paimos <subcommand>` — no env-file sourcing needed; Keychain is authoritative.
+- 🟡 `paimos auth whoami` is the canonical smoke. inspr-doctor checks this (INSPR-193).
+- 🔴 Sourcing `PPMAPIKEY.env` does NOT auth the paimos CLI — it only sets `$PPMAPIKEY`, which paimos ignores (it looks at `$PAIMOS_API_KEY`). The two env-var names are deliberately different (env-file convention = filename-as-varname; paimos's convention = `PAIMOS_API_KEY`).
+
+**2. Raw `curl` against `pm.barta.cm/api/...`** — uses the env-file. Source it, use `$PPMAPIKEY` in the `Authorization: Bearer` header.
+
+```bash
+( set -a; source ~/.inspr/secrets/agents/PPMAPIKEY.env; \
+  curl -H "Authorization: Bearer $PPMAPIKEY" https://pm.barta.cm/api/projects/4/issues; \
+  set +a )
+```
+
 - 🔴 NEVER `cat`, `head`, `tail`, `Read`, or print the env file. Verify presence with `ls -la` only.
 - 🔴 Never put secrets, API tokens, or credentials in ticket descriptions or notes; they stay in agenix.
 
@@ -103,17 +122,20 @@ This rule is **non-negotiable**. PAI-313 contamination (2026-05-10) happened bec
 
 ## Pattern: paimos CLI
 
-The `paimos` CLI is the daily interface — prefer it over raw curl when possible. Standard invocation:
+The `paimos` CLI is the daily interface — prefer it over raw curl when possible. Standard invocation (after `paimos auth login` ran once at the host — see Auth above):
 
 ```bash
-( set -a; source ~/.inspr/secrets/agents/PPMAPIKEY.env; paimos <subcommand> [args]; set +a )
+paimos <subcommand> [args]
 ```
 
+No env-file sourcing needed; Keychain handles auth. If the host lacks a seeded Keychain (CI / headless / fresh-onboard), set `PAIMOS_API_KEY` in the environment as a fallback — but the canonical fleet pattern is Keychain-seeded.
+
 Common subcommands (verify with `paimos --help` — re-survey before extending):
-- `paimos ticket get <KEY>` — read a ticket
-- `paimos ticket update <KEY> --status in-progress` — status transition
-- `paimos timer start <KEY>` / `paimos timer stop` — time tracking
-- `paimos search <topic>` — dedupe before create
+- `paimos issue get <KEY>` — read a ticket
+- `paimos issue update <KEY> --status in-progress` — status transition
+- `paimos issue list -p <PROJECT_KEY>` — list project issues
+- `paimos issue comment <KEY> --body "..."` — add a comment
+- `paimos auth whoami` — verify which instance + user the CLI is auth'd as
 
 🟡 Re-survey existing tooling on `--help` before scoping any "extend X" ticket — the CLI may already cover the feature.
 

@@ -57,7 +57,7 @@ This kernel is the always-on doctrine for every Claude agent in a Markus-INSPR r
 - 🟡 `gh pr view/diff` for PRs — never paste GitHub URLs.
 - 🟡 Terminal multiplexer: **zellij**, not tmux. Layouts in `~/.config/zellij/`.
 - 🟡 Identity / git config lives declaratively in nixcfg — no `git config --global` without confirming first.
-- 🟡 PPM: `paimos` CLI; auth via env file at `~/.inspr/secrets/agents/PPMAPIKEY.env` (source it, never cat it).
+- 🟡 PPM: `paimos` CLI uses macOS Keychain (seeded once via `paimos auth login`; see `/ppm` for setup + non-macOS fallback). Raw curl uses env-file `~/.inspr/secrets/agents/PPMAPIKEY.env` (source it, never cat it).
 
 ## ROUTER — load context on demand
 
