@@ -322,16 +322,16 @@ This document is the authoritative source for rules every Claude agent in Markus
   *<sub>src: ~/Code/inspr/playbook.md L432</sub>*
   <!-- rule_ids: playbook.md:L432:env-file-naming-consumer-convention | cluster: — -->
 
-- 🟡 **STRONG** | `do` | Source secret env files (e.g. source ~/Secrets/ppm/PPMAPIKEY.env) then use the env var.
-  *<sub>src: ~/Code/fleetcom/AGENTS.md L423</sub>*
+- 🟡 **STRONG** | `do` | Source secret env files (e.g. source ~/.inspr/secrets/agents/PPMAPIKEY.env — INSPR-164 canonical path) then use the env var.
+  *<sub>src: ~/Code/fleetcom/AGENTS.md L423 · path migrated 2026-05-13 (INSPR-164)</sub>*
   <!-- rule_ids: AGENTS.md:L423:source-not-print | cluster: — -->
 
-- 🟡 **STRONG** | `do` | Source ~/Secrets/ppm/PPMAPIKEY.env first, then use $PPMAPIKEY for PPM auth.
-  *<sub>src: ~/Code/fleetcom/AGENTS.md L49</sub>*
+- 🟡 **STRONG** | `do` | Source ~/.inspr/secrets/agents/PPMAPIKEY.env first, then use $PPMAPIKEY for raw curl against the PPM API. (paimos CLI uses macOS Keychain — see /ppm or AGENTS-DOMAIN-PPM.md.)
+  *<sub>src: ~/Code/fleetcom/AGENTS.md L49 · path migrated 2026-05-13 (INSPR-164) · CLI vs curl distinction clarified 2026-05-16 (INSPR-193)</sub>*
   <!-- rule_ids: AGENTS.md:L49:source-ppm-env | cluster: — -->
 
-- 🟡 **STRONG** | `do` | Store secrets in ~/Secrets/<NAME>.env so the filename is the env-var name (project convention).
-  *<sub>src: ~/Code/fleetcom/AGENTS.md L155-157</sub>*
+- 🟡 **STRONG** | `do` | Store agent secrets in ~/.inspr/secrets/agents/<NAME>.env (canonical fleet-wide, INSPR-164) so the filename is the env-var name (project convention).
+  *<sub>src: ~/Code/fleetcom/AGENTS.md L155-157 · path migrated 2026-05-13 (INSPR-164)</sub>*
   <!-- rule_ids: AGENTS.md:L155:secrets-filename-convention | cluster: — -->
 
 

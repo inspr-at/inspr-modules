@@ -507,8 +507,8 @@ This document is the authoritative source for Markus Barta's personal preference
 
 ## Topic: workflow/ppm
 
-- 🔴 **HARD** | `never` | Auth via source ~/Secrets/ppm.env which exposes $PPMAPIKEY; never cat/read the file
-  *<sub>src: ~/.claude/.../memory/feedback_agent_protocol.md L170</sub>*
+- 🔴 **HARD** | `never` | For raw curl PPM auth: source ~/.inspr/secrets/agents/PPMAPIKEY.env (INSPR-164 canonical path) which exposes $PPMAPIKEY; never cat/read the env file. paimos CLI uses macOS Keychain — see /ppm.
+  *<sub>src: ~/.claude/.../memory/feedback_agent_protocol.md L170 · path migrated 2026-05-13 (INSPR-164) · CLI vs curl distinction clarified 2026-05-16 (INSPR-193)</sub>*
   <!-- rule_ids: feedback_agent_protocol.md:L170:ppm-source-env | cluster: — -->
 
 - 🟡 **STRONG** | `always` | Always GET a PPM ticket's current state BEFORE any PUT — PPM PUT replaces the record wholesale, so capture the full restore-state first and verify ticket identity (id + title) before mutating.
