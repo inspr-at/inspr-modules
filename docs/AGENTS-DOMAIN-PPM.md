@@ -35,6 +35,28 @@ Two auth surfaces — DON'T conflate them:
 
 See `/secrets` for full secret-handling pipeline.
 
+### Stuck? "I can't find PPM/PMO creds"
+
+Run this diagnostic chain top-to-bottom — first thing that fails points at the fix:
+
+```bash
+ls ~/.inspr/secrets/agents/         # are the env-files materialized on this host?
+paimos auth whoami                  # is Keychain seeded? (prints user on success)
+paimos doctor                       # full health report
+~/Code/inspr/scripts/inspr-doctor.sh --verbose   # canonical fleet-wide onboarding check
+```
+
+| Symptom | Likely cause | Fix |
+| --- | --- | --- |
+| `PPMAPIKEY.env` missing | secrets not materialized on this host | enable `inspr.secrets.agents` in HM, `home-manager switch` |
+| `paimos auth whoami` exits 1 | Keychain not seeded | run the `paimos auth login` block above **at the keyboard**, not over SSH |
+| `paimos auth whoami` exits 1 after key rotation | stale Keychain entry | re-run `paimos auth login` with the fresh key |
+| `$PPMAPIKEY` empty after sourcing | wrong filename / variable | `PPMAPIKEY.env` exports `PPMAPIKEY`; PMO uses `PMOAPIKEY.env` → `PMOAPIKEY` |
+| `curl` returns 401 | wrong header / stale key | `Authorization: Bearer $PPMAPIKEY` (not `Token`); confirm key not rotated |
+| Linux / headless / CI | no GUI keyring | use `PAIMOS_API_KEY=...` env-var fallback (overrides Keychain lookup) |
+
+🔴 Never `cat`/`Read`/`head`/`tail` the .env files — `ls -la` only.
+
 ## Endpoints
 
 - Use `$PMOURL` for HTTP API calls.
