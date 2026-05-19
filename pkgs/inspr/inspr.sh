@@ -249,7 +249,11 @@ check_agent_secrets_locked() {
         return 77
     }
     local mode
-    mode=$(stat -f '%Mp%Lp' "$SECRETS_DIR" 2>/dev/null || stat -c '%a' "$SECRETS_DIR" 2>/dev/null)
+    # GNU stat (-c) first, BSD stat (-f) fallback. Under writeShellApplication's
+    # coreutils-on-PATH, BSD `stat -f` is shadowed by GNU's `-f` (= --file-system),
+    # which silently returns wrong data. Try GNU first; if not present (raw
+    # macOS without coreutils), GNU errors and we fall through to BSD.
+    mode=$(stat -c '%a' "$SECRETS_DIR" 2>/dev/null || stat -f '%Mp%Lp' "$SECRETS_DIR" 2>/dev/null)
     [[ "$mode" == "500" || "$mode" == "0500" ]]
 }
 
@@ -358,7 +362,8 @@ check_paimos_config_bootstrapped() {
     local f="$HOME/.paimos/config.yaml"
     [[ -f "$f" ]] || return 1
     local mode
-    mode=$(stat -f '%Mp%Lp' "$f" 2>/dev/null || stat -c '%a' "$f" 2>/dev/null)
+    # GNU stat first, BSD fallback (see check_agent_secrets_locked comment).
+    mode=$(stat -c '%a' "$f" 2>/dev/null || stat -f '%Mp%Lp' "$f" 2>/dev/null)
     [[ "$mode" == "600" || "$mode" == "0600" ]]
 }
 
