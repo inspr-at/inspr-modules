@@ -24,6 +24,15 @@ The filename equals the env-var name (e.g. `PPMAPIKEY.env` → `$PPMAPIKEY`). Da
 
 Subshell scoping prevents leakage to the caller's environment. The `set -a` / `set +a` bracket is bash-only — wrap in `bash -c '…'` from fish.
 
+### Tool-specific exceptions to env-file consumption
+
+Not every tool reads env-files. Some use OS keyrings, others use config files. Two notable exceptions:
+
+- **`paimos` CLI** uses macOS Keychain (entry `paimos-cli/<instance>`), seeded once per host via `paimos auth login`. Sourcing `PPMAPIKEY.env` does NOT authenticate `paimos` — the env-var name is `PAIMOS_API_KEY`, not `PPMAPIKEY`, and on macOS the CLI prefers Keychain over env-var anyway. Use the env-file only for raw `curl` against `pm.barta.cm/api/...`. Full setup in `/ppm` (INSPR-193).
+- **1Password CLI (`op`)** uses its own session token; `op signin` writes session state to `~/.config/op/`. No env-file involved for daily use.
+
+When piping a new env-file to a CLI, check the CLI's docs first — env-var name mismatch is the most common silent failure mode.
+
 ### Naming convention
 
 - Materialized env files: name after the consumer tool's documented env-var convention (e.g. `GH_TOKEN.env` so `gh` picks it up automatically).
