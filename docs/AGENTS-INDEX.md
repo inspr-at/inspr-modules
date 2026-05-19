@@ -2,7 +2,7 @@
 
 **Phase 6 shipped 2026-05-15** (INSPR-189). Auto-loaded budget reduced from ~127 k chars to ≤25 k. Kernel-only auto-load + on-demand domain packs via slash commands.
 
-Phase 4 (synthesized 2026-05-14) produced the 521 canonical rules across 12 layer files from 556 Phase-2 raw rules with 35 Phase-3 cluster collapses. Phase 6 carved those into a kernel + domain packs without dropping content (CORE.md and PROFILE-MARKUS.md remain on-demand-only).
+Phase 4 (synthesized 2026-05-14) produced **521 canonical rules across 12 layer files** from 556 Phase-2 raw rules with 35 Phase-3 cluster collapses. Phase 6 (2026-05-15) carved those into a kernel + 5 domain packs (17 layer files total) **without adding new rules** — same 521 entries, optimized distribution for on-demand loading. CORE.md and PROFILE-MARKUS.md remain on-demand-only.
 
 ## Decision provenance
 
@@ -32,32 +32,22 @@ Phase 4 (synthesized 2026-05-14) produced the 521 canonical rules across 12 laye
 
 ### On-demand reference / role overlays
 
-| File | Scope tag | Loaded by | Description |
-|---|---|---|---|
-| AGENTS-CORE.md | `universal` | exhaustive ref (rarely loaded directly) | **Pre-Phase-6 always-loaded file** (199 rules, 64 k chars). Now reference-only; the kernel + domain packs cover the actively-needed subset. |
-| AGENTS-PROFILE-MARKUS.md | `profile:markus` | `/style` | Full Markus profile (153 rules) — depth beyond kernel's identity minimum. |
-| AGENTS-AGENT-SYSOP.md | `agent:sysop` | `/ops` | SYSOP role overlay |
-| AGENTS-AGENT-SYSOP-GB.md | `agent:sysop-gb` | (Gerhard's `/ops` variant) | SYSOP-GB role overlay |
-| AGENTS-AGENT-OPENCLAW-OPS.md | `agent:openclaw-ops` | `/ocbots` (effectively) | OPENCLAW-OPS role overlay |
-| AGENTS-AGENT-FLEET-DECISION.md | `agent:fleet-decision` | (cross-fleet decision agents) | FLEET-DECISION role overlay |
-| AGENTS-AGENT-PPM.md | `agent:ppm` | `/ppm` | PPM role overlay |
-| AGENTS-AGENT-PPM-READONLY.md | `agent:ppm-readonly` | `/ppm` (read-only mode) | PPM read-only overlay |
-| AGENTS-AGENT-DEV.md | `agent:dev` | `/dev` | DEV role overlay |
-| AGENTS-CORE.md (legacy single-file row, kept for compat) | `universal` | reference | Universal rules — apply to every Claude agent regardless of role/profile/repo. |
-| AGENTS-PROFILE-MARKUS.md | `profile:markus` | 153 | inspr-modules/docs/AGENTS-PROFILE-MARKUS.md | Markus Barta's personal preferences (style, pacing, tooling). |
-| AGENTS-AGENT-SYSOP.md | `agent:sysop` | 34 | inspr-modules/docs/AGENTS-AGENT-SYSOP.md | SYSOP role overlay — fleet-wide system operations. |
-| AGENTS-AGENT-SYSOP-GB.md | `agent:sysop-gb` | 20 | inspr-modules/docs/AGENTS-AGENT-SYSOP-GB.md | SYSOP-GB role overlay — Greenbox-restricted ops. |
-| AGENTS-AGENT-OPENCLAW-OPS.md | `agent:openclaw-ops` | 12 | inspr-modules/docs/AGENTS-AGENT-OPENCLAW-OPS.md | OPENCLAW-OPS role overlay — Open Clearance Workspace. |
-| AGENTS-AGENT-FLEET-DECISION.md | `agent:fleet-decision` | 10 | inspr-modules/docs/AGENTS-AGENT-FLEET-DECISION.md | FLEET-DECISION role overlay — cross-fleet decision agents. |
-| AGENTS-AGENT-PPM.md | `agent:ppm` | 6 | inspr-modules/docs/AGENTS-AGENT-PPM.md | PPM role overlay — Paimos Project Manager API agents. |
-| AGENTS-AGENT-PPM-READONLY.md | `agent:ppm-readonly` | 4 | inspr-modules/docs/AGENTS-AGENT-PPM-READONLY.md | PPM read-only overlay — audit/discovery only. |
-| AGENTS-AGENT-DEV.md | `agent:dev` | 2 | inspr-modules/docs/AGENTS-AGENT-DEV.md | DEV role overlay — development-oriented agents. |
-| nixcfg-AGENTS.md.template | `repo:nixcfg` | 55 | nixcfg/AGENTS.md | nixcfg repo-specific delta (Nix darwin + Home Manager). |
-| fleetcom-AGENTS.md.template | `repo:fleetcom` | 26 | fleetcom/AGENTS.md | fleetcom repo-specific delta (fleet management CLI). |
-| inspr-AGENTS.md.template | `repo:inspr` | 0 | inspr/AGENTS.md | inspr meta-repo delta (umbrella initiative root). |
+| File                                | Scope tag             | Rules | Loaded by                                   | Description                                                                                              |
+| ----------------------------------- | --------------------- | ----- | ------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| AGENTS-CORE.md                      | `universal`           | 199   | exhaustive ref (rarely loaded directly)     | **Pre-Phase-6 always-loaded file** (64 k chars). Now reference-only; the kernel + domain packs cover the actively-needed subset. |
+| AGENTS-PROFILE-MARKUS.md            | `profile:markus`      | 153   | `/style`                                    | Full Markus profile — style, pacing, tooling depth beyond kernel's identity minimum.                     |
+| AGENTS-AGENT-SYSOP.md               | `agent:sysop`         | 34    | `/ops`                                      | SYSOP role overlay — fleet-wide system operations.                                                       |
+| AGENTS-AGENT-SYSOP-GB.md            | `agent:sysop-gb`      | 20    | (Gerhard's `/ops` variant)                  | SYSOP-GB role overlay — Greenbox-restricted ops.                                                         |
+| AGENTS-AGENT-OPENCLAW-OPS.md        | `agent:openclaw-ops`  | 12    | `/ocbots` (nixcfg-only)                     | OPENCLAW-OPS role overlay — Open Clearance Workspace.                                                    |
+| AGENTS-AGENT-FLEET-DECISION.md      | `agent:fleet-decision`| 10    | (cross-fleet decision agents)               | FLEET-DECISION role overlay — cross-fleet decision agents.                                               |
+| AGENTS-AGENT-PPM.md                 | `agent:ppm`           | 6     | `/ppm`                                      | PPM role overlay — Paimos Project Manager API agents.                                                    |
+| AGENTS-AGENT-PPM-READONLY.md        | `agent:ppm-readonly`  | 4     | `/ppm` (read-only mode)                     | PPM read-only overlay — audit / discovery only.                                                          |
+| AGENTS-AGENT-DEV.md                 | `agent:dev`           | 2     | `/dev`                                      | DEV role overlay — development-oriented agents.                                                          |
+| `nixcfg/AGENTS.md`                  | `repo:nixcfg`         | 55    | auto via per-repo CLAUDE.md @-ref           | nixcfg repo-specific delta (Nix darwin + Home Manager, NixOS host quirks, PII rule).                     |
+| `fleetcom/AGENTS.md`                | `repo:fleetcom`       | 26    | auto via per-repo CLAUDE.md @-ref           | fleetcom repo-specific delta (FleetCom API + deploy + project IDs).                                      |
+| `inspr/AGENTS.md`                   | `repo:inspr`          | 0     | auto via per-repo CLAUDE.md @-ref           | inspr meta-repo delta (umbrella initiative root; 0-rule overlay by design).                              |
 
-**Total canonical rules across all layers: 521**
-(equals 521 canonical entries — every rule lands in exactly one layer.)
+**Phase-4 baseline rule count: 521 canonical rules** (Phase 4 synthesis, 2026-05-14) — every rule lands in exactly one Phase-4 layer. Phase 6 (2026-05-15) carved CORE into kernel + 5 domain packs WITHOUT adding new rules; the same 521 entries are now distributed across more files, optimized for on-demand loading.
 
 ## Layer-file format conventions
 
@@ -82,7 +72,9 @@ Phase 5 shipped end-to-end. Per-step commit refs:
 
 ### Phase 5.QA1 — Loader follow-up (2026-05-14, post-QA)
 
-Phase-5 QA surfaced that the per-repo `CLAUDE.md` symlinks → `AGENTS.md` (thin overlay) did **not** pull upstream rules into Claude Code's session context — markdown URL pointers are static text, not auto-fetched. **Fix**: vendored inspr-modules as a `git submodule` at `./doctrine/` in each consuming repo, replaced each `CLAUDE.md` symlink with a real file containing `@-refs` that cascade-load the layered files (`@./doctrine/docs/AGENTS-CORE.md`, `@./doctrine/docs/AGENTS-PROFILE-MARKUS.md`, `@./AGENTS.md`). Slash commands (`/ops`, `/ocbots`, `/oc-modelupdate`) likewise updated to `@-ref` their applicable role overlay (`AGENTS-AGENT-SYSOP.md`, etc.) so role rules load on demand. Empirically verified — Claude Code's @-ref behavior is documented (5-hop transitive include, relative paths from file location).
+> **SUPERSEDED by Phase 6 (2026-05-15).** The CLAUDE.md loader described below cascade-loaded CORE + PROFILE-MARKUS (~407 rules in context per session, ~127 k chars) and triggered Claude Code's >40 k performance warning. Phase 6 replaced this with a kernel-only auto-load + on-demand domain packs. Kept here for historical context only — see the Phase 6 section below for the current loader pattern.
+
+Phase-5 QA surfaced that the per-repo `CLAUDE.md` symlinks → `AGENTS.md` (thin overlay) did **not** pull upstream rules into Claude Code's session context — markdown URL pointers are static text, not auto-fetched. **Fix (now superseded)**: vendored inspr-modules as a `git submodule` at `./doctrine/` in each consuming repo, replaced each `CLAUDE.md` symlink with a real file containing `@-refs` that cascade-load the layered files (`@./doctrine/docs/AGENTS-CORE.md`, `@./doctrine/docs/AGENTS-PROFILE-MARKUS.md`, `@./AGENTS.md`). Slash commands (`/ops`, `/ocbots`, `/oc-modelupdate`) likewise updated to `@-ref` their applicable role overlay (`AGENTS-AGENT-SYSOP.md`, etc.) so role rules load on demand. Empirically verified — Claude Code's @-ref behavior is documented (5-hop transitive include, relative paths from file location).
 
 Per-repo loader commits:
 

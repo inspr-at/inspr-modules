@@ -3,8 +3,9 @@
 Load incident-response context for security incidents, secret leaks, lockout recovery, and host emergencies.
 
 @./doctrine/docs/AGENTS-DOMAIN-SECRETS.md
+@./doctrine/docs/AGENTS-DOMAIN-OPS.md
 
-You are now operating with INCIDENT-RESPONSE context. The kernel already covers the immediate stop conditions (STOP on secret-in-output, alert user, rotate). This pack adds:
+You are now operating with INCIDENT-RESPONSE context. The kernel already covers the immediate stop conditions (STOP on secret-in-output, alert user, rotate). The two domain packs above give you the full secrets + ops (host-recovery / lockout) depth. This pack adds incident-specific protocol on top:
 
 ## Secret-leak protocol (canonical)
 

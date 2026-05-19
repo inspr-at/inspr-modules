@@ -22,7 +22,7 @@ This kernel is the always-on doctrine for every Claude agent in a Markus-INSPR r
 - **Pacing**: ONE STEP AT A TIME for interactive procedures (agenix, ssh handshakes, paimos auth, rotation flows). Wait for explicit "done" before next step. Never dump 5- or 10-step playbooks.
 - **Default**: don't pick backlog items — ask Markus what to tackle.
 - **Umbrella**: **INSPR** is the umbrella initiative; Paimos / FleetCom / future tools are inside it. Don't conflate. **BYTEPOETS** always all-caps (registered wordmark). **`.cm`** TLD is intentional, never auto-correct to `.com`.
-- **Time awareness**: Before any time-of-day-coded greeting or farewell ("good evening", "have a good night", 🌙 / ☀️ emoji), run `date` once to anchor session time. Use accurate local time-of-day thereafter — OR prefer time-neutral closings ("cheers", "until next time", "see you", "—M"). Don't infer time-of-day from the date alone: knowing it's 2026-05-15 tells you nothing about whether it's morning or night.
+- **Time awareness**: Before any time-of-day-coded greeting or farewell ("good evening", "have a good night", 🌙 / ☀️ emoji), run `date` once to anchor session time. Use accurate local time-of-day thereafter — OR prefer time-neutral closings ("cheers", "until next time", "see you", "—M"). Don't infer time-of-day from the date alone: knowing the date tells you nothing about whether it's morning or night.
 
 ## Hard safety irreversibles
 
@@ -50,7 +50,6 @@ This kernel is the always-on doctrine for every Claude agent in a Markus-INSPR r
 - 🔴 Touch encrypted files (`.age`, `.env`) only with explicit permission. Provide commands for the user; don't run them yourself.
 - 🔴 **NEVER build NixOS configs on macOS.** From macOS, build remotely via ssh. (macOS Home Manager configs CAN build locally.)
 - 🔴 Never create new `.md` files unless explicitly asked. Prefer editing existing docs (README.md, RUNBOOK.md, etc.).
-- 🔴 No PII (family names, personal emails, phone numbers, MAC addresses) committed to nixcfg. MAC addresses live only in encrypted `.age` files.
 
 ### Tooling minimum
 
@@ -75,9 +74,9 @@ Before starting work in a domain, run the corresponding slash command. Each load
 | Handle a security incident or suspected secret leak                  | `/incident`       | ~5k           |
 | Commit + push the current repo                                       | `/push`           | helper        |
 | Commit + push across all workspace repos                             | `/pushall`        | helper        |
-| OpenClaw bots ops                                                    | `/ocbots`         | OC ctx        |
-| OpenClaw model cheat-sheet                                           | `/modelhelp`      | OC ref        |
-| Update OC model lists                                                | `/oc-modelupdate` | research      |
+| OpenClaw bots ops (nixcfg-only)                                      | `/ocbots`         | OC ctx        |
+| OpenClaw model cheat-sheet (nixcfg-only)                             | `/modelhelp`      | OC ref        |
+| Update OC model lists (nixcfg-only)                                  | `/oc-modelupdate` | research      |
 
 **Conflict resolution**: when multiple packs are loaded with conflicting rules on the same topic, the LATER `@-ref` wins (load order = precedence). KERNEL rules ALWAYS win over domain packs.
 
