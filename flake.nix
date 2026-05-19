@@ -40,6 +40,9 @@
 #   packages.<system>.secrets-audit    Bash script: detect drift between
 #                                       secrets/*.age and secrets.nix
 #                                       declarations.
+#   packages.<system>.inspr            Bash CLI: INSPR onboarding diagnostic +
+#                                       heal + onboard sub-commands. Replaces
+#                                       the older inspr-doctor.sh probe.
 #
 # Consumer pattern (in your flake.nix):
 #   inputs.inspr-modules.url = "github:markus-barta/inspr-modules";
@@ -102,6 +105,7 @@
         # ── CLI scripts as packages ──────────────────────────────────────
         packages = {
           secrets-audit = pkgs.callPackage ./pkgs/secrets-audit { };
+          inspr = pkgs.callPackage ./pkgs/inspr { };
         };
 
         # ── Test suite (run via `nix flake check`) ───────────────────────
