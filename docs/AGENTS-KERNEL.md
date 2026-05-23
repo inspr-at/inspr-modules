@@ -68,6 +68,7 @@ Before starting work in a domain, run the corresponding slash command. Each load
 | Edit nix-darwin / Home Manager / devenv / NixOS module               | `/nix`            | ~10k          |
 | Fleet ops, SSH between hosts, NixOS deploys (SYSOP role)             | `/ops`            | ~12k          |
 | Touch agenix, 1P CLI, env-file pipeline, secrets rotation            | `/secrets`        | ~10k          |
+| Declarative service config (Terraform / Zitadel / Cloudflare / etc.) | `/iac`            | ~8k           |
 | Write/refactor code, run tests, do dev workflow                      | `/dev`            | ~8k           |
 | Create / update PPM tickets, project planning                        | `/ppm`            | ~8k           |
 | Need Markus's full style + pacing preferences in depth               | `/style`          | ~20k          |

@@ -29,6 +29,7 @@ Phase 4 (synthesized 2026-05-14) produced **521 canonical rules across 12 layer 
 | AGENTS-DOMAIN-NIX.md | `/nix` | nix-darwin, Home Manager, devenv, NixOS modules + activation |
 | AGENTS-DOMAIN-OPS.md | `/ops` | Fleet ops, SSH matrix, infra, tailscale, fleet-state |
 | AGENTS-DOMAIN-PPM.md | `/ppm` | Paimos CLI, ticket conventions, project landscape, API endpoints |
+| AGENTS-DOMAIN-IAC.md | `/iac` | L5 service config (Terraform for Zitadel/Cloudflare/GitHub/Headscale + inspr-services repo) |
 
 ### On-demand reference / role overlays
 
