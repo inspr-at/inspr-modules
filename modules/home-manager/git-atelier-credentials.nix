@@ -218,19 +218,21 @@ let
                 alias = "${host}-${atelierName}-${repoName}";
               in {
                 name = alias;
+                # HM ≥25.05: `programs.ssh.settings` replaces deprecated
+                # `matchBlocks`. Upstream OpenSSH directives (HostKeyAlias,
+                # UserKnownHostsFile) sit directly under the per-host attrset
+                # using their PascalCase names, alongside HM-camelCase keys.
                 value = {
                   hostname       = host;
                   user           = "git";
                   identityFile   = dk.privateKeyPath;
                   identitiesOnly = true;
-                  extraOptions = {
-                    # Look up host key under canonical forge host name
-                    # rather than the alias. One known_hosts entry covers
-                    # ALL aliased SSH paths to this forge.
-                    HostKeyAlias = host;
-                  } // lib.optionalAttrs atelier.manageKnownHosts {
-                    UserKnownHostsFile = "~/.ssh/known_hosts ~/.ssh/known_hosts.d/inspr-git-atelier-${atelierName}";
-                  };
+                  # Look up host key under canonical forge host name rather
+                  # than the alias. One known_hosts entry covers ALL aliased
+                  # SSH paths to this forge.
+                  HostKeyAlias   = host;
+                } // lib.optionalAttrs atelier.manageKnownHosts {
+                  UserKnownHostsFile = "~/.ssh/known_hosts ~/.ssh/known_hosts.d/inspr-git-atelier-${atelierName}";
                 };
               }
             ) atelier.credentials.deployKeys)
@@ -288,17 +290,16 @@ let
             (validateForgeKind atelierName atelier)
             {
               name = alias;
+              # HM ≥25.05: see comment in renderedMatchBlocks above.
               value = {
                 hostname       = host;
                 user           = "git";
                 identityFile   = atelier.credentials.userKey.privateKeyPath;
                 identitiesOnly = true;
-                extraOptions = {
-                  HostKeyAlias = host;
-                } // lib.optionalAttrs atelier.manageKnownHosts {
-                  UserKnownHostsFile =
-                    "~/.ssh/known_hosts ~/.ssh/known_hosts.d/inspr-git-atelier-${atelierName}";
-                };
+                HostKeyAlias   = host;
+              } // lib.optionalAttrs atelier.manageKnownHosts {
+                UserKnownHostsFile =
+                  "~/.ssh/known_hosts ~/.ssh/known_hosts.d/inspr-git-atelier-${atelierName}";
               };
             })
     ) enabledUserKeyAteliers
@@ -660,11 +661,12 @@ in
     {
       programs.ssh = {
         enable = true;
-        # Strategy A produces per-repo match blocks; Strategy B produces one
-        # per-atelier match block. Namespaces don't collide (A uses
+        # Strategy A produces per-repo settings entries; Strategy B produces
+        # one per-atelier entry. Namespaces don't collide (A uses
         # `<host>-<atelier>-<repo>`, B uses `git-<atelier>`), so a plain merge
-        # via `//` is safe.
-        matchBlocks = renderedMatchBlocks // renderedUserKeyMatchBlocks;
+        # via `//` is safe. `settings` is HM ≥25.05 (replaces deprecated
+        # `matchBlocks`).
+        settings = renderedMatchBlocks // renderedUserKeyMatchBlocks;
       };
 
       programs.git = lib.mkIf (
@@ -674,7 +676,7 @@ in
           || enabledIdentityAteliers != { }
       ) {
         enable = lib.mkDefault true;
-        # Same merge story as matchBlocks: Strategy A rewrites are repo-specific
+        # Same merge story as ssh.settings: Strategy A rewrites are repo-specific
         # (`OWNER/REPO`), Strategy B is owner-prefix (`OWNER/`). Git's "longest
         # insteadOf wins" rule means A takes precedence over B when both apply
         # to the same URL — desired behaviour (narrowest scope wins).
@@ -693,13 +695,13 @@ in
     # Newer HM versions warn at activation if `programs.ssh.enable=true` and
     # `programs.ssh.enableDefaultConfig` is left at its default of `true`.
     # We set it to false (opt-out of the legacy auto-inject) and re-declare
-    # the previously-injected defaults under `matchBlocks."*"` via mkDefault
+    # the previously-injected defaults under `settings."*"` via mkDefault
     # so consumer flakes keep their historical behaviour but can override.
     # Guarded so older HM (no `enableDefaultConfig` option) still evaluates
     # cleanly.
     (lib.mkIf hasEnableDefaultConfig {
       programs.ssh.enableDefaultConfig = lib.mkDefault false;
-      programs.ssh.matchBlocks."*" = {
+      programs.ssh.settings."*" = {
         forwardAgent = lib.mkDefault false;
         addKeysToAgent = lib.mkDefault "no";
         compression = lib.mkDefault false;
