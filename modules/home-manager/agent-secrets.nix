@@ -82,8 +82,43 @@ let
     (map (f: { src = "${sharedDir}/${f}"; name = varNameOf f; }) sharedFiles) ++
     (map (f: { src = "${hostDir}/${f}";   name = varNameOf f; }) hostFiles);
 
-  # Newline-separated list of expected target basenames (for orphan cleanup)
-  expectedBasenames = lib.concatStringsSep " " (map (s: "${s.name}.env") allSecrets);
+  # All discovered variable names — used by the `requireFiles` validation.
+  discoveredNames = map varNameOf (sharedFiles ++ hostFiles);
+
+  # Eval-time validation: every name in `requireFiles` MUST be discoverable
+  # via `readDir` of the flake source. Catches the common failure mode where
+  # a new `.age` file exists on disk but is UNTRACKED in git, so the flake
+  # source closure doesn't include it → discovery silently misses → secret
+  # is never materialized → consumer wonders why their env-file is empty.
+  missingRequired = lib.subtractLists discoveredNames cfg.requireFiles;
+
+  _validateRequired =
+    if missingRequired == [] then null
+    else throw ''
+
+      inspr.secrets.agents: required secret file(s) missing from flake source:
+      ${lib.concatMapStringsSep "\n      " (n: "  - ${n}.age") missingRequired}
+
+      Each must exist at one of:
+        ${toString sharedDir}/<NAME>.age
+        ${toString hostDir}/<NAME>.age
+
+      Most common cause: the .age file is on disk but UNTRACKED in git.
+      Nix flake source builds only see git-tracked files, so `readDir` of the
+      flake-evaluated path doesn't see it. Stage with:
+
+          git add <encryptedRoot>/{shared,host/<host>}/<NAME>.age
+
+      and re-run `home-manager switch`. Commit is NOT required — staging
+      alone is enough for the flake to include the file in source.
+    '';
+
+  # Newline-separated list of expected target basenames (for orphan cleanup).
+  # Forces `_validateRequired` so any missing-file throw fires before the
+  # activation script renders.
+  expectedBasenames =
+    builtins.seq _validateRequired
+      (lib.concatStringsSep " " (map (s: "${s.name}.env") allSecrets));
 
 in
 {
@@ -142,6 +177,39 @@ in
         mkDarwinHome / nixos-rebuild patterns). If neither is set, the
         module throws at eval time rather than silently skipping host
         secrets.
+      '';
+    };
+
+    requireFiles = lib.mkOption {
+      type        = lib.types.listOf lib.types.str;
+      default     = [ ];
+      example     = [ "PPMAPIKEY" "HOMEWIFI" ];
+      description = ''
+        Optional list of secret basenames (without `.age`/`.env`) that MUST
+        be discoverable at HM-eval time in either `<encryptedRoot>/shared/`
+        or `<encryptedRoot>/host/<hostname>/`. If any are missing, evaluation
+        throws with a diagnostic pointing at the most common cause: an
+        untracked `.age` file invisible to the flake source closure.
+
+        Without this option, a typo in `secrets.nix` or an untracked `.age`
+        causes silent skip — the consumer rebuilds successfully but the
+        env-file never materializes. Use this to fail loud instead.
+
+        Recommended wiring: derive the list from your `secrets.nix` so the
+        recipient declarations are the single source of truth. Example:
+
+            let
+              secrets = import ./secrets/secrets.nix;
+              keys    = builtins.attrNames secrets;
+              isFor   = k:
+                lib.hasPrefix "agents/shared/" k
+                || lib.hasPrefix "agents/host/''${hostname}/" k;
+              nameOf  = k:
+                lib.removeSuffix ".age"
+                  (lib.last (lib.splitString "/" k));
+            in
+              inspr.secrets.agents.requireFiles =
+                map nameOf (builtins.filter isFor keys);
       '';
     };
 
