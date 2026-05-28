@@ -127,6 +127,55 @@ This rule is **non-negotiable**. PAI-313 contamination (2026-05-10) happened bec
 | List issues in project      | `GET /api/projects/<id>/issues`       | `project_id` query param NOT honored on `/api/issues` |
 | Search                      | `GET /api/search?q=<topic>`           | dedupe before create                             |
 
+## Knowledge entries — the home for docs, architecture & durable knowledge
+
+PPM **Knowledge** is the canonical home for knowledge that used to sprawl into `.md` files. **Kernel rule: knowledge/docs/architecture → a PPM Knowledge entry, not a new local doc.** Entries are **project-scoped**.
+
+**What goes here**: architecture, design rationale, positioning, vision, playbooks, field notes, research write-ups, durable how-tos, integration/external-system notes, cross-project relationships.
+
+**What stays a local `.md` (do NOT migrate)**: `README`, `AGENTS.md`/`CLAUDE.md` + doctrine packs (must auto-load offline — can't bootstrap from an L6 app), `RUNBOOK.md`, `CHANGELOG.md`, `RESUMING-*` session notes, `LICENSE`, code comments.
+
+### Types (the `type` taxonomy)
+
+| type | use for |
+| --- | --- |
+| `guideline` | architecture, design rationale, positioning, vision, playbooks, field notes, conventions — **catch-all** for durable reference knowledge |
+| `runbook` | net-new operational how-tos that aren't host-bound (host `RUNBOOK.md` stays local) |
+| `external_system` | integration knowledge for external services / APIs |
+| `related_project` | cross-project relationships / links |
+| `memory` | agent auto-memory (decay/staleness/reference-counted subsystem — PAI-347/349). Machine lane; don't hand-author. |
+
+🟡 **Type-value gotcha**: the list-filter query enum is hyphenated (`?type=external-system`) but stored/path type values are underscored (`external_system`, `related_project`). Use **underscores** in the `{type}` path + create body; reach for hyphens only if a `?type=` filter rejects the underscore form. Verify on first use (greenfield as of 2026-05-28 — no entries existed yet).
+
+### Endpoints (project-scoped)
+
+| Operation | Endpoint |
+| --- | --- |
+| List (optionally filter) | `GET /api/projects/<id>/knowledge[?type=<type>]` |
+| Create | `POST /api/projects/<id>/knowledge` (body: `KnowledgeEntryInput`) |
+| Fetch one | `GET /api/projects/<id>/knowledge/<type>/<slug>` |
+| Replace (rename via `body.slug`) | `PUT /api/projects/<id>/knowledge/<type>/<slug>` |
+| Soft-delete (Trash) | `DELETE /api/projects/<id>/knowledge/<type>/<slug>` |
+
+**`KnowledgeEntryInput`**: `slug` + `title` required; `type`, `body` (markdown content), `status`, `metadata` (free object) optional. Addressed by `(project, type, slug)`. Numeric project ids for API: INSPR=8, NIX=1, PAI=6, FLEET=4.
+
+- 🟡 **Provenance convention**: put `metadata: { "source_repo": "inspr", "orig_path": "architecture.md", "tags": [...] }` so a migrated doc keeps a breadcrumb home.
+- 🟡 PUT replaces **wholesale** (same as issues) — GET-before-PUT.
+- 🟡 `memory` type has extra lifecycle endpoints (`.../memory/stale?days=`, `.../memory/proposed/stale?days=`, `POST .../memory/references`) — reserved for the auto-memory subsystem; ignore for hand-authored docs.
+
+### Create example
+
+```bash
+( set -a; source ~/.inspr/secrets/agents/PPMAPIKEY.env
+  curl -s -X POST -H "Authorization: Bearer $PPMAPIKEY" -H "Content-Type: application/json" \
+    --data @/tmp/entry.json \
+    https://pm.barta.cm/api/projects/8/knowledge
+  set +a )
+# /tmp/entry.json:
+# {"type":"guideline","slug":"inspr-architecture","title":"INSPR Architecture",
+#  "body":"# ...markdown...","metadata":{"source_repo":"inspr","orig_path":"architecture.md"}}
+```
+
 ## Workflow: ticket sweeping
 
 🟡 Sweep tickets need explicit time-boxing **at the per-item level**. Promote items past 30 min to their own focused tickets. **Promoting is a feature, not a failure** — better to have N focused tickets than one bloated sweep.

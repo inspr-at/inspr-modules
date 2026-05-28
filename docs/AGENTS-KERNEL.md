@@ -49,7 +49,7 @@ This kernel is the always-on doctrine for every Claude agent in a Markus-INSPR r
 - 🔴 Don't delete or rename unexpected items — STOP and ask.
 - 🔴 Touch encrypted files (`.age`, `.env`) only with explicit permission. Provide commands for the user; don't run them yourself.
 - 🔴 **NEVER build NixOS configs on macOS.** From macOS, build remotely via ssh. (macOS Home Manager configs CAN build locally.)
-- 🔴 Never create new `.md` files unless explicitly asked. Prefer editing existing docs (README.md, RUNBOOK.md, etc.).
+- 🔴 Never create new `.md` files unless explicitly asked. **Knowledge lives in PPM, not new `.md` files**: architecture, design rationale, positioning, playbooks, field notes, durable how-tos → create a PPM **Knowledge** entry (`/ppm` for mechanics), don't author a doc file. Stays local (must auto-load offline / repo-bound): `README`, `AGENTS.md`/`CLAUDE.md` + doctrine packs, `RUNBOOK.md`, `CHANGELOG.md`, `RESUMING-*`, `LICENSE`, code comments. Prefer editing an existing in-scope doc over creating one.
 
 ### Tooling minimum
 
