@@ -62,7 +62,7 @@ let
           };
         };
         in r.success
-           && (r.config.programs.ssh.matchBlocks or { }) == { };
+           && (r.config.programs.ssh.settings or { }) == { };
     }
 
     # ── Enabled atelier + deployKey → SSH match block + url rewrite ──────
@@ -77,11 +77,11 @@ let
         };
         in r.success
            && r.config.programs.ssh.enable == true
-           && (r.config.programs.ssh.matchBlocks ? "github.com-bytepoets-bpnixcfg")
-           && r.config.programs.ssh.matchBlocks."github.com-bytepoets-bpnixcfg".hostname == "github.com"
-           && r.config.programs.ssh.matchBlocks."github.com-bytepoets-bpnixcfg".identityFile
+           && (r.config.programs.ssh.settings ? "github.com-bytepoets-bpnixcfg")
+           && r.config.programs.ssh.settings."github.com-bytepoets-bpnixcfg".hostname == "github.com"
+           && r.config.programs.ssh.settings."github.com-bytepoets-bpnixcfg".identityFile
                 == "/run/agenix/test-bp-bpnixcfg-deploy-key"
-           && r.config.programs.ssh.matchBlocks."github.com-bytepoets-bpnixcfg".identitiesOnly == true
+           && r.config.programs.ssh.settings."github.com-bytepoets-bpnixcfg".identitiesOnly == true
            && (r.config.programs.git.settings.url
                  ? "git@github.com-bytepoets-bpnixcfg:BYTEPOETS/bpnixcfg");
     }
@@ -121,17 +121,60 @@ let
           };
         };
         in r.success
-           && (r.config.programs.ssh.matchBlocks ? "git-personal")
-           && r.config.programs.ssh.matchBlocks."git-personal".hostname == "github.com"
-           && r.config.programs.ssh.matchBlocks."git-personal".identityFile
+           && (r.config.programs.ssh.settings ? "git-personal")
+           && r.config.programs.ssh.settings."git-personal".hostname == "github.com"
+           && r.config.programs.ssh.settings."git-personal".identityFile
                 == "/run/agenix/m5-personal-userkey"
-           && r.config.programs.ssh.matchBlocks."git-personal".identitiesOnly == true
+           && r.config.programs.ssh.settings."git-personal".identitiesOnly == true
            && (r.config.programs.git.settings.url ? "git@git-personal:markus-barta/")
            && r.config.programs.git.settings.url."git@git-personal:markus-barta/".insteadOf
                 == [
                      "https://github.com/markus-barta/"
                      "git@github.com:markus-barta/"
                    ];
+    }
+
+    # ── Strategy B extraOwners → owner-prefix rewrite + identity include per owner
+    {
+      name = "extraOwners renders userKey url rewrites + identity includes for every owner";
+      assertion =
+        let r = evalModule {
+          module = gitAtelier;
+          config = {
+            inspr.git.atelier.bytepoets = {
+              enable = true;
+              forge = {
+                kind = "github";
+                url = "https://github.com";
+                owner = "BYTEPOETS";
+                extraOwners = [ "bytepoets-mba" ];
+              };
+              credentials.userKey = {
+                privateKeyPath = "/run/agenix/m5-bytepoets-userkey";
+                pubKey = "ssh-ed25519 AAAAFakeUser m5-bytepoets@bytepoets-mba";
+              };
+              git = {
+                userName = "bytepoets-mba";
+                userEmail = "mba@bytepoets.com";
+                # workspacePath omitted → hasconfig per-owner includeIf
+              };
+            };
+          };
+        };
+        in r.success
+           # owner-prefix url rewrite for BOTH the primary owner and the extra owner
+           && (r.config.programs.git.settings.url ? "git@git-bytepoets:BYTEPOETS/")
+           && (r.config.programs.git.settings.url ? "git@git-bytepoets:bytepoets-mba/")
+           && r.config.programs.git.settings.url."git@git-bytepoets:bytepoets-mba/".insteadOf
+                == [
+                     "https://github.com/bytepoets-mba/"
+                     "git@github.com:bytepoets-mba/"
+                   ]
+           # author-identity includeIf rendered for the extra owner too
+           && lib.any (i:
+                lib.hasInfix "hasconfig:remote.*.url:" i.condition
+                && lib.hasInfix "bytepoets-mba" i.condition
+              ) r.config.programs.git.includes;
     }
 
     # ── Strategy B + Strategy A coexist (independent SSH alias namespaces) ─
@@ -156,9 +199,9 @@ let
         };
         in r.success
            # Strategy A alias (per-repo, narrow)
-           && (r.config.programs.ssh.matchBlocks ? "github.com-bytepoets-bpnixcfg")
+           && (r.config.programs.ssh.settings ? "github.com-bytepoets-bpnixcfg")
            # Strategy B alias (per-atelier, owner-glob)
-           && (r.config.programs.ssh.matchBlocks ? "git-bytepoets")
+           && (r.config.programs.ssh.settings ? "git-bytepoets")
            # Both URL rewrites present
            && (r.config.programs.git.settings.url ? "git@github.com-bytepoets-bpnixcfg:BYTEPOETS/bpnixcfg")
            && (r.config.programs.git.settings.url ? "git@git-bytepoets:BYTEPOETS/");
@@ -262,8 +305,8 @@ let
           };
         };
         in r.success
-           && (r.config.programs.ssh.matchBlocks ? "github.com-bytepoets-bpnixcfg")
-           && (r.config.programs.ssh.matchBlocks ? "github.com-personal-nixcfg")
+           && (r.config.programs.ssh.settings ? "github.com-bytepoets-bpnixcfg")
+           && (r.config.programs.ssh.settings ? "github.com-personal-nixcfg")
            && (r.config.home.file ? ".ssh/known_hosts.d/inspr-git-atelier-bytepoets")
            && (r.config.home.file ? ".ssh/known_hosts.d/inspr-git-atelier-personal");
     }

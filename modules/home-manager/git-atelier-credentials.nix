@@ -70,6 +70,7 @@
 #       kind  = "github";
 #       url   = "https://github.com";
 #       owner = "BYTEPOETS";
+#       extraOwners = [ "bytepoets-mba" ]; # optional: extra accounts sharing this key
 #     };
 #     credentials.userKey = {
 #       privateKeyPath = "/run/agenix/m5-bytepoets-userkey";
@@ -306,19 +307,24 @@ let
   );
 
   renderedUserKeyUrlRewrites = lib.listToAttrs (
-    lib.mapAttrsToList (atelierName: atelier:
-      let
-        host = forgeHost atelier.forge.url;
-        alias = "git-${atelierName}";
-        owner = atelier.forge.owner;
-      in {
-        name = "git@${alias}:${owner}/";
-        value.insteadOf = [
-          "${atelier.forge.url}/${owner}/"
-          "git@${host}:${owner}/"
-        ];
-      }
-    ) (lib.filterAttrs (_: a: a.rewriteUrls) enabledUserKeyAteliers)
+    lib.concatLists (
+      lib.mapAttrsToList (atelierName: atelier:
+        let
+          host = forgeHost atelier.forge.url;
+          alias = "git-${atelierName}";
+          owners = lib.unique ([ atelier.forge.owner ] ++ atelier.forge.extraOwners);
+        in
+          # One owner-prefix rewrite per owner so extraOwners route through
+          # the same userKey alias as the primary owner.
+          map (owner: {
+            name = "git@${alias}:${owner}/";
+            value.insteadOf = [
+              "${atelier.forge.url}/${owner}/"
+              "git@${host}:${owner}/"
+            ];
+          }) owners
+      ) (lib.filterAttrs (_: a: a.rewriteUrls) enabledUserKeyAteliers)
+    )
   );
 
   # ── Per-atelier author identity renderers ────────────────────────────────
@@ -356,25 +362,29 @@ let
     }) enabledIdentityAteliers
   );
 
-  renderedIdentityIncludes = lib.mapAttrsToList (atelierName: atelier:
-    let
-      host  = forgeHost atelier.forge.url;
-      owner = atelier.forge.owner;
-      fragPath = "~/${identityFragmentPath atelierName}";
-    in
-      if atelier.git.workspacePath != null
-      then {
-        condition = "gitdir:${atelier.git.workspacePath}/";
-        path      = fragPath;
-      }
-      else {
-        # hasconfig requires git 2.36+ (April 2022). Pattern matches any
-        # remote URL containing both the forge host AND the owner — works
-        # for HTTPS, plain SSH, and post-rewrite alias SSH alike.
-        condition = "hasconfig:remote.*.url:*${host}*${owner}/*";
-        path      = fragPath;
-      }
-  ) enabledIdentityAteliers;
+  renderedIdentityIncludes = lib.concatLists (
+    lib.mapAttrsToList (atelierName: atelier:
+      let
+        host  = forgeHost atelier.forge.url;
+        owners = lib.unique ([ atelier.forge.owner ] ++ atelier.forge.extraOwners);
+        fragPath = "~/${identityFragmentPath atelierName}";
+      in
+        if atelier.git.workspacePath != null
+        then [{
+          condition = "gitdir:${atelier.git.workspacePath}/";
+          path      = fragPath;
+        }]
+        else
+          # hasconfig requires git 2.36+ (April 2022). Pattern matches any
+          # remote URL containing both the forge host AND the owner — works
+          # for HTTPS, plain SSH, and post-rewrite alias SSH alike. One entry
+          # per owner so extraOwners get the same author identity.
+          map (owner: {
+            condition = "hasconfig:remote.*.url:*${host}*${owner}/*";
+            path      = fragPath;
+          }) owners
+    ) enabledIdentityAteliers
+  );
 
   # known_hosts files (one per atelier that opts into management).
   renderedKnownHosts = lib.listToAttrs (
@@ -391,7 +401,7 @@ let
                   baked = builtinKnownHosts.${host} or [ ];
                 in ''
                   # Managed by inspr.git.atelier."${atelierName}" — do not hand-edit.
-                  # Forge: ${atelier.forge.kind} @ ${atelier.forge.url} (owner: ${atelier.forge.owner})
+                  # Forge: ${atelier.forge.kind} @ ${atelier.forge.url} (owners: ${lib.concatStringsSep ", " (lib.unique ([ atelier.forge.owner ] ++ atelier.forge.extraOwners))})
                   ${lib.concatStringsSep "\n" baked}
                   ${lib.concatStringsSep "\n" atelier.forge.extraKnownHosts}
                 '';
@@ -429,8 +439,8 @@ in
   options.inspr.git.atelier = lib.mkOption {
     default = { };
     description = ''
-      Per-atelier outbound git credentials. Each named atelier maps to one
-      forge owner (org/user/group) and declares one or more credential
+      Per-atelier outbound git credentials. Each named atelier maps to one or
+      more forge owners (org/user/group) and declares one or more credential
       strategies for hosts to push/fetch through. See module header for the
       full design rationale + 4-tier scaling story.
     '';
@@ -463,10 +473,29 @@ in
             owner = lib.mkOption {
               type = lib.types.str;
               description = ''
-                Org / user / group on that forge that owns the repos this
-                atelier covers.
+                Primary org / user / group on that forge that owns the repos
+                this atelier covers. Used for the canonical author identity
+                and as the default URL-rewrite prefix. Additional owners that
+                share this atelier's key/identity go in `extraOwners`.
               '';
               example = "BYTEPOETS";
+            };
+            extraOwners = lib.mkOption {
+              type = lib.types.listOf lib.types.str;
+              default = [ ];
+              description = ''
+                Additional owners (org/user/group) on the SAME forge whose
+                repos this atelier also covers, reached through the same
+                credential and author identity as `owner`. Use when one
+                account/key spans multiple owners — e.g. a GitHub org plus the
+                personal account that bot-workspace repos live under.
+
+                Strategy B (userKey) URL rewrites and the author-identity
+                includeIf are rendered for `owner` ++ `extraOwners` (deduped).
+                Strategy A (per-repo deploy keys) stays scoped to `owner`, since
+                a deploy key is bound to a single repo under a single owner.
+              '';
+              example = [ "bytepoets-mba" ];
             };
             extraKnownHosts = lib.mkOption {
               type = lib.types.listOf lib.types.str;
