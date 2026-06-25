@@ -100,7 +100,7 @@ Kernel: never create new `.md` files unless explicitly requested; prefer editing
 
 ## Pattern: naming conventions
 
-- 🟡 In SSH pubkey comments and 1P entry titles, use the FULL local hostname + FULL local username (`mba@mba-mbp-m5-work`), NOT chip codenames (`markus@m5`).
+- 🟡 In SSH pubkey comments and 1P entry titles, use the FULL local hostname + FULL local username (`mba@mbp0`), NOT chip codenames (`markus@m5`).
 - 🟡 The `.cm` TLD is **intentional**, not a typo for `.com`. Kernel rule, repeated for emphasis: do not auto-correct.
 
 ## Pattern: long-running commands

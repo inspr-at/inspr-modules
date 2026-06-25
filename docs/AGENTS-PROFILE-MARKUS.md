@@ -315,7 +315,7 @@ This document is the authoritative source for Markus Barta's personal preference
 
 ## Topic: style/naming-conventions
 
-- 🟡 **STRONG** | `always` | In SSH pubkey comments and 1P entry titles, use the FULL local hostname + FULL local username (mba@mba-mbp-m5-work), NOT chip codenames (markus@m5)
+- 🟡 **STRONG** | `always` | In SSH pubkey comments and 1P entry titles, use the FULL local hostname + FULL local username (mba@mbp0), NOT chip codenames (markus@m5)
   *<sub>src: ~/Code/inspr/legacy-rsa-key-inventory.md L222-231</sub>*
   <!-- rule_ids: legacy-rsa-key-inventory.md:L222:full-hostname-username-in-ssh-comments | cluster: — -->
 
@@ -702,7 +702,7 @@ This document is the authoritative source for Markus Barta's personal preference
 
 ## Topic: nixos/host-template
 
-- 🟡 **STRONG** | `dont` | Do not conflate hosts/mba-mbp-work (old Intel) with hosts/mba-mbp-m5-work (new M5); they are different physical hardware and configs
+- 🟡 **STRONG** | `dont` | Do not conflate hosts/mba-mbp-work (old Intel) with hosts/mbp0 (new M5); they are different physical hardware and configs
   *<sub>src: ~/.claude/.../memory/project_machine_mbp_provenance.md L18-20</sub>*
   <!-- rule_ids: project_machine_mbp_provenance.md:L20:dont-conflate-host-configs | cluster: — -->
 

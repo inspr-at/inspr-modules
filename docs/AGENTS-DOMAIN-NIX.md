@@ -99,7 +99,7 @@ NixOS git build reads `/etc/gitconfig` by default. `environment.etc.gitconfig.te
 
 ## Pattern: per-host divergence & troubleshooting
 
-- Per-host divergence is expected. Don't assume something on one machine exists on another without checking that host's nix config. Do NOT conflate `hosts/mba-mbp-work` (old Intel) with `hosts/mba-mbp-m5-work` (new M5).
+- Per-host divergence is expected. Don't assume something on one machine exists on another without checking that host's nix config. Do NOT conflate `hosts/mba-mbp-work` (old Intel) with `hosts/mbp0` (new M5).
 - When troubleshooting env issues, check whether the tool is **declared in nixcfg** before assuming imperative install. "Why isn't X working?" is often "not in this host's module set".
 
 ## Cross-cutting: paths & PII in shared docs

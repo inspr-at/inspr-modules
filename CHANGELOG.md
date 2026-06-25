@@ -75,7 +75,7 @@ Initial Pattern β extraction from [markus-barta/nixcfg](https://github.com/mark
 ### Provenance
 
 Extracted from the INSPR onboarding sessions of 2026-05-01 and 2026-05-02:
-- Day 1: M5 (mba-mbp-m5-work) onboarded; agent-secrets + git-identity patterns established
+- Day 1: M5 (mbp0) onboarded; agent-secrets + git-identity patterns established
 - Day 2 morning: paimos-config added; inspr-doctor v2 (host-class profiles) shipped
 - Day 2 afternoon: Pattern β extraction (this v0.1.0); audit pass + 18 fixes
 
