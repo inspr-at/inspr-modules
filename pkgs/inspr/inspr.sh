@@ -7,6 +7,7 @@
 #   inspr check     = read-only diagnosis (am I onboarded? what drifted?)
 #   inspr heal      = diagnose + offer to fix what's fixable
 #   inspr onboard   = walk a fresh host through INSPR setup
+#   inspr post-deploy = prove nixcfg → Pharos → HostDash after deploy
 #
 # Flags:
 #   --help, -h      = show this help
@@ -456,6 +457,41 @@ check_system_agenix_decrypted() {
     [[ -d /run/agenix ]]
 }
 
+# ── INSPR suite post-deploy validation (INSPR-215) ─────────────────────────
+post_pass() {
+    printf "  ${GREEN}✓${RESET} %s\n" "$1"
+    POST_PASS=$((POST_PASS + 1))
+}
+
+post_fail() {
+    printf "  ${RED}✗ %s${RESET}\n" "$1"
+    printf "    ${YELLOW}owner:${RESET} %s\n" "$2"
+    POST_FAIL=$((POST_FAIL + 1))
+}
+
+post_skip() {
+    printf "  ${DIM}∘ %s ${YELLOW}[skipped]${RESET}${DIM} %s${RESET}\n" "$1" "$2"
+    POST_SKIP=$((POST_SKIP + 1))
+}
+
+post_check_json() {
+    local label="$1" owner="$2" file="$3"
+    shift 3
+    if jq -e "$@" "$file" >/dev/null 2>&1; then
+        post_pass "$label"
+    else
+        post_fail "$label" "$owner"
+    fi
+}
+
+post_context_keys() {
+    case "$1" in
+    lan) echo "lanHostname lanIp" ;;
+    tailnet) echo "tailnet" ;;
+    both) echo "lanHostname lanIp tailnet" ;;
+    esac
+}
+
 # ── heal fix mappings (INSPR-195 Phase 3) ──────────────────────────────────
 #
 # Each heal_fix_<slug> function corresponds to a check_<slug>. Output:
@@ -635,6 +671,7 @@ cmd_help() {
     echo "  ${GREEN}check${RESET}      Read-only diagnosis — am I onboarded? what drifted?"
     echo "  ${GREEN}heal${RESET}       Diagnose, then offer to fix what's fixable."
     echo "  ${GREEN}onboard${RESET}    Walk a fresh host through INSPR setup."
+    echo "  ${GREEN}post-deploy${RESET} Validate nixcfg → Pharos → HostDash after deploy."
     echo ""
     echo "${BOLD}Flags:${RESET}"
     echo "  ${CYAN}--help, -h${RESET}       Show this help."
@@ -645,6 +682,7 @@ cmd_help() {
     echo "  ${DIM}inspr check --verbose | --quiet | --list | --profile=<workstation|server>${RESET}"
     echo "  ${DIM}inspr heal --yes${RESET}     ${DIM}# auto-apply fixable items (NOT YET IMPLEMENTED — see INSPR-195)${RESET}"
     echo "  ${DIM}inspr onboard${RESET}         ${DIM}# interactive walkthrough (NOT YET IMPLEMENTED — see INSPR-195)${RESET}"
+    echo "  ${DIM}inspr post-deploy --host=hsb8${RESET}"
     echo ""
 }
 
@@ -1121,6 +1159,211 @@ cmd_onboard() {
     exit 1
 }
 
+cmd_post_deploy_help() {
+    cat <<EOF
+${BOLD}inspr post-deploy${RESET} — validate nixcfg → Pharos → HostDash after deploy.
+
+${BOLD}Usage:${RESET}
+  inspr post-deploy --host=<host> [flags]
+
+${BOLD}Flags:${RESET}
+  ${CYAN}--host=<h>${RESET}             Host slug to validate, e.g. hsb8. Required.
+  ${CYAN}--context=<c>${RESET}          HostDash URL context: lan | tailnet | both. Default: tailnet.
+  ${CYAN}--pharos-url=<url>${RESET}     Pharos base URL. Default: \$INSPR_PHAROS_URL or http://100.64.0.4:8088.
+  ${CYAN}--nixcfg-dir=<dir>${RESET}     nixcfg checkout. Default: \$INSPR_NIXCFG_DIR or ~/Code/nixcfg.
+  ${CYAN}--ssh-host=<h>${RESET}         SSH target for live /etc manifest check. Default: --host value.
+  ${CYAN}--skip-ssh${RESET}             Skip live /etc/hostdash-config/<host>.json check.
+  ${CYAN}-h, --help${RESET}             Show this help.
+
+${BOLD}What it checks:${RESET}
+  - nixcfg can evaluate the generated declared manifest.
+  - csb1 pharosd handoff artifact matches the generated manifest when present.
+  - live host /etc manifest matches the generated manifest unless --skip-ssh.
+  - Pharos /declared-hosts.json contains the host with separate observed runtime state.
+  - HostDash responds in requested LAN/Tailscale contexts and serves the same manifest.
+
+${BOLD}Exit codes:${RESET}
+  0  validation passed or only optional checks skipped
+  1  one or more validation checks failed
+  2  usage / environment error
+EOF
+}
+
+cmd_post_deploy() {
+    local host=""
+    local context="tailnet"
+    local pharos_url="${INSPR_PHAROS_URL:-http://100.64.0.4:8088}"
+    local nixcfg_dir="$NIXCFG_DIR"
+    local ssh_host=""
+    local skip_ssh=0
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+        --host=*) host="${1#--host=}" ;;
+        --host)
+            shift
+            host="$1"
+            ;;
+        --context=*) context="${1#--context=}" ;;
+        --context)
+            shift
+            context="$1"
+            ;;
+        --pharos-url=*) pharos_url="${1#--pharos-url=}" ;;
+        --pharos-url)
+            shift
+            pharos_url="$1"
+            ;;
+        --nixcfg-dir=*) nixcfg_dir="${1#--nixcfg-dir=}" ;;
+        --nixcfg-dir)
+            shift
+            nixcfg_dir="$1"
+            ;;
+        --ssh-host=*) ssh_host="${1#--ssh-host=}" ;;
+        --ssh-host)
+            shift
+            ssh_host="$1"
+            ;;
+        --skip-ssh) skip_ssh=1 ;;
+        -h | --help)
+            cmd_post_deploy_help
+            exit 0
+            ;;
+        *)
+            echo "${RED}error:${RESET} unknown flag for 'inspr post-deploy': '$1' (try --help)" >&2
+            exit 2
+            ;;
+        esac
+        shift
+    done
+
+    if [[ -z "$host" ]]; then
+        echo "${RED}error:${RESET} --host is required" >&2
+        exit 2
+    fi
+    if [[ ! "$host" =~ ^[A-Za-z0-9._-]+$ ]]; then
+        echo "${RED}error:${RESET} unsafe host slug '$host'" >&2
+        exit 2
+    fi
+    case "$context" in
+    lan | tailnet | both) ;;
+    *)
+        echo "${RED}error:${RESET} --context must be lan, tailnet, or both" >&2
+        exit 2
+        ;;
+    esac
+
+    ssh_host="${ssh_host:-$host}"
+    pharos_url="${pharos_url%/}"
+
+    local tmpdir generated_json pharos_json live_manifest served_manifest artifact
+    tmpdir="$(mktemp -d)" || exit 2
+    trap 'rm -rf "$tmpdir"' EXIT
+    generated_json="$tmpdir/generated.json"
+    pharos_json="$tmpdir/pharos.json"
+    live_manifest="$tmpdir/live-hostdash.json"
+    served_manifest="$tmpdir/served-hostdash.json"
+    artifact="$nixcfg_dir/hosts/csb1/docker/pharos/manifests/${host}.json"
+
+    POST_PASS=0
+    POST_FAIL=0
+    POST_SKIP=0
+
+    echo "${BOLD}inspr post-deploy${RESET} — host: ${CYAN}$host${RESET} ${DIM}(context: ${context})${RESET}"
+
+    section "nixcfg declaration"
+    if [[ ! -d "$nixcfg_dir/.git" ]]; then
+        post_fail "nixcfg checkout is present" "INSPR/NIX: set --nixcfg-dir or INSPR_NIXCFG_DIR"
+    elif (cd "$nixcfg_dir" && nix eval ".#nixosConfigurations.${host}.config.services.hostdash.manifest.generated" --json >"$generated_json" 2>"$tmpdir/nix-eval.err"); then
+        post_pass "nixcfg generated manifest evaluates"
+        post_check_json "generated manifest schema/version/host" "NIX-277/NIX-279" "$generated_json" \
+            --arg host "$host" '.schema == "inspr.hostdash.config.v1" and .version == 1 and .host.name == $host and .policy.declaredOnly == true'
+    else
+        post_fail "nixcfg generated manifest evaluates" "NIX-277/NIX-279"
+    fi
+
+    if [[ -s "$generated_json" && -f "$artifact" ]]; then
+        if diff -u <(jq -S . "$generated_json") <(jq -S . "$artifact") >/dev/null; then
+            post_pass "csb1 pharosd handoff artifact matches generated manifest"
+        else
+            post_fail "csb1 pharosd handoff artifact matches generated manifest" "NIX-286"
+        fi
+    elif [[ -s "$generated_json" ]]; then
+        post_skip "csb1 pharosd handoff artifact" "no artifact at $artifact"
+    fi
+
+    if [[ -s "$generated_json" && $skip_ssh -eq 0 ]]; then
+        if command -v ssh >/dev/null 2>&1 && ssh "$ssh_host" "test -s /etc/hostdash-config/${host}.json && cat /etc/hostdash-config/${host}.json" >"$live_manifest" 2>/dev/null; then
+            if diff -u <(jq -S . "$generated_json") <(jq -S . "$live_manifest") >/dev/null; then
+                post_pass "live host /etc manifest matches generated manifest"
+            else
+                post_fail "live host /etc manifest matches generated manifest" "NIX deploy"
+            fi
+        else
+            post_fail "live host /etc manifest is reachable over SSH" "NIX deploy/runbook"
+        fi
+    elif [[ $skip_ssh -eq 1 ]]; then
+        post_skip "live host /etc manifest" "--skip-ssh set"
+    fi
+
+    section "Pharos"
+    if curl -fsS -m 8 "$pharos_url/declared-hosts.json" >"$pharos_json" 2>/dev/null; then
+        post_pass "Pharos declared-hosts endpoint responds"
+        post_check_json "Pharos response schema" "PHAROS-29" "$pharos_json" \
+            '.schema == "inspr.pharos.declared-hosts.v1" and .manifest_schema == "inspr.hostdash.config.v1"'
+        post_check_json "Pharos has declared host" "PHAROS-29/NIX-286" "$pharos_json" \
+            --arg host "$host" 'any(.declared_hosts[]; .name == $host and .declared.host.name == $host)'
+        post_check_json "Pharos runtime overlay is observed" "PHAROS-29/pharos-beacon" "$pharos_json" \
+            --arg host "$host" 'any(.declared_hosts[]; .name == $host and .runtime.state == "observed" and .runtime.last_seen != null and .runtime.freshness != null)'
+        post_check_json "Pharos runtime liveness is not down" "PHAROS-29/pharos-beacon" "$pharos_json" \
+            --arg host "$host" 'any(.declared_hosts[]; .name == $host and (.runtime.liveness == "live" or .runtime.liveness == "stale"))'
+    else
+        post_fail "Pharos declared-hosts endpoint responds" "PHAROS-29"
+    fi
+
+    section "HostDash"
+    if [[ ! -s "$generated_json" ]]; then
+        post_skip "HostDash URL checks" "generated manifest unavailable"
+    else
+        local key access_host url
+        for key in $(post_context_keys "$context"); do
+            access_host="$(jq -r --arg key "$key" '.host.access[$key] // empty' "$generated_json")"
+            if [[ -z "$access_host" ]]; then
+                post_skip "HostDash $key URL" "no host.access.$key in manifest"
+                continue
+            fi
+            url="http://${access_host}/"
+            if curl -fsS -m 8 -o /dev/null "$url" 2>/dev/null; then
+                post_pass "HostDash $key URL responds"
+            else
+                post_fail "HostDash $key URL responds" "HOSTD/NIX networking"
+                continue
+            fi
+            if curl -fsS -m 8 "${url}manifest.json" >"$served_manifest" 2>/dev/null; then
+                post_pass "HostDash $key manifest endpoint responds"
+                if diff -u <(jq -S . "$generated_json") <(jq -S . "$served_manifest") >/dev/null; then
+                    post_pass "HostDash $key served manifest matches nixcfg"
+                else
+                    post_fail "HostDash $key served manifest matches nixcfg" "HOSTD-4/NIX-279"
+                fi
+            else
+                post_fail "HostDash $key manifest endpoint responds" "HOSTD-4"
+            fi
+        done
+    fi
+
+    local total
+    total=$((POST_PASS + POST_FAIL + POST_SKIP))
+    echo ""
+    if [[ $POST_FAIL -eq 0 ]]; then
+        echo "${GREEN}${BOLD}✓ inspr post-deploy: validation passed${RESET} (${POST_PASS}/${total}, ${POST_SKIP} skipped)"
+        exit 0
+    else
+        echo "${RED}${BOLD}✗ inspr post-deploy: ${POST_FAIL} check(s) failed${RESET} (${POST_PASS}/${total}, ${POST_SKIP} skipped)"
+        exit 1
+    fi
+}
+
 # ── main dispatch ───────────────────────────────────────────────────────────
 
 # No args → help
@@ -1154,6 +1397,10 @@ heal)
 onboard)
     shift
     cmd_onboard "$@"
+    ;;
+post-deploy)
+    shift
+    cmd_post_deploy "$@"
     ;;
 *)
     echo "${RED}error:${RESET} unknown command or flag: '$1' (try ${CYAN}inspr --help${RESET})" >&2

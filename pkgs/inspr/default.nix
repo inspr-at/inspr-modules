@@ -19,6 +19,7 @@
   git,
   jq,
   curl,
+  openssh,
 }:
 
 writeShellApplication {
@@ -32,6 +33,7 @@ writeShellApplication {
     git        # submodule status / git rev-parse
     jq         # tailscale --json parsing
     curl       # headscale /health probe
+    openssh    # optional live-host deployment checks
   ];
 
   # The script deliberately uses `set -uo pipefail` WITHOUT `-e`. Each
@@ -46,19 +48,23 @@ writeShellApplication {
   # Shellcheck excludes (all false positives in this context):
   # SC1091: source ./*.env inside conditional subshell — shellcheck can't
   #         follow runtime-conditional sources; behavior is correct.
+  # SC2016: single-quoted jq programs intentionally keep jq variables intact.
   # SC2001: sed per-line prepend — same false positive as secrets-audit.
   # SC2059: printf format-string variables — variables ARE color codes
   #         (${GREEN}, ${RED}, etc.), not user-controlled data.
   # SC2088: literal ~ in run_check description strings (display text only;
   #         the actual paths come from $HOME-resolved $NIXCFG_DIR etc.).
+  # SC2029: post-deploy expands a validated host slug into a remote manifest path.
   # SC2155: local var=$(cmd) — exit-code masking acceptable in our context.
   # SC2329: heal_fix_* functions ARE invoked, indirectly via $fix_fn lookup
   #         in cmd_heal's loop. Shellcheck can't see indirect dispatch.
   excludeShellChecks = [
     "SC1091"
+    "SC2016"
     "SC2001"
     "SC2059"
     "SC2088"
+    "SC2029"
     "SC2155"
     "SC2329"
   ];
