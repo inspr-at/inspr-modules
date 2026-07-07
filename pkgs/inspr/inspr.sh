@@ -6,7 +6,8 @@
 #   inspr           = inspr --help (show help)
 #   inspr check     = read-only diagnosis (am I onboarded? what drifted?)
 #   inspr heal      = diagnose + offer to fix what's fixable
-#   inspr onboard   = walk a fresh host through INSPR setup
+#   inspr onboard   = walk a fresh host through INSPR setup; optionally register
+#                     it in Pharos and deploy pharos-beacon
 #   inspr post-deploy = prove nixcfg → Pharos → HostDash after deploy
 #
 # Flags:
@@ -492,6 +493,203 @@ post_context_keys() {
     esac
 }
 
+# ── Pharos onboarding helpers (PHAROS-7) ───────────────────────────────────
+pharos_default_role() {
+    case "${PROFILE:-}" in
+    workstation) echo "workstation" ;;
+    *) echo "server" ;;
+    esac
+}
+
+pharos_default_is_nix() {
+    if [[ -f /etc/NIXOS ]]; then
+        echo "true"
+    else
+        echo "false"
+    fi
+}
+
+pharos_validate_host() {
+    [[ "$1" =~ ^[A-Za-z0-9._-]+$ ]]
+}
+
+pharos_validate_interval() {
+    [[ "$1" =~ ^[0-9]+$ ]] && [[ "$1" -gt 0 ]]
+}
+
+pharos_beacon_deployed() {
+    if command -v systemctl >/dev/null 2>&1 && systemctl is-active --quiet pharos-beacon 2>/dev/null; then
+        return 0
+    fi
+    if command -v docker >/dev/null 2>&1 && docker ps --format '{{.Names}}' 2>/dev/null | grep -Fxq pharos-beacon; then
+        return 0
+    fi
+    return 1
+}
+
+pharos_step_status() {
+    local token_out="$1"
+    local token_present=1
+    local deployed_present=1
+    [[ -f "$token_out" ]] && token_present=0
+    pharos_beacon_deployed && deployed_present=0
+
+    if [[ $token_present -eq 0 && $deployed_present -eq 0 ]]; then
+        echo "ok"
+    elif [[ $token_present -eq 0 || $deployed_present -eq 0 ]]; then
+        echo "partial"
+    else
+        echo "missing"
+    fi
+}
+
+pharos_register_host() {
+    local pharos_url="$1" host="$2" role="$3" is_nix="$4" interval="$5" token_out="$6"
+    local bootstrap="${INSPR_PHAROS_REGISTRATION_TOKEN:-${PHAROS_REGISTRATION_TOKEN:-}}"
+    local tmpdir payload response http_code curl_status token token_dir msg
+
+    if [[ -z "$bootstrap" ]]; then
+        echo "${RED}error:${RESET} set INSPR_PHAROS_REGISTRATION_TOKEN before --pharos-register" >&2
+        return 2
+    fi
+    if [[ -e "$token_out" ]]; then
+        echo "${RED}error:${RESET} token file already exists: $token_out" >&2
+        echo "       refusing to rotate/overwrite a raw beacon token implicitly" >&2
+        return 2
+    fi
+    token_dir="$(dirname "$token_out")"
+    if [[ ! -d "$token_dir" ]]; then
+        mkdir -p "$token_dir" || return 1
+        chmod 700 "$token_dir" 2>/dev/null || true
+    fi
+    if [[ ! -w "$token_dir" ]]; then
+        echo "${RED}error:${RESET} token directory is not writable: $token_dir" >&2
+        return 2
+    fi
+    command -v jq >/dev/null 2>&1 || {
+        echo "${RED}error:${RESET} jq is required for Pharos registration" >&2
+        return 2
+    }
+    command -v curl >/dev/null 2>&1 || {
+        echo "${RED}error:${RESET} curl is required for Pharos registration" >&2
+        return 2
+    }
+
+    tmpdir="$(mktemp -d)" || return 2
+    payload="$tmpdir/register.json"
+    response="$tmpdir/response.json"
+    chmod 700 "$tmpdir"
+
+    jq -n \
+        --arg name "$host" \
+        --arg role "$role" \
+        --argjson is_nix "$is_nix" \
+        --argjson heartbeat_interval_secs "$interval" \
+        '{name:$name, role:$role, is_nix:$is_nix, heartbeat_interval_secs:$heartbeat_interval_secs}' \
+        >"$payload" || {
+        rm -rf "$tmpdir"
+        return 2
+    }
+
+    http_code="$(
+        curl -sS -m 15 \
+            -o "$response" \
+            -w '%{http_code}' \
+            -H "Content-Type: application/json" \
+            --config - \
+            --data-binary "@$payload" \
+            "$pharos_url/register" <<CURLCFG
+header = "Authorization: Bearer ${bootstrap}"
+CURLCFG
+    )"
+    curl_status=$?
+    if [[ $curl_status -ne 0 ]]; then
+        echo "${RED}error:${RESET} Pharos registration request failed" >&2
+        rm -rf "$tmpdir"
+        return 1
+    fi
+    if [[ "$http_code" != "201" ]]; then
+        msg="$(jq -r '.error // "unexpected response"' "$response" 2>/dev/null || echo "unexpected response")"
+        echo "${RED}error:${RESET} Pharos registration failed (HTTP $http_code): $msg" >&2
+        rm -rf "$tmpdir"
+        return 1
+    fi
+
+    token="$(jq -r --arg host "$host" 'select(.name == $host) | .token // empty' "$response" 2>/dev/null)"
+    if [[ -z "$token" || "$token" == *$'\n'* || "$token" == *$'\r'* ]]; then
+        echo "${RED}error:${RESET} Pharos registration response did not contain a usable token" >&2
+        rm -rf "$tmpdir"
+        return 1
+    fi
+
+    (
+        umask 077
+        printf 'PHAROS_TOKEN=%s\n' "$token" >"$token_out"
+    ) || {
+        rm -rf "$tmpdir"
+        return 1
+    }
+    chmod 600 "$token_out" 2>/dev/null || true
+
+    rm -rf "$tmpdir"
+    printf "  ${GREEN}✓${RESET} Pharos registered ${CYAN}%s${RESET}; beacon token stored at ${CYAN}%s${RESET}\n" "$host" "$token_out"
+}
+
+pharos_deploy_beacon_docker() {
+    local pharos_url="$1" host="$2" role="$3" is_nix="$4" interval="$5" token_out="$6" image="$7"
+    local -a args
+
+    command -v docker >/dev/null 2>&1 || {
+        echo "${RED}error:${RESET} docker is required for --pharos-deploy=docker" >&2
+        return 2
+    }
+    [[ -f "$token_out" ]] || {
+        echo "${RED}error:${RESET} token file not present: $token_out" >&2
+        return 2
+    }
+    docker info >/dev/null 2>&1 || {
+        echo "${RED}error:${RESET} docker daemon is not reachable" >&2
+        return 1
+    }
+
+    if docker ps -a --format '{{.Names}}' 2>/dev/null | grep -Fxq pharos-beacon; then
+        echo "  ${DIM}Replacing existing local pharos-beacon container...${RESET}"
+        docker rm -f pharos-beacon >/dev/null || return 1
+    fi
+
+    args=(
+        run -d
+        --name pharos-beacon
+        --restart unless-stopped
+        --network host
+        --user "$(id -u):$(id -g)"
+        --env-file "$token_out"
+        -e "PHAROS_URL=$pharos_url"
+        -e "PHAROS_INTERVAL=$interval"
+        -e "PHAROS_HOSTNAME=$host"
+        -e "PHAROS_ROLE=$role"
+        --entrypoint /usr/local/bin/pharos-beacon
+    )
+    if [[ "$is_nix" == "true" ]]; then
+        if [[ -d "$NIXCFG_DIR" ]]; then
+            args+=(
+                -e NIXCFG_DIR=/nixcfg
+                -e GIT_CONFIG_COUNT=1
+                -e GIT_CONFIG_KEY_0=safe.directory
+                -e GIT_CONFIG_VALUE_0=/nixcfg
+                -v "$NIXCFG_DIR:/nixcfg:ro"
+            )
+        else
+            echo "  ${YELLOW}warning:${RESET} Nix host but nixcfg checkout not found; freshness will be best-effort"
+        fi
+        [[ -e /etc/NIXOS ]] && args+=(-v /etc/NIXOS:/etc/NIXOS:ro)
+    fi
+    args+=("$image")
+
+    docker "${args[@]}" >/dev/null || return 1
+    printf "  ${GREEN}✓${RESET} pharos-beacon Docker container deployed for ${CYAN}%s${RESET}\n" "$host"
+}
+
 # ── heal fix mappings (INSPR-195 Phase 3) ──────────────────────────────────
 #
 # Each heal_fix_<slug> function corresponds to a check_<slug>. Output:
@@ -968,13 +1166,26 @@ ${BOLD}Usage:${RESET}
   inspr onboard [flags]
 
 ${BOLD}Flags:${RESET}
-  ${CYAN}--profile=<p>${RESET}    Override auto-detected profile (workstation|server).
-  ${CYAN}-h, --help${RESET}       Show this help.
+  ${CYAN}--profile=<p>${RESET}              Override auto-detected profile (workstation|server).
+  ${CYAN}--pharos-register${RESET}          Register this host through Pharos /register.
+  ${CYAN}--pharos-url=<url>${RESET}         Pharos base URL. Default: \$INSPR_PHAROS_URL or http://100.64.0.4:8088.
+  ${CYAN}--host=<h>${RESET}                 Host slug. Default: short hostname.
+  ${CYAN}--role=<r>${RESET}                 Pharos role. Default: server or workstation.
+  ${CYAN}--nix / --non-nix${RESET}          Override Nix host detection.
+  ${CYAN}--heartbeat-interval=<sec>${RESET} Beacon cadence. Default: 60.
+  ${CYAN}--pharos-token-out=<path>${RESET}  Where to write PHAROS_TOKEN. Default: ~/.config/pharos/pharos-beacon.env.
+  ${CYAN}--pharos-deploy=docker|none${RESET} Deploy pharos-beacon after registration or from an existing token file.
+  ${CYAN}--pharos-image=<image>${RESET}      Beacon image for Docker deploy. Default: ghcr.io/markus-barta/pharos/pharosd:latest.
+  ${CYAN}-h, --help${RESET}                 Show this help.
 
 ${BOLD}What it does:${RESET}
-  Prints the 9-step new-host onboarding sequence, runs ${CYAN}inspr check${RESET},
+  Prints the 10-step new-host onboarding sequence, runs ${CYAN}inspr check${RESET},
   and overlays the per-step status (✅ done / ⚠ partial / ❌ missing).
   For each step with gaps, shows the next action(s) needed.
+
+  With ${CYAN}--pharos-register${RESET}, posts a HostRegistration to Pharos using
+  ${CYAN}INSPR_PHAROS_REGISTRATION_TOKEN${RESET}. The returned per-host beacon
+  token is written to a 0600 env file and is never printed.
 
 ${BOLD}Resume-friendly:${RESET}
   Re-running picks up at the first incomplete step. Already-done steps
@@ -984,6 +1195,15 @@ EOF
 
 cmd_onboard() {
     local profile_override=""
+    local pharos_register=0
+    local pharos_url="${INSPR_PHAROS_URL:-http://100.64.0.4:8088}"
+    local pharos_host="$HOSTNAME_SHORT"
+    local pharos_role=""
+    local pharos_is_nix=""
+    local pharos_interval="${INSPR_PHAROS_INTERVAL:-60}"
+    local pharos_token_out="${INSPR_PHAROS_TOKEN_OUT:-$HOME/.config/pharos/pharos-beacon.env}"
+    local pharos_deploy="${INSPR_PHAROS_DEPLOY:-none}"
+    local pharos_image="${INSPR_PHAROS_IMAGE:-ghcr.io/markus-barta/pharos/pharosd:latest}"
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -991,6 +1211,44 @@ cmd_onboard() {
         --profile)
             shift
             profile_override="$1"
+            ;;
+        --pharos-register) pharos_register=1 ;;
+        --pharos-url=*) pharos_url="${1#--pharos-url=}" ;;
+        --pharos-url)
+            shift
+            pharos_url="$1"
+            ;;
+        --host=*) pharos_host="${1#--host=}" ;;
+        --host)
+            shift
+            pharos_host="$1"
+            ;;
+        --role=*) pharos_role="${1#--role=}" ;;
+        --role)
+            shift
+            pharos_role="$1"
+            ;;
+        --nix) pharos_is_nix="true" ;;
+        --non-nix) pharos_is_nix="false" ;;
+        --heartbeat-interval=*) pharos_interval="${1#--heartbeat-interval=}" ;;
+        --heartbeat-interval)
+            shift
+            pharos_interval="$1"
+            ;;
+        --pharos-token-out=*) pharos_token_out="${1#--pharos-token-out=}" ;;
+        --pharos-token-out)
+            shift
+            pharos_token_out="$1"
+            ;;
+        --pharos-deploy=*) pharos_deploy="${1#--pharos-deploy=}" ;;
+        --pharos-deploy)
+            shift
+            pharos_deploy="$1"
+            ;;
+        --pharos-image=*) pharos_image="${1#--pharos-image=}" ;;
+        --pharos-image)
+            shift
+            pharos_image="$1"
             ;;
         -h | --help)
             cmd_onboard_help
@@ -1012,6 +1270,31 @@ cmd_onboard() {
         exit 2
         ;;
     esac
+    pharos_role="${pharos_role:-$(pharos_default_role)}"
+    pharos_is_nix="${pharos_is_nix:-$(pharos_default_is_nix)}"
+    pharos_url="${pharos_url%/}"
+    case "$pharos_deploy" in
+    none | docker) ;;
+    *)
+        echo "${RED}error:${RESET} --pharos-deploy must be docker or none" >&2
+        exit 2
+        ;;
+    esac
+    pharos_validate_host "$pharos_host" || {
+        echo "${RED}error:${RESET} unsafe host slug '$pharos_host'" >&2
+        exit 2
+    }
+    pharos_validate_interval "$pharos_interval" || {
+        echo "${RED}error:${RESET} --heartbeat-interval must be a positive integer" >&2
+        exit 2
+    }
+    case "$pharos_is_nix" in
+    true | false) ;;
+    *)
+        echo "${RED}error:${RESET} internal Nix detection produced invalid value '$pharos_is_nix'" >&2
+        exit 2
+        ;;
+    esac
 
     VERBOSE=0
     QUIET=1 # silent during check pipeline; we'll overlay step-status
@@ -1027,7 +1310,7 @@ cmd_onboard() {
     _run_all_check_sections >/dev/null 2>&1
 
     echo ""
-    echo "${BOLD}${CYAN}9-step INSPR onboarding sequence${RESET}"
+    echo "${BOLD}${CYAN}10-step INSPR onboarding sequence${RESET}"
     echo ""
 
     # Step → check slug mapping. A step is ✅ if all its checks pass,
@@ -1147,9 +1430,28 @@ cmd_onboard() {
         echo "     ${DIM}\$${RESET} inspr heal                ${DIM}# offer to fix what's fixable${RESET}"
     fi
 
+    # 10. Pharos host registry + pharos-beacon
+    local s10
+    s10="$(pharos_step_status "$pharos_token_out")"
+    _step_label "$s10" 10 "Pharos registration + pharos-beacon deployment (PHAROS-7)"
+    if [[ "$s10" != "ok" ]]; then
+        echo "     ${DIM}\$${RESET} INSPR_PHAROS_REGISTRATION_TOKEN=... inspr onboard --pharos-register --pharos-deploy=docker"
+        echo "     ${DIM}token target:${RESET} $pharos_token_out"
+    fi
+
+    if [[ $pharos_register -eq 1 || "$pharos_deploy" != "none" ]]; then
+        section "Pharos onboarding"
+        if [[ $pharos_register -eq 1 ]]; then
+            pharos_register_host "$pharos_url" "$pharos_host" "$pharos_role" "$pharos_is_nix" "$pharos_interval" "$pharos_token_out" || exit $?
+        fi
+        if [[ "$pharos_deploy" == "docker" ]]; then
+            pharos_deploy_beacon_docker "$pharos_url" "$pharos_host" "$pharos_role" "$pharos_is_nix" "$pharos_interval" "$pharos_token_out" "$pharos_image" || exit $?
+        fi
+    fi
+
     echo ""
 
-    if [[ $FAIL -eq 0 ]]; then
+    if [[ $FAIL -eq 0 && "$(pharos_step_status "$pharos_token_out")" == "ok" ]]; then
         echo "${GREEN}${BOLD}✓ inspr onboard: this host is fully onboarded.${RESET}"
         exit 0
     fi
