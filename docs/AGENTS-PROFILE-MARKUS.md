@@ -20,10 +20,6 @@ This document is the authoritative source for Markus Barta's personal preference
 
 ## Topic: security/secrets-output
 
-- 🔴 **HARD** | `dont` | BYTEPOETS project data (BON26, MER26, etc.) is confidential client information; do not enumerate ticket details broadly without specific reason
-  *<sub>src: ~/.claude/.../memory/reference_paimos_api_access.md L96</sub>*
-  <!-- rule_ids: reference_paimos_api_access.md:L96:client-data-confidential | cluster: — -->
-
 - 🟡 **STRONG** | `never` | Do not contact, mention publicly, or attribute decisions to Patrizio externally without the user's say-so
   *<sub>src: ~/.claude/.../memory/reference_patrizio_pbek.md L17</sub>*
   <!-- rule_ids: reference_patrizio_pbek.md:L17:no-public-attribution-without-consent | cluster: — -->
@@ -110,18 +106,6 @@ This document is the authoritative source for Markus Barta's personal preference
 
 ## Topic: style/communication
 
-- 🟡 **STRONG** | `always` | Always spell BYTEPOETS in ALL CAPS; registered wordmark; applies to docs, READMEs, commit messages, memory files, public output, code comments
-  *<sub>src: ~/.claude/.../memory/project_bytepoets.md L11-16</sub>*
-  <!-- rule_ids: project_bytepoets.md:L11:bytepoets-allcaps-strict | cluster: — -->
-
-- 🟡 **STRONG** | `always` | Always treat BYTEPOETS context as separately governed from Markus's personal initiatives
-  *<sub>src: ~/.claude/.../memory/project_bytepoets.md L58</sub>*
-  <!-- rule_ids: project_bytepoets.md:L58:bytepoets-separate-governance | cluster: — -->
-
-- 🟡 **STRONG** | `always` | Always write BYTEPOETS in all-caps; it is a registered wordmark
-  *<sub>src: ~/.claude/.../memory/user_profile.md L10</sub>*
-  <!-- rule_ids: user_profile.md:L10:bytepoets-allcaps | cluster: — -->
-
 - 🟡 **STRONG** | `do` | At step done/crossroad/blocker, show TL;DR-style bullet list using GitHub checkbox notation: - [x] for done, - [ ] for not done, with (in progress) on active item
   *<sub>src: ~/.claude/.../memory/project_onboarding_initiative.md L25</sub>*
   <!-- rule_ids: project_onboarding_initiative.md:L25:status-checkpoint-checkbox-convention | cluster: — -->
@@ -133,10 +117,6 @@ This document is the authoritative source for Markus Barta's personal preference
 - 🟡 **STRONG** | `do` | Defend INSPR register against motivational-poster / wellness-brand drift; keep tone clear-eyed and serious, never aspirational-fluffy
   *<sub>src: ~/.claude/.../memory/project_inspr.md L103</sub>*
   <!-- rule_ids: project_inspr.md:L103:defend-against-poster-drift | cluster: — -->
-
-- 🟡 **STRONG** | `dont` | Do not reference BYTEPOETS in any public-facing INSPR copy without confirmation
-  *<sub>src: ~/.claude/.../memory/project_bytepoets.md L60</sub>*
-  <!-- rule_ids: project_bytepoets.md:L60:no-bytepoets-in-public-inspr | cluster: — -->
 
 - 🟡 **STRONG** | `dont` | Do not write anything that reads as a competitive critique of his current company or its market
   *<sub>src: ~/.claude/.../memory/feedback_external_framing.md L14</sub>*
@@ -197,10 +177,6 @@ This document is the authoritative source for Markus Barta's personal preference
 - 🟡 **STRONG** | `do` | Use TL;DR syntax "TL;DR: <summary>" with leading pin emoji
   *<sub>src: ~/Code/nixcfg/+agents/rules/AGENTS.md L13</sub>*
   <!-- rule_ids: AGENTS.md:L13:tldr-syntax | cluster: — -->
-
-- 🟡 **STRONG** | `do` | When discussing Paimos/PMO/PPM, treat all dev work as Markus's personal OSS contribution; do NOT frame as 'BYTEPOETS's product' or 'company work'
-  *<sub>src: ~/.claude/.../memory/project_paimos.md L25</sub>*
-  <!-- rule_ids: project_paimos.md:L25:paimos-personal-not-bytepoets | cluster: — -->
 
 - 🟡 **STRONG** | `do` | When in doubt about copy that might go public, ask the user before committing
   *<sub>src: ~/.claude/.../memory/feedback_external_framing.md L15</sub>*
@@ -334,7 +310,7 @@ This document is the authoritative source for Markus Barta's personal preference
   *<sub>src: ~/.claude/.../memory/project_inspr.md L168</sub>*
   <!-- rule_ids: project_inspr.md:L168:declare-before-edit-agenix | cluster: — -->
 
-- 🟡 **STRONG** | `do` | For cross-island rekeys pass MULTIPLE -i flags (e.g. agenix --rekey -i ~/.ssh/bp_bonelio_ed25519 -i ~/.ssh/bp_internal_ed25519); aborts on first error
+- 🟡 **STRONG** | `do` | For cross-island rekeys pass MULTIPLE -i flags (e.g. agenix --rekey -i ~/.ssh/island_a_ed25519 -i ~/.ssh/island_b_ed25519); aborts on first error
   *<sub>src: ~/.claude/.../memory/project_bytepoets.md L52</sub>*
   <!-- rule_ids: project_bytepoets.md:L52:agenix-rekey-multi-key | cluster: — -->
 
@@ -474,10 +450,6 @@ This document is the authoritative source for Markus Barta's personal preference
 
 ## Topic: process/licensing
 
-- 🟡 **STRONG** | `prefer` | License posture for any module BYTEPOETS might adopt: prefer MIT-style permissive over AGPL-3 to avoid corporate-IP friction
-  *<sub>src: ~/.claude/.../memory/project_bytepoets.md L59</sub>*
-  <!-- rule_ids: project_bytepoets.md:L59:prefer-mit-for-bytepoets-modules | cluster: — -->
-
 
 ## Topic: process/lockout-recovery
 
@@ -539,10 +511,6 @@ This document is the authoritative source for Markus Barta's personal preference
   *<sub>src: ~/.claude/.../memory/reference_paimos_api_access.md L94</sub>*
   <!-- rule_ids: reference_paimos_api_access.md:L94:ppm-read-only-default | cluster: — -->
 
-- 🟡 **STRONG** | `do` | Use $PMOURL for HTTP API calls, never $PMOSERVERURL which returns HTTP 404 (it is the SSH/server hostname for non-HTTP access)
-  *<sub>src: ~/.claude/.../memory/reference_paimos_api_access.md L22-25</sub>*
-  <!-- rule_ids: reference_paimos_api_access.md:L22:pmourl-vs-pmoserverurl | cluster: — -->
-
 - 🟡 **STRONG** | `always` | Use POST /api/projects/{id}/issues for project-scoped issue creation; POST /api/issues with project_id returns 'only sprint issues may be created without a project'
   *<sub>src: ~/Code/inspr/playbook.md L567</sub>*
   <!-- rule_ids: playbook.md:L567:ppm-post-issues-uses-nested-form | cluster: — -->
@@ -592,10 +560,6 @@ This document is the authoritative source for Markus Barta's personal preference
 
 ## Topic: git/auth
 
-- 🟡 **STRONG** | `always` | Always use git@github-bp:BYTEPOETS/... URL form for pushes to BYTEPOETS repos; routes via the bytepoets-mba SSH key
-  *<sub>src: ~/.claude/.../memory/project_bytepoets.md L41</sub>*
-  <!-- rule_ids: project_bytepoets.md:L41:use-github-bp-url-form | cluster: — -->
-
 - 🟡 **STRONG** | `always` | Declare git credential helper via Home Manager programs.git.settings.credential rather than using gh auth setup-git, which collides with HM-managed read-only ~/.config/git/config
   *<sub>src: ~/Code/inspr/playbook.md L409-417</sub>*
   <!-- rule_ids: playbook.md:L409:declare-credential-helper-via-HM | cluster: — -->
@@ -603,10 +567,6 @@ This document is the authoritative source for Markus Barta's personal preference
 - 🟡 **STRONG** | `always` | For multi-org git workflow, always use the alias form git@github-<org>:<org>/<repo>.git for pushes; never the bare git@github.com: form
   *<sub>src: ~/Code/inspr/playbook.md L489</sub>*
   <!-- rule_ids: playbook.md:L489:always-use-ssh-alias-form | cluster: — -->
-
-- 🟡 **STRONG** | `do` | M5 does NOT have BYTEPOETS GH access; git operations route via imac0 (rsync M5↔imac0, push from imac0)
-  *<sub>src: ~/.claude/.../memory/project_bytepoets.md L41</sub>*
-  <!-- rule_ids: project_bytepoets.md:L41:m5-no-bytepoets-gh-access | cluster: — -->
 
 
 ## Topic: git/identity
@@ -623,7 +583,7 @@ This document is the authoritative source for Markus Barta's personal preference
   *<sub>src: ~/.claude/.../memory/user_identity.md L16</sub>*
   <!-- rule_ids: user_identity.md:L16:identity-declarative-in-nixcfg | cluster: — -->
 
-- 🟡 **STRONG** | `do` | In ~/Code/nixcfg use markus@barta.com (personal); in ~/Code/BYTEPOETS/ use markus.barta@bytepoets.com (work)
+- 🟡 **STRONG** | `do` | Use markus@barta.com (personal) for all git identity across ~/Code
   *<sub>src: ~/Code/nixcfg/hosts/imac0/docs/RUNBOOK.md L85-89</sub>*
   <!-- rule_ids: imac0-RUNBOOK.md:L85:nixcfg-uses-personal-git-identity | cluster: — -->
 
@@ -712,10 +672,6 @@ This document is the authoritative source for Markus Barta's personal preference
 
 
 ## Topic: infra/fleet-state
-
-- 🟡 **STRONG** | `prefer` | msbp ownership migrated to BYTEPOETS/bpnixcfg on 2026-05-02 (INSPR-24 Stage 2). Host is alive (runs Percy/Percaival); only its config home moved. Route msbp config edits via `~/Code/BYTEPOETS/bpnixcfg/hosts/miniserver-bp/` and msbp tickets to PMO/BPOPS26 (epic BPOPS26-99), not personal NIX.
-  *<sub>src: INSPR-24 Stage 2 migration · BPOPS26-99 epic</sub>*
-  <!-- rule_ids: bpops26-99:msbp-now-in-bpnixcfg | cluster: — -->
 
 
 ## Topic: infra/tailscale

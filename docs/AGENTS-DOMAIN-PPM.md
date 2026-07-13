@@ -35,7 +35,7 @@ Two auth surfaces — DON'T conflate them:
 
 See `/secrets` for full secret-handling pipeline.
 
-### Stuck? "I can't find PPM/PMO creds"
+### Stuck? "I can't find PPM creds"
 
 Run this diagnostic chain top-to-bottom — first thing that fails points at the fix:
 
@@ -51,7 +51,7 @@ paimos doctor                       # full health report
 | `PPMAPIKEY.env` missing | secrets not materialized on this host | enable `inspr.secrets.agents` in HM, `home-manager switch` |
 | `paimos auth whoami` exits 1 | Keychain not seeded | run the `paimos auth login` block above **at the keyboard**, not over SSH |
 | `paimos auth whoami` exits 1 after key rotation | stale Keychain entry | re-run `paimos auth login` with the fresh key |
-| `$PPMAPIKEY` empty after sourcing | wrong filename / variable | `PPMAPIKEY.env` exports `PPMAPIKEY`; PMO uses `PMOAPIKEY.env` → `PMOAPIKEY` |
+| `$PPMAPIKEY` empty after sourcing | wrong filename / variable | `PPMAPIKEY.env` exports `PPMAPIKEY` (env-file convention = filename-as-varname) |
 | `curl` returns 401 | wrong header / stale key | `Authorization: Bearer $PPMAPIKEY` (not `Token`); confirm key not rotated |
 | Linux / headless / CI | no GUI keyring | use `PAIMOS_API_KEY=...` env-var fallback (overrides Keychain lookup) |
 
@@ -59,44 +59,39 @@ paimos doctor                       # full health report
 
 ## Endpoints
 
-- Use `$PMOURL` for HTTP API calls.
-- 🔴 NEVER use `$PMOSERVERURL` for HTTP — it returns 404. It's the SSH/server hostname for non-HTTP access.
-- Two PPM instances:
-  - **PPM**: `pm.barta.cm` — personal/INSPR projects
-  - **PMO**: BYTEPOETS instance — separate auth, separate project namespace
+- **One instance: PPM — `https://pm.barta.cm`.** Everything routes there; there is no second instance and no routing decision to make.
+- Auth: `Authorization: Bearer $PPMAPIKEY` for raw curl; the `paimos` CLI reads Keychain.
 
-Routing rule: in `~/Code/nixcfg`, `~/Code/inspr/`, etc. → PPM. In `~/Code/BYTEPOETS/` → PMO.
+🟡 The **PMO** instance (`pm.bytepoets.com`, the BYTEPOETS Paimos) was **decommissioned in June 2026** when Markus left BYTEPOETS. Its keys (`PMOAPIKEY`, `PMOURL`, `PMOSERVER*`) and the `pmo` entry in `~/.paimos/config.yaml` are gone. If you see `$PMOURL`, `paimos --instance pmo`, or a `~/Code/BYTEPOETS/ → PMO` routing rule anywhere, it's stale — it will 401. Flag it.
 
 ## Project key reference
 
 Use the human-visible project key in chat, commits, branches, PR titles. Numeric DB id is for API calls only.
 
-| Key      | id | Project                         | Repo(s)                | Instance |
-| -------- | -- | ------------------------------- | ---------------------- | -------- |
-| `INSPR`  | 8  | Umbrella initiative             | inspr                  | PPM      |
-| `NIX`    | 1  | nixcfg                          | nixcfg                 | PPM      |
-| `PAI`    | 6  | Paimos (the OSS PM tool itself) | paimos, paimos-site    | PPM      |
-| `PWEB`   | 7  | paimos.com                      | paimos-site            | PPM      |
-| `FLEET`  | 4  | FleetCom                        | fleetcom               | PPM      |
-| `DSC26`  | 2  | DSC Infrastructure              | dsccfg                 | PPM      |
-| `OPS`    | 14 | Operations                      | inspr, nixcfg          | PPM      |
-| `HAUSV`  | 21 | WEG Portal                      | weg-portal             | PPM      |
-| `PHAROS` | 17 | Pharos                          | pharos                 | PPM      |
-| `HOSTD`  | 20 | HostDash                        | hostdash               | PPM      |
-| `JANUS`  | 12 | JANUS                           | janus                  | PPM      |
-| `PIXD`   | 13 | pixdcon                         | pixdcon                | PPM      |
-| `OPUSW`  | 18 | opusweb                         | opusweb                | PPM      |
-| `FUNK`   | 5  | funkeykid                       | funkeykid              | PPM      |
-| `SPELD`  | 19 | Spell Dream                     | spelldream             | PPM      |
-| `GSC26`  | 3  | Website gsc.co.at               | gsc                    | PPM      |
-| `AMTWEB` | 22 | Augmentoring Website            | amt-com                | PPM      |
-| `AMTCO`  | 16 | Augmentoring Content            | _(pending — David)_    | PPM      |
-| `BON26`  | —  | BYTEPOETS Bonelio 2026          | —                      | PMO      |
-| `MER26`  | —  | BYTEPOETS Merlin 2026           | —                      | PMO      |
+All projects live on PPM (`pm.barta.cm`) — there is no second instance.
 
-🔴 BYTEPOETS project data (BON26, MER26) is **confidential client information**. Do not enumerate ticket details broadly without specific reason.
+| Key      | id | Project                         | Repo(s)             |
+| -------- | -- | ------------------------------- | ------------------- |
+| `INSPR`  | 8  | Umbrella initiative             | inspr               |
+| `NIX`    | 1  | nixcfg                          | nixcfg              |
+| `PAI`    | 6  | Paimos (the OSS PM tool itself) | paimos, paimos-site |
+| `PWEB`   | 7  | paimos.com                      | paimos-site         |
+| `FLEET`  | 4  | FleetCom                        | fleetcom            |
+| `DSC26`  | 2  | DSC Infrastructure              | dsccfg              |
+| `OPS`    | 14 | Operations                      | inspr, nixcfg       |
+| `HAUSV`  | 21 | WEG Portal (hausv.org)          | hausv-org           |
+| `PHAROS` | 17 | Pharos                          | pharos              |
+| `HOSTD`  | 20 | HostDash                        | hostdash            |
+| `JANUS`  | 12 | JANUS                           | janus               |
+| `PIXD`   | 13 | pixdcon                         | pixdcon             |
+| `OPUSW`  | 18 | opusweb                         | opusweb             |
+| `FUNK`   | 5  | funkeykid                       | funkeykid           |
+| `SPELD`  | 19 | Spell Dream                     | spelldream          |
+| `GSC26`  | 3  | Website gsc.co.at               | gsc                 |
+| `AMTWEB` | 22 | Augmentoring Website            | amt-com             |
+| `AMTCO`  | 16 | Augmentoring Content            | _(pending — David)_ |
 
-🟡 **`DSC26` is a PPM project, not BYTEPOETS.** Despite the `-26` suffix it shares with the BON26/MER26 naming, DSC26 ("DSC Infrastructure", the `dsccfg` fleet) is personal and lives on PPM. It was mislabeled "BYTEPOETS internal / PMO" in this table until 2026-07-13. Don't route it to PMO.
+🟡 **`DSC26` is personal, despite the `-26` suffix.** It's DSC Infrastructure (the `dsccfg` fleet). The suffix pattern-matched the old BYTEPOETS `BON26`/`MER26` keys, and doctrine mislabeled it "BYTEPOETS internal / PMO" until 2026-07-13. It's an ordinary PPM project.
 
 🟡 **`AMTWEB` is not `AMTCO`.** AMTWEB = the augmentoring.com website relaunch (`amt-com` repo). AMTCO = Augmentoring content production. Keys sit one character apart and `paimos` accepts either interchangeably.
 
@@ -250,11 +245,10 @@ Common subcommands (verify with `paimos --help` — re-survey before extending):
 `new` → `in-progress` (timer running) → `review` (PR pending) → `done` (acceptance met).
 `blocked` while waiting on external dep — note the blocker. `wontfix` for closed-without-resolution; explain in note.
 
-## Cross-cutting: licensing & framing
+## Cross-cutting: licensing
 
-- 🟡 License posture for any module BYTEPOETS might adopt: prefer **MIT-style permissive over AGPL-3** (Paimos itself is AGPL-3).
-- 🟡 Discuss Paimos/PMO/PPM publicly as Markus's personal OSS contribution — NOT as "BYTEPOETS's product". BYTEPOETS context is separately governed; do not reference it in public-facing INSPR copy without confirmation.
+- 🟡 Paimos itself is **AGPL-3**. For reusable modules, prefer **MIT-style permissive**.
 
 ---
 
-*See also*: `/secrets` (`PPMAPIKEY.env` handling), `/dev` (ticket-key conventions in commits), `/ops` (FleetCom is a separate API). Full source: `AGENTS-CORE.md` and PROFILE-MARKUS topic `workflow/ppm`, plus `process/licensing` and `style/communication` for BYTEPOETS framing.*
+*See also*: `/secrets` (`PPMAPIKEY.env` handling), `/dev` (ticket-key conventions in commits), `/ops` (FleetCom is a separate API). Full source: `AGENTS-CORE.md` and PROFILE-MARKUS topic `workflow/ppm`, plus `process/licensing`.*

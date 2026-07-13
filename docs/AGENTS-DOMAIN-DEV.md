@@ -14,15 +14,13 @@ Detailed rules for code work: git, build/test gates, style, refactor, gh CLI, ju
 
 Kernel: `Markus Barta` / `markus@barta.com` / `markus-barta`; never invent placeholders. Extras:
 
-- BYTEPOETS work: `markus.barta@bytepoets.com` (only in `~/Code/BYTEPOETS/`).
 - 🟡 Identity/dev config lives **declaratively** in nixcfg. `git config --global` or any fleet-wide imperative move requires confirmation.
 - 🟡 Per-repo git config (no `--global`) on bootstrap; nixcfg is canonical for fleet-wide.
 - 🟡 PAT identity: entity that makes decisions while no human is present → its own GitHub account; otherwise human's account is fine.
 
 ### Multi-org auth
 
-- Use alias form `git@github-<org>:<org>/<repo>.git` for pushes; never bare `git@github.com:`. BYTEPOETS: `git@github-bp:BYTEPOETS/...` (routes via `bytepoets-mba` SSH key).
-- M5 has NO BYTEPOETS GH access — route via imac0 (rsync M5↔imac0, push from imac0).
+- Use alias form `git@<alias>:<owner>/<repo>.git` for pushes; never bare `git@github.com:`. Personal: `git@git-personal:markus-barta/...`.
 - Declare credential helpers via HM `programs.git.settings.credential`, not `gh auth setup-git` (collides with HM read-only config).
 - Auto-generated `includeIf hasconfig:remote.*.url` rules MUST be paired HTTPS+SSH — `*` doesn't cross URL component boundaries. Prefer content-derived rules over gitdir lists.
 - Migrating to HM-managed git config: **rename** legacy `~/.gitconfig` (don't delete) — silently shadows `~/.config/git/config`.

@@ -46,7 +46,7 @@ On macOS, `/etc/ssh/*.pub` is world-readable — read pubkeys via plain `cat`, n
 ## Pattern: fleet inventory
 
 - 🟡 Query **FleetCom** (`fleet.barta.cm`) as the canonical live source for fleet inventory. Never assume static lists.
-- 🟡 **msbp ownership migrated** (2026-05-02, INSPR-24 Stage 2). The host is alive and runs Percy/Percaival, but its NixOS config now lives in `BYTEPOETS/bpnixcfg` (not personal `nixcfg`). Route msbp config edits + Docker compose paths through `~/Code/BYTEPOETS/bpnixcfg/hosts/miniserver-bp/` on the workstation, or `~/Code/bpnixcfg/...` on the host itself. Tickets for msbp belong in PMO/**BPOPS26** (epic BPOPS26-99), not personal PPM/NIX.
+- 🟡 **msbp is gone.** It left with the BYTEPOETS exit (June 2026) — not our host, not our config, not our tickets. Its config lived in `BYTEPOETS/bpnixcfg` and its tickets in PMO/BPOPS26; both are out of scope. Don't route work there, and don't expect it in fleet inventory.
 
 ## Pattern: host recovery
 

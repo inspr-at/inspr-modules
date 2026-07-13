@@ -69,9 +69,9 @@ agenix -e dest.age < src
 ### Recipient changes
 
 - Adding/removing recipients on existing `.age` files **always** requires `agenix --rekey`. Without it, the change is metadata-only and the blob keeps the old recipients.
-- For multi-isolation-island repos (BYTEPOETS + INSPR), pass MULTIPLE `-i` flags on a single rekey — rekey is all-or-nothing and aborts on first error:
+- For a repo spanning multiple isolation islands, pass MULTIPLE `-i` flags on a single rekey — rekey is all-or-nothing and aborts on first error:
   ```bash
-  agenix --rekey -i ~/.ssh/bp_bonelio_ed25519 -i ~/.ssh/bp_internal_ed25519
+  agenix --rekey -i ~/.ssh/island_a_ed25519 -i ~/.ssh/island_b_ed25519
   ```
 - Verify rekey by **decrypting with the NEW identity** — exit code alone can mean "kept old recipients and added nothing".
 - After rekey, verify with `git status` + size comparison before assuming destructive failure. agenix's atomic-write safety prevents in-place corruption.
