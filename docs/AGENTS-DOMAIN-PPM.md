@@ -71,17 +71,34 @@ Routing rule: in `~/Code/nixcfg`, `~/Code/inspr/`, etc. → PPM. In `~/Code/BYTE
 
 Use the human-visible project key in chat, commits, branches, PR titles. Numeric DB id is for API calls only.
 
-| Key         | Project                                     | Instance |
-| ----------- | ------------------------------------------- | -------- |
-| `INSPR`     | Umbrella initiative                         | PPM      |
-| `NIX`       | nixcfg                                      | PPM      |
-| `PAI`       | Paimos (the OSS PM tool itself)             | PPM      |
-| `FLEET`     | FleetCom                                    | PPM      |
-| `BON26`     | BYTEPOETS Bonelio 2026                      | PMO      |
-| `MER26`     | BYTEPOETS Merlin 2026                       | PMO      |
-| `DSC26`     | BYTEPOETS internal                          | PMO      |
+| Key      | id | Project                         | Repo(s)                | Instance |
+| -------- | -- | ------------------------------- | ---------------------- | -------- |
+| `INSPR`  | 8  | Umbrella initiative             | inspr                  | PPM      |
+| `NIX`    | 1  | nixcfg                          | nixcfg                 | PPM      |
+| `PAI`    | 6  | Paimos (the OSS PM tool itself) | paimos, paimos-site    | PPM      |
+| `PWEB`   | 7  | paimos.com                      | paimos-site            | PPM      |
+| `FLEET`  | 4  | FleetCom                        | fleetcom               | PPM      |
+| `DSC26`  | 2  | DSC Infrastructure              | dsccfg                 | PPM      |
+| `OPS`    | 14 | Operations                      | inspr, nixcfg          | PPM      |
+| `HAUSV`  | 21 | WEG Portal                      | weg-portal             | PPM      |
+| `PHAROS` | 17 | Pharos                          | pharos                 | PPM      |
+| `HOSTD`  | 20 | HostDash                        | hostdash               | PPM      |
+| `JANUS`  | 12 | JANUS                           | janus                  | PPM      |
+| `PIXD`   | 13 | pixdcon                         | pixdcon                | PPM      |
+| `OPUSW`  | 18 | opusweb                         | opusweb                | PPM      |
+| `FUNK`   | 5  | funkeykid                       | funkeykid              | PPM      |
+| `SPELD`  | 19 | Spell Dream                     | spelldream             | PPM      |
+| `GSC26`  | 3  | Website gsc.co.at               | gsc                    | PPM      |
+| `AMTWEB` | 22 | Augmentoring Website            | amt-com                | PPM      |
+| `AMTCO`  | 16 | Augmentoring Content            | _(pending — David)_    | PPM      |
+| `BON26`  | —  | BYTEPOETS Bonelio 2026          | —                      | PMO      |
+| `MER26`  | —  | BYTEPOETS Merlin 2026           | —                      | PMO      |
 
-🔴 BYTEPOETS project data (BON26, MER26, etc.) is **confidential client information**. Do not enumerate ticket details broadly without specific reason.
+🔴 BYTEPOETS project data (BON26, MER26) is **confidential client information**. Do not enumerate ticket details broadly without specific reason.
+
+🟡 **`DSC26` is a PPM project, not BYTEPOETS.** Despite the `-26` suffix it shares with the BON26/MER26 naming, DSC26 ("DSC Infrastructure", the `dsccfg` fleet) is personal and lives on PPM. It was mislabeled "BYTEPOETS internal / PMO" in this table until 2026-07-13. Don't route it to PMO.
+
+🟡 **`AMTWEB` is not `AMTCO`.** AMTWEB = the augmentoring.com website relaunch (`amt-com` repo). AMTCO = Augmentoring content production. Keys sit one character apart and `paimos` accepts either interchangeably.
 
 ## Default behavior
 
@@ -127,6 +144,24 @@ This rule is **non-negotiable**. PAI-313 contamination (2026-05-10) happened bec
 | List issues in project      | `GET /api/projects/<id>/issues`       | `project_id` query param NOT honored on `/api/issues` |
 | Search                      | `GET /api/search?q=<topic>`           | dedupe before create                             |
 
+## Project repos — linking a project to its code
+
+Repos are a **first-class entity** (`repo` in `/api/schema`), project-scoped — not an issue type and not a knowledge entry. A repo may be linked to more than one project (`paimos-site` sits under both `PAI` and `PWEB`); `sort_order` decides display order, so put the primary repo at `0`.
+
+**`RepoInput`**: `url` required; `label`, `default_branch`, `sort_order` optional.
+
+| Operation | Endpoint |
+| --- | --- |
+| List | `GET /api/projects/<id>/repos` (CLI: `paimos project repos <key>`) |
+| Create | `POST /api/projects/<id>/repos` |
+| Update | `PUT /api/projects/<id>/repos/<repo_id>` (wholesale — send all fields) |
+| Delete | `DELETE /api/projects/<id>/repos/<repo_id>` |
+
+- 🔴 **`POST` does not upsert.** POSTing a url that's already linked creates a **duplicate row with a new id**, silently. To change a label/branch/order, `PUT` the existing `repo_id` — never re-POST. (Learned 2026-07-13: a re-POST to PAI created a phantom third repo.)
+- 🟡 **`PATCH` is silently ignored** on repos, same as issues — returns empty, changes nothing, exit 0. Use `PUT` with the full body.
+- 🟡 The CLI is **read-only** here (`project repos` lists; there is no `repos add`). Writes go through `paimos curl <path> -X POST|PUT|DELETE --data '<json>'`.
+- 🟡 Use the browsable **HTTPS** url (`https://github.com/markus-barta/<repo>`), not the `git-personal` SSH alias — the alias only resolves on Markus's machines, and PPM renders this as a link.
+
 ## Knowledge entries — the home for docs, architecture & durable knowledge
 
 PPM **Knowledge** is the canonical home for knowledge that used to sprawl into `.md` files. **Kernel rule: knowledge/docs/architecture → a PPM Knowledge entry, not a new local doc.** Entries are **project-scoped**.
@@ -157,7 +192,7 @@ PPM **Knowledge** is the canonical home for knowledge that used to sprawl into `
 | Replace (rename via `body.slug`) | `PUT /api/projects/<id>/knowledge/<type>/<slug>` |
 | Soft-delete (Trash) | `DELETE /api/projects/<id>/knowledge/<type>/<slug>` |
 
-**`KnowledgeEntryInput`**: `slug` + `title` required; `type`, `body` (markdown content), `status`, `metadata` (free object) optional. Addressed by `(project, type, slug)`. Numeric project ids for API: INSPR=8, NIX=1, PAI=6, FLEET=4.
+**`KnowledgeEntryInput`**: `slug` + `title` required; `type`, `body` (markdown content), `status`, `metadata` (free object) optional. Addressed by `(project, type, slug)`. Numeric project ids for API: see the `id` column in [Project key reference](#project-key-reference).
 
 - 🟡 **Provenance convention**: put `metadata: { "source_repo": "inspr", "orig_path": "architecture.md", "tags": [...] }` so a migrated doc keeps a breadcrumb home.
 - 🟡 PUT replaces **wholesale** (same as issues) — GET-before-PUT.
