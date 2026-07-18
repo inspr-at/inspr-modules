@@ -109,6 +109,7 @@ All projects live on PPM (`pm.barta.cm`) — there is no second instance.
 
 ## Workflow: time tracking
 
+- 🟡 Before starting a timer, list currently running timers. If one is **obviously stale** — for example its ticket is terminal, the recorded session has clearly ended, or later work superseded it — stop it first. Use the last defensible activity timestamp, annotate the cleanup, and never book unattended idle wall-clock as work. Leave plausibly active timers alone when the evidence is ambiguous.
 - 🟡 Start PPM timer when beginning work, stop when done. `mba` is `user_id 2`.
 - 🟡 When work is done, update PPM ticket status AND stop the timer.
 
