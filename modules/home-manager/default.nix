@@ -1,4 +1,5 @@
-# Aggregate: import all INSPR Home Manager modules in one go.
+# Aggregate: import all INSPR Home Manager modules in one go. The included
+# paimos-config module manages routing only; it never manages credentials.
 #
 # Consumers who want à-la-carte should import individual modules instead:
 #   imports = [

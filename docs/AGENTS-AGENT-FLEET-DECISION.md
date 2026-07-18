@@ -7,7 +7,7 @@ This document is the authoritative source for the FLEET-DECISION role (cross-fle
 - **[AGENTS-CORE.md](./AGENTS-CORE.md)** — universal rules every agent follows
 - **[AGENTS-PROFILE-MARKUS.md](./AGENTS-PROFILE-MARKUS.md)** — Markus Barta's personal preferences
 - **AGENTS-AGENT-*.md** — per-role overlays (one per agent identity)
-- **per-repo AGENTS.md** in nixcfg/fleetcom/inspr — repo-specific deltas
+- **per-repo AGENTS.md** in nixcfg/fleetcom/inspr/amt-com — repo-specific deltas
 
 ---
 
@@ -52,4 +52,3 @@ This document is the authoritative source for the FLEET-DECISION role (cross-fle
 - 🟡 **STRONG** | `prefer` | Prove the INSPR Agent Protocol with two structurally-different consumers early (one Claude harness, one non-Claude exercising privacy/local-model path)
   *<sub>src: ~/Code/inspr/architecture.md L60</sub>*
   <!-- rule_ids: architecture.md:L60:prove-protocol-with-two-different-consumers | cluster: — -->
-

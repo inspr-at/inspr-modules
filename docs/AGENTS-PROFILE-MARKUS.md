@@ -7,7 +7,7 @@ This document is the authoritative source for Markus Barta's personal preference
 - **[AGENTS-CORE.md](./AGENTS-CORE.md)** — universal rules every agent follows
 - **[AGENTS-PROFILE-MARKUS.md](./AGENTS-PROFILE-MARKUS.md)** — Markus Barta's personal preferences
 - **AGENTS-AGENT-*.md** — per-role overlays (one per agent identity)
-- **per-repo AGENTS.md** in nixcfg/fleetcom/inspr — repo-specific deltas
+- **per-repo AGENTS.md** in nixcfg/fleetcom/inspr/amt-com — repo-specific deltas
 
 ---
 
@@ -253,9 +253,9 @@ This document is the authoritative source for Markus Barta's personal preference
   *<sub>src: ~/.claude/.../memory/feedback_agent_protocol.md L39</sub>*
   <!-- rule_ids: feedback_agent_protocol.md:L39:no-scratch-dir | cluster: — -->
 
-- 🟡 **STRONG** | `do` | Read /Users/mba/Code/inspr/playbook.md directly for current state; do not mirror its contents in memory (drift risk)
-  *<sub>src: ~/.claude/.../memory/project_onboarding_initiative.md L27</sub>*
-  <!-- rule_ids: project_onboarding_initiative.md:L27:playbook-source-of-truth | cluster: — -->
+- 🟡 **STRONG** | `do` | Use `paimos onboard --project INSPR` for current state; treat the local `inspr/playbook.md` as a historical field log
+  *<sub>src: PPM/INSPR Knowledge + docs/AGENTS-DOMAIN-DEV.md</sub>*
+  <!-- rule_ids: ppm-inspr-onboard-source-of-truth | cluster: — -->
 
 - 🟡 **STRONG** | `do` | Third-party / OSS (non-markus-barta) repos clone under ~/Projects/3rdparty/
   *<sub>src: ~/.claude/.../memory/feedback_agent_protocol.md L38</sub>*
@@ -453,7 +453,7 @@ This document is the authoritative source for Markus Barta's personal preference
 
 ## Topic: process/lockout-recovery
 
-- 🟡 **STRONG** | `always` | Keep PasswordAuthentication=true on csb0/csb1/msbp until per-host ed25519 keys deployed AND validated AND legacy RSA fully retired (defence-in-depth)
+- 🟡 **STRONG** | `always` | Keep PasswordAuthentication=true on csb0/csb1 until per-host ed25519 keys are deployed AND validated AND legacy RSA is fully retired (defence-in-depth)
   *<sub>src: ~/Code/inspr/legacy-rsa-key-inventory.md L180-182</sub>*
   <!-- rule_ids: legacy-rsa-key-inventory.md:L182:keep-passwordauth-true-during-retirement | cluster: — -->
 
@@ -479,7 +479,7 @@ This document is the authoritative source for Markus Barta's personal preference
 
 ## Topic: workflow/ppm
 
-- 🔴 **HARD** | `never` | For raw curl PPM auth: source ~/.inspr/secrets/agents/PPMAPIKEY.env (INSPR-164 canonical path) which exposes $PPMAPIKEY; never cat/read the env file. paimos CLI uses macOS Keychain — see /ppm.
+- 🔴 **HARD** | `never` | For raw curl PPM auth: source ~/.inspr/secrets/agents/PPMAPIKEY.env (INSPR-164 canonical path) which exposes $PPMAPIKEY; never cat/read the env file. INSPR workstation policy uses interactive `paimos auth login` through the OS keyring; approved encrypted storage may inject runtime-only headless credentials — see /ppm.
   *<sub>src: ~/.claude/.../memory/feedback_agent_protocol.md L170 · path migrated 2026-05-13 (INSPR-164) · CLI vs curl distinction clarified 2026-05-16 (INSPR-193)</sub>*
   <!-- rule_ids: feedback_agent_protocol.md:L170:ppm-source-env | cluster: — -->
 
@@ -499,7 +499,7 @@ This document is the authoritative source for Markus Barta's personal preference
   *<sub>src: ~/.claude/.../memory/project_inspr.md L149</sub>*
   <!-- rule_ids: project_inspr.md:L149:put-replaces-wholesale | cluster: — -->
 
-- 🟡 **STRONG** | `do` | Start PPM timer when beginning work, stop when done; mba is user_id 2.
+- 🟡 **STRONG** | `do` | When PPM writes are explicitly authorized, start the PPM timer when beginning work and stop it when done; mba is user_id 2.
   *<sub>src: ~/Code/fleetcom/AGENTS.md L42</sub>*
   <!-- rule_ids: AGENTS.md:L42:ppm-time-tracking | cluster: — -->
 
@@ -679,4 +679,3 @@ This document is the authoritative source for Markus Barta's personal preference
 - 🟢 SOFT | `prefer` | For Headscale on macOS, prefer the Tailscale.app standalone variant (brew cask tailscale-app), not the App Store sandboxed version
   *<sub>src: ~/Code/inspr/playbook.md L379</sub>*
   <!-- rule_ids: playbook.md:L379:use-tailscale-app-standalone-cask | cluster: — -->
-

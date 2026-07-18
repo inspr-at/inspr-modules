@@ -88,7 +88,8 @@ Kernel: scan diff + status before every commit; never amend; never destructive o
 
 - 🟡 Markus's repos live under `~/Code/`. If missing, ask to clone `https://github.com/markus-barta/<repo>.git`. Third-party/OSS clone under `~/Projects/3rdparty/`. Never use `~/Code/scratch/`.
 - 🟡 Edit the `+agents/` directory only when user explicitly permits.
-- 🟡 Read `/Users/mba/Code/inspr/playbook.md` directly for current state — don't mirror its contents in memory (drift risk).
+- 🟡 Use `paimos onboard --project INSPR` for current INSPR state. The local
+  `inspr/playbook.md` is a historical field log, not the current source of truth.
 - 🟡 For "use a screenshot": pick newest PNG in `~/Desktop` or `~/Downloads`, verify by content (ignore filename), size-check via `sips`, optimize via `imageoptim`. STOP if tool missing.
 - 🟡 Use `rsync --checksum` reflexively for any file that "should have changed but didn't seem to".
 

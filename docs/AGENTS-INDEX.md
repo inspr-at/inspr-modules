@@ -106,7 +106,7 @@ The transitional INSPR-190 startup-hint rule (added 2026-05-15 morning, tagged s
 | Commit | Repo | What |
 |---|---|---|
 | _(this commit)_ | inspr-modules | NEW AGENTS-KERNEL.md + 5 NEW AGENTS-DOMAIN-*.md + 5 NEW slash commands (dev, secrets, nix, style, incident) + CLAUDE.md → kernel-only loader + AGENTS-CORE.md drop transitional startup-hint topic + commands/inspr.md updated + AGENTS-INDEX rewrite |
-| _(per-repo)_ | nixcfg, fleetcom, inspr | doctrine bump + CLAUDE.md → kernel-only loader + new slash-command symlinks |
+| _(per-repo)_ | nixcfg, fleetcom, inspr, amt-com | doctrine bump + CLAUDE.md → kernel-only loader + new slash-command symlinks |
 
 ### Provenance footers (historical citations — not live links)
 

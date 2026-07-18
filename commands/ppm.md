@@ -16,8 +16,10 @@ If the current repo has no such declaration, ask the user which project to scope
 - **DO NOT** modify local files / configs / code unless the user explicitly says "this is an exception."
 - **DO NOT** build, deploy, or provision.
 - **DO** read local files for context (docs, configs, nix files, etc.).
-- **DO** interact with PPM freely: query, create tickets, update statuses, add comments.
-- **DO** manage time entries: start / stop timers, log flat hours.
+- **DO** query PPM freely.
+- **DO NOT** create or mutate tickets, comments, statuses, or time entries unless
+  the user explicitly authorized project-management changes. Invoking `/ppm`
+  alone is read-only and does not grant write authority.
 
 ## Default behavior on `/ppm` (no args)
 
@@ -26,7 +28,8 @@ Show a **project dashboard** for the resolved default project:
 1. Fetch issues: `paimos issue list -p <PROJECT_KEY> --json` (or via API).
 2. Group by epic; for each epic show:
    - Epic title + status
-   - Child-ticket counts by status (done / in-progress / new / backlog)
+   - Child-ticket counts by status (new / backlog / in-progress / qa / done /
+     delivered / accepted / invoiced / cancelled)
    - Tickets without a parent epic (call out as "orphans")
 3. Highlight actionable items:
    - `new` tickets (need triage)
@@ -37,4 +40,7 @@ Show a **project dashboard** for the resolved default project:
 
 ## Full API + workflow reference
 
-See `AGENTS-DOMAIN-PPM.md` (auto-loaded by this command) for: endpoint table, valid status / type / priority enums, creation body schema, time-tracking patterns, paimos CLI vs raw-curl distinction, project landscape across instances (ppm + pmo).
+See `AGENTS-DOMAIN-PPM.md` (auto-loaded by this command) for: endpoint table,
+valid status / type / priority enums, creation body schema, time-tracking
+patterns, paimos CLI vs raw-curl distinction, and the project landscape on the
+single PPM instance.

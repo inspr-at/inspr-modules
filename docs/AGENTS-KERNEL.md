@@ -49,14 +49,18 @@ This kernel is the always-on doctrine for every Claude agent in a Markus-INSPR r
 - 🔴 Don't delete or rename unexpected items — STOP and ask.
 - 🔴 Touch encrypted files (`.age`, `.env`) only with explicit permission. Provide commands for the user; don't run them yourself.
 - 🔴 **NEVER build NixOS configs on macOS.** From macOS, build remotely via ssh. (macOS Home Manager configs CAN build locally.)
-- 🔴 Never create new `.md` files unless explicitly asked. **Knowledge lives in PPM, not new `.md` files**: architecture, design rationale, positioning, playbooks, field notes, durable how-tos → create a PPM **Knowledge** entry (`/ppm` for mechanics), don't author a doc file. Stays local (must auto-load offline / repo-bound): `README`, `AGENTS.md`/`CLAUDE.md` + doctrine packs, `RUNBOOK.md`, `CHANGELOG.md`, `RESUMING-*`, `LICENSE`, code comments. Prefer editing an existing in-scope doc over creating one.
+- 🔴 Never create new `.md` files unless explicitly asked. **Knowledge belongs in PPM, not a new `.md` file**: architecture, design rationale, positioning, playbooks, field notes, durable how-tos → when PPM writes are explicitly authorized, create a PPM **Knowledge** entry (`/ppm` for mechanics); otherwise report the intended entry and ask before writing. Stays local (must auto-load offline / repo-bound): `README`, `AGENTS.md`/`CLAUDE.md` + doctrine packs, `RUNBOOK.md`, `CHANGELOG.md`, `RESUMING-*`, `LICENSE`, code comments. Prefer editing an existing in-scope doc over creating one.
 
 ### Tooling minimum
 
 - 🟡 `gh pr view/diff` for PRs — never paste GitHub URLs.
 - 🟡 Terminal multiplexer: **zellij**, not tmux. Layouts in `~/.config/zellij/`.
 - 🟡 Identity / git config lives declaratively in nixcfg — no `git config --global` without confirming first.
-- 🟡 PPM: `paimos` CLI uses macOS Keychain (seeded once via `paimos auth login`; see `/ppm` for setup + non-macOS fallback). Raw curl uses env-file `~/.inspr/secrets/agents/PPMAPIKEY.env` (source it, never cat it).
+- 🟡 PPM: INSPR workstation policy uses interactive `paimos auth login` into
+  the OS keyring; INSPR does not declaratively provision keyring credentials.
+  Headless/CI may inject `PAIMOS_URL` + `PAIMOS_API_KEY` for one process from
+  approved encrypted storage, without plaintext persistence. Raw curl uses
+  `~/.inspr/secrets/agents/PPMAPIKEY.env` (source it, never cat it).
 
 ## ROUTER — load context on demand
 

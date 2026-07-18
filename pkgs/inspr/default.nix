@@ -18,6 +18,7 @@
   gnused,
   git,
   jq,
+  yq-go,
   curl,
   openssh,
 }:
@@ -32,6 +33,7 @@ writeShellApplication {
     gnused
     git        # submodule status / git rev-parse
     jq         # tailscale --json parsing
+    yq-go      # structural, non-printing Paimos config validation
     curl       # headscale /health probe
     openssh    # optional live-host deployment checks
   ];

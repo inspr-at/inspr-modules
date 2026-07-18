@@ -7,17 +7,17 @@ This document is the authoritative source for the PPM role (Paimos Project Manag
 - **[AGENTS-CORE.md](./AGENTS-CORE.md)** — universal rules every agent follows
 - **[AGENTS-PROFILE-MARKUS.md](./AGENTS-PROFILE-MARKUS.md)** — Markus Barta's personal preferences
 - **AGENTS-AGENT-*.md** — per-role overlays (one per agent identity)
-- **per-repo AGENTS.md** in nixcfg/fleetcom/inspr — repo-specific deltas
+- **per-repo AGENTS.md** in nixcfg/fleetcom/inspr/amt-com — repo-specific deltas
 
 ---
 
 ## Topic: workflow/ppm
 
-- 🟢 SOFT | `do` | In PPM mode manage time entries: start/stop timers and log flat hours.
+- 🟢 SOFT | `do` | When the user explicitly authorizes PPM writes, manage time entries within that scope: start/stop timers and log flat hours.
   *<sub>src: ~/Code/fleetcom/.claude/commands/ppm.md L11</sub>*
   <!-- rule_ids: ppm.md:L11:time-entry-management | cluster: — -->
 
-- 🟢 SOFT | `do` | In PPM mode query, create tickets, update statuses, and add comments freely.
+- 🟢 SOFT | `do` | In PPM mode query freely. Create tickets, update statuses, add comments, and change time entries only when the user explicitly authorizes PPM writes for the task.
   *<sub>src: ~/Code/fleetcom/.claude/commands/ppm.md L10</sub>*
   <!-- rule_ids: ppm.md:L10:ppm-interaction-allowed | cluster: — -->
 
@@ -39,4 +39,3 @@ This document is the authoritative source for the PPM role (Paimos Project Manag
 - 🟢 SOFT | `do` | In PPM mode reading local files (docs, configs) for context is allowed.
   *<sub>src: ~/Code/fleetcom/.claude/commands/ppm.md L9</sub>*
   <!-- rule_ids: ppm.md:L9:read-local-context | cluster: — -->
-

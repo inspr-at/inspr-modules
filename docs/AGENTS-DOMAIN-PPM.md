@@ -12,15 +12,15 @@ Detailed rules for Paimos/PPM ticket work: `paimos` CLI, ticket conventions, pro
 
 Two auth surfaces — DON'T conflate them:
 
-**1. `paimos` CLI** — uses macOS Keychain (entry `paimos-cli/<instance>`) on macOS, Secret Service / KWallet on Linux, Credential Manager on Windows. Seeded once per host via `paimos auth login` at the keyboard. Verify with `paimos auth whoami`. Headless / CI fallback: set `PAIMOS_API_KEY` env-var (overrides keyring lookup).
+**1. `paimos` CLI** — uses macOS Keychain (entry `paimos-cli/<instance>`) on macOS, Secret Service / KWallet on Linux, Credential Manager on Windows. INSPR workstation policy is interactive bootstrap: seed it once via `paimos auth login` at the keyboard and verify with `paimos auth whoami`. INSPR does not declaratively provision keyring credentials. Although the current CLI still exposes a scripted `--api-key` login path, do not use it; PAI-685 tracks its removal. For headless / CI, inject credentials only into the running process from approved encrypted storage (for example agenix). Never put them in command arguments, plaintext YAML, a repository, the Nix store, activation output, or logs.
 
-- 🟡 **Onboarding new macOS host**: run `paimos auth login` interactively at the iMac/Mac keyboard (not over SSH — Keychain access is unreliable from non-GUI sessions). Pre-fill with `--api-key "$PPMAPIKEY"` to skip the prompt if the env-file is already in place:
+- 🟡 **Onboarding new macOS host**: run `paimos auth login` interactively at the iMac/Mac keyboard (not over SSH — Keychain access is unreliable from non-GUI sessions). Enter the API key through the hidden prompt from the approved credential source; do not place it in command arguments or shell history:
   ```bash
-  bash -lc 'set -a; . ~/.inspr/secrets/agents/PPMAPIKEY.env; set +a; paimos auth login --url https://pm.barta.cm --api-key "$PPMAPIKEY" --name ppm'
+  paimos auth login --url https://pm.barta.cm --name ppm
   ```
-- 🟡 After `paimos auth login`, daily invocation is just `paimos <subcommand>` — no env-file sourcing needed; Keychain is authoritative.
-- 🟡 `paimos auth whoami` is the canonical smoke. inspr-doctor checks this (INSPR-193).
-- 🔴 Sourcing `PPMAPIKEY.env` does NOT auth the paimos CLI — it only sets `$PPMAPIKEY`, which paimos ignores (it looks at `$PAIMOS_API_KEY`). The two env-var names are deliberately different (env-file convention = filename-as-varname; paimos's convention = `PAIMOS_API_KEY`).
+- 🟡 After `paimos auth login`, daily invocation is just `paimos <subcommand>` — no env-file sourcing needed; the OS keyring is authoritative whenever the headless runtime override is unset.
+- 🟡 `paimos auth whoami` is the canonical auth smoke. To verify or migrate the workstation keyring specifically, unset all auth overrides for the command: `env -u PAIMOS_URL -u PAIMOS_API_KEY -u PPM_URL -u PPMAPIKEY paimos auth whoami`. inspr-doctor does this (INSPR-193, INSPR-225).
+- 🔴 Sourcing `PPMAPIKEY.env` **alone** does not authenticate the `paimos` CLI. Current Paimos accepts the legacy pair `PPM_URL` + `PPMAPIKEY` for an environment-only session, but INSPR does not use that pair for workstation bootstrap. The preferred headless pair is `PAIMOS_URL` + `PAIMOS_API_KEY`; with a configured instance, `PAIMOS_API_KEY` alone overrides its keyring credential for that process. Never export either credential globally.
 
 **2. Raw `curl` against `pm.barta.cm/api/...`** — uses the env-file. Source it, use `$PPMAPIKEY` in the `Authorization: Bearer` header.
 
@@ -37,30 +37,31 @@ See `/secrets` for full secret-handling pipeline.
 
 ### Stuck? "I can't find PPM creds"
 
-Run this diagnostic chain top-to-bottom — first thing that fails points at the fix:
+Run this diagnostic chain top-to-bottom — first thing that fails points at the fix. The env-file listing is relevant only to the separate raw-curl path:
 
 ```bash
-ls ~/.inspr/secrets/agents/         # are the env-files materialized on this host?
-paimos auth whoami                  # is Keychain seeded? (prints user on success)
+env -u PAIMOS_URL -u PAIMOS_API_KEY -u PPM_URL -u PPMAPIKEY paimos auth whoami
+                                    # is the OS keyring seeded? (prints user on success)
 paimos doctor                       # full health report
 ~/Code/inspr/scripts/inspr-doctor.sh --verbose   # canonical fleet-wide onboarding check
+ls ~/.inspr/secrets/agents/         # raw-curl env-files only; never read contents
 ```
 
 | Symptom | Likely cause | Fix |
 | --- | --- | --- |
-| `PPMAPIKEY.env` missing | secrets not materialized on this host | enable `inspr.secrets.agents` in HM, `home-manager switch` |
-| `paimos auth whoami` exits 1 | Keychain not seeded | run the `paimos auth login` block above **at the keyboard**, not over SSH |
-| `paimos auth whoami` exits 1 after key rotation | stale Keychain entry | re-run `paimos auth login` with the fresh key |
+| `PPMAPIKEY.env` missing | raw-curl secret not materialized on this host | this does not affect `paimos`; repair `inspr.secrets.agents` only if raw curl is required |
+| `paimos auth whoami` exits 1 | OS keyring not seeded | run the `paimos auth login` block above **at the keyboard**, not over SSH |
+| `paimos auth whoami` exits 1 after key rotation | stale OS-keyring entry | re-run `paimos auth login` with the fresh key |
 | `$PPMAPIKEY` empty after sourcing | wrong filename / variable | `PPMAPIKEY.env` exports `PPMAPIKEY` (env-file convention = filename-as-varname) |
 | `curl` returns 401 | wrong header / stale key | `Authorization: Bearer $PPMAPIKEY` (not `Token`); confirm key not rotated |
-| Linux / headless / CI | no GUI keyring | use `PAIMOS_API_KEY=...` env-var fallback (overrides Keychain lookup) |
+| Headless / CI | no usable interactive keyring | inject `PAIMOS_URL` + `PAIMOS_API_KEY` for that process only from approved encrypted storage; never render the credential to plaintext config or use it to bootstrap a workstation |
 
 🔴 Never `cat`/`Read`/`head`/`tail` the .env files — `ls -la` only.
 
 ## Endpoints
 
 - **One instance: PPM — `https://pm.barta.cm`.** Everything routes there; there is no second instance and no routing decision to make.
-- Auth: `Authorization: Bearer $PPMAPIKEY` for raw curl; the `paimos` CLI reads Keychain.
+- Auth: `Authorization: Bearer $PPMAPIKEY` for raw curl; the `paimos` CLI uses a complete environment-only URL/key pair when present, otherwise configured routing plus a process-only `PAIMOS_API_KEY` override or the OS keyring.
 
 🟡 The **PMO** instance (`pm.bytepoets.com`, the BYTEPOETS Paimos) was **decommissioned in June 2026** when Markus left BYTEPOETS. Its keys (`PMOAPIKEY`, `PMOURL`, `PMOSERVER*`) and the `pmo` entry in `~/.paimos/config.yaml` are gone. If you see `$PMOURL`, `paimos --instance pmo`, or a `~/Code/BYTEPOETS/ → PMO` routing rule anywhere, it's stale — it will 401. Flag it.
 
@@ -101,17 +102,17 @@ All projects live on PPM (`pm.barta.cm`) — there is no second instance.
 
 ## Workflow: backing tickets
 
-- 🟡 Before starting work, check PPM for a backing ticket. If none exists, create one first.
+- 🟡 Before starting work, check PPM for a backing ticket. If none exists and PPM writes are explicitly authorized, dedupe and create one; otherwise report the missing backing ticket and ask before writing.
 - 🟡 Do NOT create local backlog files (no `BACKLOG.md`, no `TODO.md`). Backlog management is in PPM.
-- 🟡 Update PPM ticket status as work progresses: `new → in-progress → done`.
+- 🟡 When PPM writes are explicitly authorized, update ticket status as work progresses: `new → backlog → in-progress → qa → done`.
 - 🔴 Mark PPM tickets as `done` only when acceptance criteria are met. "Done means done."
 - 🟡 Always reference tickets by human-visible key (e.g. `FLEET-79`) in chat, commits, branches, PR titles.
 
 ## Workflow: time tracking
 
-- 🟡 Before starting a timer, list currently running timers. If one is **obviously stale** — for example its ticket is terminal, the recorded session has clearly ended, or later work superseded it — stop it first. Use the last defensible activity timestamp, annotate the cleanup, and never book unattended idle wall-clock as work. Leave plausibly active timers alone when the evidence is ambiguous.
-- 🟡 Start PPM timer when beginning work, stop when done. `mba` is `user_id 2`.
-- 🟡 When work is done, update PPM ticket status AND stop the timer.
+- 🟡 When PPM writes are explicitly authorized, list running timers before starting one. If a timer is **obviously stale**—for example its ticket is terminal, its recorded session clearly ended, or later work superseded it—stop it first. Use the last defensible activity timestamp, annotate the cleanup, and never book unattended idle wall-clock as work. Leave plausibly active timers alone when the evidence is ambiguous.
+- 🟡 When PPM writes are explicitly authorized, start the timer when beginning work and stop it when done. `mba` is `user_id 2`.
+- 🟡 When PPM writes are explicitly authorized and work is done, update the ticket status AND stop the timer.
 
 ## Workflow: dedupe before creating
 
@@ -119,7 +120,7 @@ All projects live on PPM (`pm.barta.cm`) — there is no second instance.
 
 ## Workflow: GET-before-PUT
 
-🟡 PPM PUT replaces the record **wholesale**. PATCH is silently ignored (no error, no effect).
+🟡 When a PPM write is explicitly authorized, GET before PUT. PPM PUT replaces the record **wholesale**. PATCH is silently ignored (no error, no effect).
 
 ```
 1. GET /api/issues/<id>           # capture full restore-state
@@ -176,17 +177,22 @@ PPM **Knowledge** is the canonical home for knowledge that used to sprawl into `
 | `related_project` | cross-project relationships / links |
 | `memory` | agent auto-memory (decay/staleness/reference-counted subsystem — PAI-347/349). Machine lane; don't hand-author. |
 
-🟡 **Type-value gotcha**: the list-filter query enum is hyphenated (`?type=external-system`) but stored/path type values are underscored (`external_system`, `related_project`). Use **underscores** in the `{type}` path + create body; reach for hyphens only if a `?type=` filter rejects the underscore form. Verify on first use (greenfield as of 2026-05-28 — no entries existed yet).
+🟡 **Type-value gotcha**: stored values and API responses use underscores
+(`external_system`, `related_project`). URL path segments, `?type=` filters,
+and `paimos knowledge` CLI positional values use canonical kebab-singular names
+(`external-system`, `related-project`). JSON write bodies accept either form;
+prefer the stored underscore form there. Verify `url_segment` mappings against
+`GET /api/schema` when the server version changes.
 
 ### Endpoints (project-scoped)
 
 | Operation | Endpoint |
 | --- | --- |
-| List (optionally filter) | `GET /api/projects/<id>/knowledge[?type=<type>]` |
+| List (optionally filter) | `GET /api/projects/<id>/knowledge[?type=<url-type>]` |
 | Create | `POST /api/projects/<id>/knowledge` (body: `KnowledgeEntryInput`) |
-| Fetch one | `GET /api/projects/<id>/knowledge/<type>/<slug>` |
-| Replace (rename via `body.slug`) | `PUT /api/projects/<id>/knowledge/<type>/<slug>` |
-| Soft-delete (Trash) | `DELETE /api/projects/<id>/knowledge/<type>/<slug>` |
+| Fetch one | `GET /api/projects/<id>/knowledge/<url-type>/<slug>` |
+| Replace (rename via `body.slug`) | `PUT /api/projects/<id>/knowledge/<url-type>/<slug>` |
+| Soft-delete (Trash) | `DELETE /api/projects/<id>/knowledge/<url-type>/<slug>` |
 
 **`KnowledgeEntryInput`**: `slug` + `title` required; `type`, `body` (markdown content), `status`, `metadata` (free object) optional. Addressed by `(project, type, slug)`. Numeric project ids for API: see the `id` column in [Project key reference](#project-key-reference).
 
@@ -230,7 +236,7 @@ The `paimos` CLI is the daily interface — prefer it over raw curl when possibl
 paimos <subcommand> [args]
 ```
 
-No env-file sourcing needed; Keychain handles auth. If the host lacks a seeded Keychain (CI / headless / fresh-onboard), set `PAIMOS_API_KEY` in the environment as a fallback — but the canonical fleet pattern is Keychain-seeded.
+No env-file sourcing is needed on an onboarded workstation; the keyring handles auth. A fresh workstation must be bootstrapped interactively. For CI/headless use, inject `PAIMOS_URL` + `PAIMOS_API_KEY` into that process from approved encrypted storage; with configured routing, a process-only `PAIMOS_API_KEY` override is also supported. Do not use runtime injection to bootstrap a workstation.
 
 Common subcommands (verify with `paimos --help` — re-survey before extending):
 - `paimos issue get <KEY>` — read a ticket
@@ -243,8 +249,15 @@ Common subcommands (verify with `paimos --help` — re-survey before extending):
 
 ## Status states
 
-`new` → `in-progress` (timer running) → `review` (PR pending) → `done` (acceptance met).
-`blocked` while waiting on external dep — note the blocker. `wontfix` for closed-without-resolution; explain in note.
+Primary delivery path:
+
+`new` (untriaged) → `backlog` (triaged) → `in-progress` (timer running) → `qa` → `done` (acceptance met).
+
+Post-delivery states are `delivered` → `accepted` → `invoiced`. Use `cancelled`
+for closed-without-delivery and explain why in the notes. The live schema has no
+`review`, `blocked`, or `wontfix` state; record blockers in notes while keeping
+the nearest truthful lifecycle state. Re-check `paimos schema --json` when the
+server version changes.
 
 ## Cross-cutting: licensing
 

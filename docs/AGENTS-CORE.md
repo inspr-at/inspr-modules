@@ -7,7 +7,7 @@ This document is the authoritative source for rules every Claude agent in Markus
 - **[AGENTS-CORE.md](./AGENTS-CORE.md)** — universal rules every agent follows
 - **[AGENTS-PROFILE-MARKUS.md](./AGENTS-PROFILE-MARKUS.md)** — Markus Barta's personal preferences
 - **AGENTS-AGENT-*.md** — per-role overlays (one per agent identity)
-- **per-repo AGENTS.md** in nixcfg/fleetcom/inspr — repo-specific deltas
+- **per-repo AGENTS.md** in nixcfg/fleetcom/inspr/amt-com — repo-specific deltas
 
 ---
 
@@ -326,7 +326,7 @@ This document is the authoritative source for rules every Claude agent in Markus
   *<sub>src: ~/Code/fleetcom/AGENTS.md L423 · path migrated 2026-05-13 (INSPR-164)</sub>*
   <!-- rule_ids: AGENTS.md:L423:source-not-print | cluster: — -->
 
-- 🟡 **STRONG** | `do` | Source ~/.inspr/secrets/agents/PPMAPIKEY.env first, then use $PPMAPIKEY for raw curl against the PPM API. (paimos CLI uses macOS Keychain — see /ppm or AGENTS-DOMAIN-PPM.md.)
+- 🟡 **STRONG** | `do` | Source ~/.inspr/secrets/agents/PPMAPIKEY.env first, then use $PPMAPIKEY for raw curl against the PPM API. (INSPR workstation policy uses interactive `paimos auth login` plus the OS keyring; approved encrypted storage may inject runtime-only headless credentials — see /ppm or AGENTS-DOMAIN-PPM.md.)
   *<sub>src: ~/Code/fleetcom/AGENTS.md L49 · path migrated 2026-05-13 (INSPR-164) · CLI vs curl distinction clarified 2026-05-16 (INSPR-193)</sub>*
   <!-- rule_ids: AGENTS.md:L49:source-ppm-env | cluster: — -->
 
@@ -686,19 +686,19 @@ This document is the authoritative source for rules every Claude agent in Markus
   *<sub>src: ~/Code/fleetcom/AGENTS.md L44</sub>*
   <!-- rule_ids: AGENTS.md:L44:ticket-key-style | cluster: — -->
 
-- 🟡 **STRONG** | `do` | Before starting work check PPM for a backing ticket; if none exists create one first.
+- 🟡 **STRONG** | `do` | Before starting work check PPM for a backing ticket; if none exists, create one only when PPM writes are explicitly authorized, otherwise report it and ask.
   *<sub>src: ~/Code/fleetcom/AGENTS.md L39</sub>*
   <!-- rule_ids: AGENTS.md:L39:ppm-backing-ticket | cluster: — -->
 
-- 🟡 **STRONG** | `dont` | Create epics and tickets in PPM. Do not create local backlog files.
+- 🟡 **STRONG** | `dont` | Do not create local backlog files. When PPM writes are explicitly authorized, create epics and tickets in PPM instead.
   *<sub>src: ~/Code/fleetcom/AGENTS.md L40</sub>*
   <!-- rule_ids: AGENTS.md:L40:no-local-backlog-files | cluster: — -->
 
-- 🟡 **STRONG** | `do` | Update PPM ticket status as work progresses (new -> in-progress -> done).
+- 🟡 **STRONG** | `do` | When PPM writes are explicitly authorized, update ticket status as work progresses (new -> backlog -> in-progress -> qa -> done); use post-delivery states separately.
   *<sub>src: ~/Code/fleetcom/AGENTS.md L41</sub>*
   <!-- rule_ids: AGENTS.md:L41:ppm-status-updates | cluster: — -->
 
-- 🟡 **STRONG** | `do` | When work is done update PPM ticket status and stop the timer.
+- 🟡 **STRONG** | `do` | When PPM writes are explicitly authorized and work is done, update the ticket status and stop the timer.
   *<sub>src: ~/Code/fleetcom/.claude/commands/dev.md L22 · ~/Code/nixcfg/+agents/commands/ops.md L8</sub>*
   <!-- rule_ids: dev.md:L22:ppm-on-done,ops.md:L8:update-ppm-and-stop-timers | cluster: workflow-ppm-002 -->
 

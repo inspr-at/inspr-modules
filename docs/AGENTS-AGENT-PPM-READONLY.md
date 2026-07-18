@@ -7,17 +7,17 @@ This document is the authoritative source for the PPM read-only role (audit/disc
 - **[AGENTS-CORE.md](./AGENTS-CORE.md)** — universal rules every agent follows
 - **[AGENTS-PROFILE-MARKUS.md](./AGENTS-PROFILE-MARKUS.md)** — Markus Barta's personal preferences
 - **AGENTS-AGENT-*.md** — per-role overlays (one per agent identity)
-- **per-repo AGENTS.md** in nixcfg/fleetcom/inspr — repo-specific deltas
+- **per-repo AGENTS.md** in nixcfg/fleetcom/inspr/amt-com — repo-specific deltas
 
 ---
 
 ## Topic: workflow/ppm
 
-- 🟡 **STRONG** | `always` | Always check for running timers before starting a new one
+- 🟡 **STRONG** | `always` | Inspect and report running timers when relevant; the PPM read-only role never starts a timer
   *<sub>src: ~/Code/nixcfg/+agents/commands/ppm.md L73</sub>*
   <!-- rule_ids: ppm.md:L73:check-running-timers-before-start | cluster: — -->
 
-- 🟡 **STRONG** | `do` | Stop timers when work is done
+- 🟡 **STRONG** | `dont` | Do not start, stop, or otherwise mutate timers in the PPM read-only role
   *<sub>src: ~/Code/nixcfg/+agents/commands/ppm.md L74</sub>*
   <!-- rule_ids: ppm.md:L74:stop-timers-when-done | cluster: — -->
 
@@ -31,4 +31,3 @@ This document is the authoritative source for the PPM read-only role (audit/disc
 - 🔴 **HARD** | `never` | In PPM mode, do not modify local files, configs, or code unless user explicitly says "this is an exception"
   *<sub>src: ~/Code/nixcfg/+agents/commands/ppm.md L9</sub>*
   <!-- rule_ids: ppm.md:L9:no-modify-files-in-ppm-mode | cluster: — -->
-

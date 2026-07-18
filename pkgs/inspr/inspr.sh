@@ -344,29 +344,35 @@ check_paimos_auth() {
         echo "paimos not on PATH"
         return 77
     }
-    # paimos uses macOS Keychain on macOS (see /ppm domain pack + INSPR-193).
-    # The env var is consulted on FIRST invocation per-config to populate
-    # the keyring; read from keyring thereafter. If the keyring entry is
-    # corrupted/missing (e.g. exit 36 on macOS), `paimos auth login` at
-    # the iMac keyboard is needed to repopulate.
+    # Prove instance-config + keyring auth specifically: ambient compatibility
+    # overrides must not make this workstation check pass. Authentication is
+    # established explicitly with the hidden prompt from `paimos auth login`.
     (
-        if [[ -f "$SECRETS_DIR/PPMAPIKEY.env" ]]; then
-            set -a
-            # shellcheck disable=SC1090
-            source "$SECRETS_DIR/PPMAPIKEY.env"
-            set +a
-        fi
+        unset PAIMOS_URL PAIMOS_API_KEY PPM_URL PPMAPIKEY
         paimos auth whoami >/dev/null 2>&1
     )
 }
 
-check_paimos_config_bootstrapped() {
+check_paimos_instance_config() {
     local f="$HOME/.paimos/config.yaml"
     [[ -f "$f" ]] || return 1
     local mode
     # GNU stat first, BSD fallback (see check_agent_secrets_locked comment).
     mode=$(stat -c '%a' "$f" 2>/dev/null || stat -f '%Mp%Lp' "$f" 2>/dev/null)
-    [[ "$mode" == "600" || "$mode" == "0600" ]]
+    [[ "$mode" == "600" || "$mode" == "0600" ]] || return 1
+
+    # Fail closed and silently: yq emits only a boolean, and its diagnostics
+    # stay suppressed so malformed YAML cannot expose configuration content.
+    command -v yq >/dev/null || return 1
+    local legacy_api_key_present
+    if ! legacy_api_key_present="$(yq -r '[.. | select(tag == "!!map") | has("api_key")] | any' "$f" 2>/dev/null)"; then
+        return 1
+    fi
+    if [[ "$legacy_api_key_present" == "true" ]]; then
+        echo "$f contains forbidden legacy api_key field"
+        return 1
+    fi
+    [[ "$legacy_api_key_present" == "false" ]]
 }
 
 # ── Drift ──
@@ -732,15 +738,14 @@ heal_fix_agent_secrets_locked() {
 heal_fix_paimos_auth() {
     echo "manual"
     cat <<MANUAL
-Keychain entry is unseeded or corrupted (typical: exit 36 on macOS).
-Must be re-seeded AT THE KEYBOARD of the host — over-SSH access to
+Keyring authentication is missing or corrupted (typical: exit 36 on macOS).
+Log in interactively AT THE KEYBOARD of the host — over-SSH access to
 macOS Keychain is unreliable from non-GUI sessions (the well-known
 imacw / INSPR-182 pattern).
 
 At the host's keyboard, run:
 
-  bash -lc 'set -a; . ~/.inspr/secrets/agents/PPMAPIKEY.env; set +a; \\
-    paimos auth login --url https://pm.barta.cm --api-key "\$PPMAPIKEY" --name ppm'
+  paimos auth login --url https://pm.barta.cm --name ppm
 
 Then verify:  paimos auth whoami
 Re-run:       inspr check
@@ -810,10 +815,10 @@ _run_all_check_sections() {
         "Same module as above; check pattern syntax in modules/shared/git-identity.nix"
     run_check workstation gh_auth "gh CLI authenticated (gh api user succeeds)" \
         "gh auth login (or check that GH_TOKEN.env materialized correctly)"
-    run_check workstation paimos_auth "paimos auth whoami succeeds" \
-        "macOS: at the keyboard (not over SSH — Keychain unreliable from non-GUI sessions), run: bash -lc 'set -a; . ~/.inspr/secrets/agents/PPMAPIKEY.env; set +a; paimos auth login --url https://pm.barta.cm --api-key \"\$PPMAPIKEY\" --name ppm'. Linux/headless: set PAIMOS_API_KEY env-var. See /ppm domain pack."
-    run_check workstation paimos_config_bootstrapped "~/.paimos/config.yaml present + mode 0600 (auto-bootstrapped)" \
-        "Add inspr.paimos-cli.enable = true to home.nix; home-manager switch (requires inspr.secrets.agents enabled)"
+    run_check workstation paimos_instance_config "~/.paimos/config.yaml present, mode 0600, and free of legacy api_key" \
+        "First migrate without ambient overrides: env -u PAIMOS_URL -u PAIMOS_API_KEY -u PPM_URL -u PPMAPIKEY paimos auth whoami; retry home-manager switch; only if authentication still fails, run interactively: paimos auth login --url https://pm.barta.cm --name ppm"
+    run_check workstation paimos_auth "paimos auth whoami succeeds using instance config + keyring" \
+        "First ensure paimos_instance_config passes. Then log in interactively: paimos auth login --url https://pm.barta.cm --name ppm. On macOS, run at the keyboard (not over SSH — Keychain is unreliable from non-GUI sessions). See /ppm domain pack."
 
     section "Drift"
     run_check workstation nixcfg_envrc_canonical_path "nixcfg .envrc references INSPR-164 canonical path (~/.inspr/secrets/agents)" \
@@ -1397,14 +1402,16 @@ cmd_onboard() {
         echo "     and add the host's public key to ${CYAN}secrets/secrets.nix${RESET} HOST KEYS section"
     fi
 
-    # 7. paimos Keychain seed
+    # 7. paimos instance config + interactive login
     local s7
-    s7=$(_step_status paimos_on_path paimos_auth paimos_config_bootstrapped)
-    _step_label "$s7" 7 "paimos CLI auth (Keychain seed, macOS at-keyboard required)"
+    s7=$(_step_status paimos_on_path paimos_instance_config paimos_auth)
+    _step_label "$s7" 7 "paimos CLI instance config + interactive login"
     if [[ "$s7" != "ok" ]]; then
-        echo "     ${YELLOW}AT THE HOST'S KEYBOARD${RESET} (NOT over SSH — Keychain unreliable in non-GUI sessions):"
-        echo "     ${DIM}\$${RESET} bash -lc 'set -a; . ~/.inspr/secrets/agents/PPMAPIKEY.env; set +a; \\"
-        echo "         paimos auth login --url https://pm.barta.cm --api-key \"\$PPMAPIKEY\" --name ppm'"
+        echo "     First migrate any legacy config without ambient overrides:"
+        echo "     ${DIM}\$${RESET} env -u PAIMOS_URL -u PAIMOS_API_KEY -u PPM_URL -u PPMAPIKEY paimos auth whoami"
+        echo "     Retry home-manager switch. Only after the legacy-config guard clears,"
+        echo "     authenticate ${YELLOW}AT THE HOST'S KEYBOARD${RESET} (not over SSH):"
+        echo "     ${DIM}\$${RESET} paimos auth login --url https://pm.barta.cm --name ppm"
     fi
 
     # 8. Nix toolchain + devenv

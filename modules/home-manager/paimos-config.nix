@@ -1,50 +1,32 @@
 # ╔══════════════════════════════════════════════════════════════════════════════╗
-# ║              INSPR — Auto-bootstrap paimos-cli config                        ║
+# ║                 INSPR — Declarative Paimos routing                          ║
 # ╚══════════════════════════════════════════════════════════════════════════════╝
 #
-# Materialize ~/.paimos/config.yaml from agent-secrets env files at HM
-# activation time, so a fresh INSPR-onboarded host gets `paimos` CLI ready
-# to use without the manual `paimos auth login --url ... --api-key ...` step.
+# Materialize only Paimos instance routing in ~/.paimos/config.yaml:
+# default_instance plus each instance URL. A URL may be a Nix literal or come
+# from a trusted KEY=value env file; neither path handles credentials.
 #
-# Pairs with:
-#   - inspr.secrets.agents (provides the materialized .env files)
-#   - paimos-cli in home.packages (the binary that reads this config)
+# INSPR workstation authentication policy is interactive. After activation,
+# run `paimos auth login --url ... --name ...` and enter the API key at the
+# hidden prompt; Paimos stores that credential in the OS keyring. Headless
+# automation may inject PAIMOS_URL + PAIMOS_API_KEY into the process from
+# approved encrypted storage, but this module never reads, renders, or persists
+# credential values.
 #
-# Architecture:
-#   - Each named instance declares: URL + path to KEY=value env file + var name
-#   - Activation sources each env file in a subshell (scoped exposure),
-#     extracts the variable, writes ~/.paimos/config.yaml atomically
-#   - File mode 0600, dir mode 0700 — never world-readable
-#   - Idempotent: re-runs each activation; declarative wins over manual edits
-#   - Safe-degrade: missing env file → instance skipped with a stderr WARN
-#     (so enabling this module without agent-secrets configured doesn't
-#      break activation; the YAML just won't include that instance)
+# Compatibility window (INSPR-225): apiKeyEnvFile and apiKeyVar remain accepted
+# for one release so existing consumers still evaluate. They are ignored and
+# emit a warning. Remove them from consumer configuration.
 #
 # Usage (consumer's home.nix):
 #   imports = [ inputs.inspr-modules.homeManagerModules.paimos-config ];
 #   inspr.paimos-cli = {
 #     enable = true;
 #     defaultInstance = "mine";
-#     # URL as Nix-time literal (public hosts, hard-coded URLs):
-#     instances.mine = {
-#       url           = "https://your-paimos.example.com";
-#       apiKeyEnvFile = "/run/agenix/your-paimos-api-key";  # or ~/.../X.env
-#       apiKeyVar     = "PAIMOS_API_KEY";
-#     };
-#     # URL as env-file lookup (private hosts, agenix-encrypted URLs):
-#     instances.work = {
-#       urlEnvFile    = "${config.home.homeDirectory}/Secrets/X/WORKURL.env";
-#       urlVar        = "WORKURL";
-#       apiKeyEnvFile = "${config.home.homeDirectory}/Secrets/X/WORKAPIKEY.env";
-#       apiKeyVar     = "WORKAPIKEY";
-#     };
+#     instances.mine.url = "https://your-paimos.example.com";
 #   };
 #
-# Per instance, exactly ONE of {url, urlEnvFile} must be set. urlEnvFile
-# requires urlVar. Both validated at eval time via assertions.
-#
-# Note: `instances` defaults to `{}` — consumers MUST declare at least one
-# instance. There is no sensible cross-context default for a public library.
+# Per instance, exactly one of {url, urlEnvFile} must be set. urlEnvFile
+# requires urlVar.
 #
 # License: MIT (part of inspr-modules — see flake.nix).
 #
@@ -58,137 +40,98 @@
 let
   cfg = config.inspr.paimos-cli;
 
-  # Build one YAML fragment per declared instance. Wraps each in a subshell
-  # so the sourced env vars don't bleed into the next iteration.
-  #
-  # YAML safety (audit-flagged: INSPR-52):
-  #   - api_key + url are written as SINGLE-QUOTED YAML scalars — that's a
-  #     literal string in YAML, which makes any character safe except
-  #     a single quote (escaped per spec by doubling: ' → '').
-  #   - Without this, leading `*`/`&`/`[`/`{` would be interpreted as
-  #     anchors/aliases/inline structures; embedded `:` would split
-  #     the key/value parse; embedded `#` would start a comment.
-  #
-  # Two URL paths (INSPR-174):
-  #   - inst.url != null      → literal: emitted verbatim into the script
-  #   - inst.urlEnvFile != null → sourced from env file at activation, then
-  #                                YAML-escaped same as api_key
-  #
-  # The eval-time assertions guarantee exactly one of these is non-null.
-  mkInstanceFragment = name: inst:
-    let
-      urlFromLiteral = inst.url != null;
-      urlFromEnv     = inst.urlEnvFile != null;
-    in ''
-    if [[ -f "${inst.apiKeyEnvFile}" ]] ${
-      lib.optionalString urlFromEnv
-        ''&& [[ -f "${inst.urlEnvFile}" ]]''
-    }; then
-      (
-        set -a
-        # shellcheck disable=SC1090
-        source "${inst.apiKeyEnvFile}"
-        ${lib.optionalString urlFromEnv ''
-        # shellcheck disable=SC1090
-        source "${inst.urlEnvFile}"
-        ''}
-        set +a
-        # ── URL resolution ────────────────────────────────────────────
-        ${if urlFromLiteral then ''
-        url_value=${lib.escapeShellArg inst.url}
-        '' else ''
-        if url_value="$(printenv ${lib.escapeShellArg inst.urlVar})"; then
-          if [[ -z "$url_value" ]]; then
-            echo "paimos-config: WARN ${name}: ${inst.urlVar} is set but empty in ${inst.urlEnvFile}; skipping" >&2
-            exit 0
-          fi
-        else
-          echo "paimos-config: WARN ${name}: ${inst.urlVar} not set after sourcing ${inst.urlEnvFile} (typo? wrong env file?); skipping" >&2
-          exit 0
-        fi
-        ''}
-        # ── API key resolution ────────────────────────────────────────
-        # printenv exits 1 (no output) if the var is unset; exits 0 with
-        # empty output if the var is set-but-empty. Distinguish — typo
-        # catches are valuable. (Audit-flagged: INSPR-62.)
-        if key_value="$(printenv ${lib.escapeShellArg inst.apiKeyVar})"; then
-          if [[ -n "$key_value" ]]; then
-            # YAML single-quote escape via awk: each 0x27 (single quote)
-            # is doubled per YAML spec (literal single-quoted scalars use
-            # 0x27 0x27 to represent a single 0x27). Hex escapes throughout
-            # (no literal quote characters) keep this comment + script
-            # safe inside Nix multi-line strings.
-            # Explicit nix-store path so we don\x27t depend on PATH at
-            # activation time (HM activation has a sparse PATH).
-            url_escaped=$(printf '%s' "$url_value" | ${pkgs.gawk}/bin/awk '{ gsub(/\x27/, "\x27\x27"); print }')
-            key_escaped=$(printf '%s' "$key_value" | ${pkgs.gawk}/bin/awk '{ gsub(/\x27/, "\x27\x27"); print }')
-            echo "    ${name}:"
-            echo "        url: '$url_escaped'"
-            echo "        api_key: '$key_escaped'"
-          else
-            echo "paimos-config: WARN ${name}: ${inst.apiKeyVar} is set but empty in ${inst.apiKeyEnvFile}; skipping" >&2
-          fi
-        else
-          echo "paimos-config: WARN ${name}: ${inst.apiKeyVar} not set after sourcing ${inst.apiKeyEnvFile} (typo? wrong env file?); skipping" >&2
-        fi
-      )
-    else
-      ${if urlFromEnv then ''
-      [[ -f "${inst.apiKeyEnvFile}" ]] || echo "paimos-config: WARN ${name}: ${inst.apiKeyEnvFile} not found; skipping" >&2
-      [[ -f "${inst.urlEnvFile}"    ]] || echo "paimos-config: WARN ${name}: ${inst.urlEnvFile} not found; skipping" >&2
-      '' else ''
-      echo "paimos-config: WARN ${name}: ${inst.apiKeyEnvFile} not found; skipping" >&2
-      ''}
-    fi
-  '';
+  # JSON strings are valid YAML scalars and give Nix-known values complete
+  # escaping without depending on a YAML library.
+  yamlQuote = builtins.toJSON;
 
-  # Only render fragments for well-formed instances. Broken ones (e.g. both
-  # url and urlEnvFile set, or neither) still fire the eval-time assertions
-  # — but `assertions` doesn't short-circuit the rest of `config` evaluation,
-  # so we must independently guard the renderer to avoid `cannot coerce null
-  # to a string` errors before the assertion check surfaces the real cause.
+  mkInstanceFragment = name: inst:
+    if inst.url != null then
+      let
+        nestedBlock = "  ${yamlQuote name}:\n    url: ${yamlQuote inst.url}";
+      in
+      ''
+        printf '%s\n' ${lib.escapeShellArg nestedBlock}
+      ''
+    else
+      ''
+        if [[ -f ${lib.escapeShellArg inst.urlEnvFile} ]]; then
+          (
+            set -a
+            # shellcheck disable=SC1090
+            source ${lib.escapeShellArg inst.urlEnvFile}
+            set +a
+
+            if url_value="$(${pkgs.coreutils}/bin/printenv -- ${lib.escapeShellArg inst.urlVar})"; then
+              if [[ -z "$url_value" ]]; then
+                printf '%s\n' ${lib.escapeShellArg "paimos-config: ERROR ${name}: ${inst.urlVar} is set but empty in ${inst.urlEnvFile}; refusing to replace config"} >&2
+                exit 1
+              fi
+            else
+              printf '%s\n' ${lib.escapeShellArg "paimos-config: ERROR ${name}: ${inst.urlVar} not set after sourcing ${inst.urlEnvFile}; refusing to replace config"} >&2
+              exit 1
+            fi
+
+            # JSON strings are valid YAML scalars. jq safely encodes quotes,
+            # backslashes, CR/LF, and other control characters in the
+            # runtime-provided URL.
+            url_encoded=$(${pkgs.jq}/bin/jq -Rn --arg value "$url_value" '$value')
+            printf '%s\n' ${lib.escapeShellArg "  ${yamlQuote name}:"}
+            printf '    url: %s\n' "$url_encoded"
+          )
+        else
+          printf '%s\n' ${lib.escapeShellArg "paimos-config: ERROR ${name}: ${inst.urlEnvFile} not found; refusing to replace config"} >&2
+          exit 1
+        fi
+      '';
+
+  # Assertions do not short-circuit evaluation. Filter malformed instances out
+  # of the renderer so assertion messages surface instead of null coercion
+  # errors from the activation string.
   wellFormedInstances = lib.filterAttrs (_: inst:
-    # Exactly one of {url, urlEnvFile} set (XOR)
     ((inst.url != null) != (inst.urlEnvFile != null))
-    # urlVar required when urlEnvFile is set
     && (inst.urlEnvFile == null || inst.urlVar != null)
+    && (inst.urlVar == null || builtins.match "^[A-Za-z_][A-Za-z0-9_]*$" inst.urlVar != null)
   ) cfg.instances;
 
   instanceFragments = lib.concatStringsSep "\n" (
     lib.mapAttrsToList mkInstanceFragment wellFormedInstances
   );
 
-  # No default instances. Consumers MUST declare their own — there's no
-  # cross-context-sensible default URL or secret-path for a public library.
-  defaultInstances = { };
+  deprecatedCredentialWarnings = lib.concatLists (
+    lib.mapAttrsToList (name: inst:
+      lib.optional (inst.apiKeyEnvFile != null || inst.apiKeyVar != null) ''
+        inspr.paimos-cli.instances.${name}: apiKeyEnvFile/apiKeyVar are
+        deprecated compatibility options and are ignored. This module now
+        writes routing only. Compatibility is evaluation-only: before any new
+        login, an existing config containing legacy api_key must be migrated by
+        Paimos 4.8 with all auth overrides unset. After that, remove these
+        options and authenticate interactively with `paimos auth login` if
+        needed.
+        These options will be removed after this compatibility release.
+      ''
+    ) cfg.instances
+  );
 in
 {
   options.inspr.paimos-cli = {
-    enable = lib.mkEnableOption "auto-bootstrap ~/.paimos/config.yaml from agent-secrets env files";
+    enable = lib.mkEnableOption "declarative Paimos instance routing without credentials";
 
     defaultInstance = lib.mkOption {
       type = lib.types.str;
       description = ''
         Which configured instance becomes the default for `paimos` CLI
-        invocations that don't pass `--instance`. Must be a key in `instances`.
+        invocations that do not pass `--instance`. Must be a key in `instances`.
       '';
       example = "mine";
     };
 
     instances = lib.mkOption {
       description = ''
-        Named PAIMOS instances to materialize into ~/.paimos/config.yaml.
-        Each instance provides:
-          - url           Nix-time literal HTTPS endpoint, OR
-            urlEnvFile + urlVar — absolute path to a KEY=value env file +
-                          variable name holding the URL (for agenix-encrypted
-                          URLs that shouldn't be Nix-time literals)
-          - apiKeyEnvFile absolute path to a KEY=value env file (typically
-                          materialized by inspr.secrets.agents)
-          - apiKeyVar     variable name inside the env file holding the API key
-        Activation sources each env file in a subshell, extracts the variable,
-        and writes config.yaml atomically. Missing files → skipped with a WARN.
-        Exactly ONE of `{url, urlEnvFile}` must be set per instance (asserted).
+        Named Paimos instances to materialize into ~/.paimos/config.yaml.
+        Each instance provides either a literal URL or urlEnvFile + urlVar for
+        a URL stored outside Nix. Workstation credentials belong in the OS
+        keyring after interactive `paimos auth login`; headless credentials are
+        runtime inputs.
       '';
       type = lib.types.attrsOf (
         lib.types.submodule {
@@ -197,53 +140,65 @@ in
               type = lib.types.nullOr lib.types.str;
               default = null;
               description = ''
-                Instance URL as a Nix-time string literal (e.g.
-                "https://your-paimos.example.com"). Use this for public
-                or hard-coded URLs. Mutually exclusive with urlEnvFile;
-                exactly one must be set.
+                Paimos instance URL as a Nix string. Mutually exclusive with
+                urlEnvFile; exactly one must be set.
               '';
+              example = "https://your-paimos.example.com";
             };
+
             urlEnvFile = lib.mkOption {
               type = lib.types.nullOr lib.types.str;
               default = null;
               description = ''
-                Absolute path to a KEY=value env file holding the
-                instance URL (typically materialized by
-                inspr.secrets.agents). Use this for agenix-encrypted
-                URLs that shouldn't appear as Nix-time literals.
-                Requires `urlVar` to identify the variable inside.
-                Mutually exclusive with `url`.
+                Absolute path to a trusted KEY=value env file containing the
+                instance URL. Requires urlVar and is mutually exclusive with
+                url. This is routing input, not credential input.
               '';
               example = "/run/agenix/your-paimos-url";
             };
+
             urlVar = lib.mkOption {
               type = lib.types.nullOr lib.types.str;
               default = null;
               description = ''
-                Variable name inside `urlEnvFile` holding the instance
-                URL. Required when `urlEnvFile` is set; ignored otherwise.
+                Variable name inside urlEnvFile holding the instance URL.
+                Required with urlEnvFile; ignored with a literal url.
               '';
-              example = "WORKURL";
+              example = "PAIMOS_URL";
             };
+
             apiKeyEnvFile = lib.mkOption {
-              type = lib.types.str;
-              description = "Absolute path to env file containing the API key";
+              type = lib.types.nullOr lib.types.str;
+              default = null;
+              visible = false;
+              description = ''
+                Deprecated compatibility option. Ignored; no file is read.
+                Before any new login, let Paimos 4.8 migrate an existing legacy
+                config with all auth overrides unset. Then remove this option.
+              '';
             };
+
             apiKeyVar = lib.mkOption {
-              type = lib.types.str;
-              description = "Variable name inside the env file holding the API key";
+              type = lib.types.nullOr lib.types.str;
+              default = null;
+              visible = false;
+              description = ''
+                Deprecated compatibility option. Ignored; no variable is read.
+                Before any new login, let Paimos 4.8 migrate an existing legacy
+                config with all auth overrides unset. Then remove this option.
+              '';
             };
           };
         }
       );
-      default = defaultInstances;
+      default = { };
       defaultText = lib.literalExpression "{ }";
       example = lib.literalExpression ''
         {
-          mine = {
-            url           = "https://your-paimos.example.com";
-            apiKeyEnvFile = "/run/agenix/your-paimos-api-key";
-            apiKeyVar     = "PAIMOS_API_KEY";
+          mine.url = "https://your-paimos.example.com";
+          work = {
+            urlEnvFile = "/run/agenix/work-paimos-url";
+            urlVar = "WORK_PAIMOS_URL";
           };
         }
       '';
@@ -251,16 +206,13 @@ in
   };
 
   config = lib.mkIf cfg.enable {
-    # Eval-time invariants — fail loudly at switch time, not at paimos
-    # runtime with cryptic "instance not configured" errors.
-    # (Audit-flagged: INSPR-54 + INSPR-69; INSPR-174 added the URL invariants.)
     assertions = [
       {
         assertion = (lib.attrNames cfg.instances) != [ ];
         message = ''
           inspr.paimos-cli.enable = true requires at least one entry in
           inspr.paimos-cli.instances. See `inspr.paimos-cli.instances`
-          example for the expected shape.
+          for the expected shape.
         '';
       }
       {
@@ -272,41 +224,36 @@ in
         '';
       }
     ]
-    # INSPR-174: per-instance URL invariants. Exactly one of {url, urlEnvFile}
-    # must be set; urlEnvFile additionally requires urlVar. Each instance
-    # contributes its own pair of assertions for precise error attribution.
     ++ lib.concatLists (lib.mapAttrsToList (name: inst: [
       {
-        assertion =
-          (inst.url != null && inst.urlEnvFile == null)
-          || (inst.url == null && inst.urlEnvFile != null);
+        assertion = (inst.url != null) != (inst.urlEnvFile != null);
         message = ''
           inspr.paimos-cli.instances."${name}": exactly ONE of
-          {url, urlEnvFile} must be set (got url=${
-            if inst.url == null then "null" else "\"${inst.url}\""
-          }, urlEnvFile=${
-            if inst.urlEnvFile == null then "null" else "\"${inst.urlEnvFile}\""
-          }).
+          {url, urlEnvFile} must be set.
         '';
       }
       {
-        assertion = (inst.urlEnvFile == null) || (inst.urlVar != null);
+        assertion = inst.urlEnvFile == null || inst.urlVar != null;
         message = ''
           inspr.paimos-cli.instances."${name}": urlEnvFile is set but
-          urlVar is null. urlVar is required when urlEnvFile is used —
-          it tells the activation script which variable inside the env
-          file holds the URL.
+          urlVar is null. urlVar is required when urlEnvFile is used.
+        '';
+      }
+      {
+        assertion =
+          inst.urlVar == null
+          || builtins.match "^[A-Za-z_][A-Za-z0-9_]*$" inst.urlVar != null;
+        message = ''
+          inspr.paimos-cli.instances."${name}".urlVar must be a valid shell environment
+          identifier matching [A-Za-z_][A-Za-z0-9_]*.
         '';
       }
     ]) cfg.instances);
 
+    warnings = deprecatedCredentialWarnings;
+
     home.activation.bootstrapPaimosConfig = lib.hm.dag.entryAfter (
       [ "writeBoundary" ]
-      # If agent-secrets is also enabled, sequence after it so the env files
-      # are guaranteed to exist when our script reads them. The `or false`
-      # keeps this module independently consumable — without it, importing
-      # paimos-config without agent-secrets would fail eval with
-      # "attribute 'secrets' missing." (Found by INSPR-72 module-eval suite.)
       ++ lib.optional (config.inspr.secrets.agents.enable or false) "materializeAgentSecrets"
     ) ''
       set -e
@@ -318,24 +265,34 @@ in
       mkdir -p "$CONFIG_DIR"
       chmod 0700 "$CONFIG_DIR"
 
-      # Build YAML in a tmpfile then mv atomically (so a partial write
-      # never leaves the consumer reading a half-written file).
+      # Rollout guard: never replace a legacy credential-bearing config. The
+      # structural check emits only a boolean, captured below; stderr is hidden
+      # so malformed YAML cannot echo configuration content into activation
+      # logs. A parse failure is also fail-closed.
+      if [[ -f "$CONFIG_FILE" ]]; then
+        if ! legacy_api_key_present="$(${pkgs.yq-go}/bin/yq -r '[.. | select(tag == "!!map") | has("api_key")] | any' "$CONFIG_FILE" 2>/dev/null)"; then
+          printf '%s\n' 'paimos-config: ERROR: existing config could not be validated without exposing it; refusing to replace it. Repair or migrate the config, then retry Home Manager.' >&2
+          exit 1
+        fi
+        if [[ "$legacy_api_key_present" == "true" ]]; then
+          printf '%s\n' 'paimos-config: ERROR: existing config uses legacy api_key; refusing to replace it. Before any new login, run paimos auth whoami once with all Paimos and legacy PPM auth overrides unset, then retry Home Manager. Follow the README migration order; only after this guard clears, use paimos auth login if authentication still fails.' >&2
+          exit 1
+        fi
+      fi
+
       tmp="$(mktemp "$CONFIG_DIR/.config.yaml.XXXXXX")"
-      # Cleanup on ANY exit path (success: mv removed it already; failure:
-      # this trap removes the orphan to avoid dotfile garbage accumulation).
-      # (Audit-flagged: INSPR-53.)
       trap 'rm -f "$tmp"' EXIT
       chmod 0600 "$tmp"
 
       {
-        echo "default_instance: ${cfg.defaultInstance}"
-        echo "instances:"
+        printf '%s\n' ${lib.escapeShellArg "default_instance: ${yamlQuote cfg.defaultInstance}"}
+        printf '%s\n' 'instances:'
         ${instanceFragments}
       } > "$tmp"
 
       mv -f "$tmp" "$CONFIG_FILE"
 
-      echo "paimos-config: wrote $CONFIG_FILE (${
+      echo "paimos-config: wrote routing without credentials to $CONFIG_FILE (${
         toString (lib.length (lib.attrNames cfg.instances))
       } instance(s) declared)"
     '';

@@ -7,7 +7,7 @@ This document is the authoritative source for the SYSOP role (full-tier system o
 - **[AGENTS-CORE.md](./AGENTS-CORE.md)** — universal rules every agent follows
 - **[AGENTS-PROFILE-MARKUS.md](./AGENTS-PROFILE-MARKUS.md)** — Markus Barta's personal preferences
 - **AGENTS-AGENT-*.md** — per-role overlays (one per agent identity)
-- **per-repo AGENTS.md** in nixcfg/fleetcom/inspr — repo-specific deltas
+- **per-repo AGENTS.md** in nixcfg/fleetcom/inspr/amt-com — repo-specific deltas
 
 ---
 
@@ -61,7 +61,7 @@ This document is the authoritative source for the SYSOP role (full-tier system o
   *<sub>src: ~/Code/nixcfg/+agents/rules/SYSOP.md L237</sub>*
   <!-- rule_ids: SYSOP.md:L237:search-ppm-first-bigger-tasks | cluster: — -->
 
-- 🟡 **STRONG** | `do` | PPM is the task tracker; check PPM for backing tickets before starting work
+- 🟡 **STRONG** | `do` | PPM is the task tracker; check for backing tickets before starting work, but create or mutate them only when PPM writes are explicitly authorized
   *<sub>src: ~/Code/nixcfg/+agents/commands/ops.md L6</sub>*
   <!-- rule_ids: ops.md:L6:check-ppm-for-backing-tickets | cluster: — -->
 
@@ -69,7 +69,7 @@ This document is the authoritative source for the SYSOP role (full-tier system o
   *<sub>src: ~/Code/nixcfg/+agents/rules/SYSOP.md L143</sub>*
   <!-- rule_ids: SYSOP.md:L143:review-ppm-issue-before-start | cluster: — -->
 
-- 🟡 **STRONG** | `do` | When starting work, check for running PPM timers and start one if needed
+- 🟡 **STRONG** | `do` | When starting work, inspect running PPM timers; start or stop one only when PPM writes are explicitly authorized
   *<sub>src: ~/Code/nixcfg/+agents/commands/ops.md L7</sub>*
   <!-- rule_ids: ops.md:L7:check-running-timers-on-start | cluster: — -->
 
@@ -169,4 +169,3 @@ This document is the authoritative source for the SYSOP role (full-tier system o
 - 🟡 **STRONG** | `always` | configuration.nix is not the only source — always verify via SSH before reporting mismatches
   *<sub>src: ~/Code/nixcfg/+agents/rules/SYSOP.md L373</sub>*
   <!-- rule_ids: SYSOP.md:L373:verify-via-ssh-before-flagging-mismatches | cluster: — -->
-

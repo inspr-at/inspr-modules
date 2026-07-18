@@ -28,7 +28,17 @@ Subshell scoping prevents leakage to the caller's environment. The `set -a` / `s
 
 Not every tool reads env-files. Some use OS keyrings, others use config files. Two notable exceptions:
 
-- **`paimos` CLI** uses macOS Keychain (entry `paimos-cli/<instance>`), seeded once per host via `paimos auth login`. Sourcing `PPMAPIKEY.env` does NOT authenticate `paimos` — the env-var name is `PAIMOS_API_KEY`, not `PPMAPIKEY`, and on macOS the CLI prefers Keychain over env-var anyway. Use the env-file only for raw `curl` against `pm.barta.cm/api/...`. Full setup in `/ppm` (INSPR-193).
+- **`paimos` CLI** uses the OS keyring (entry `paimos-cli/<instance>`).
+  INSPR workstations seed it interactively through the hidden prompt of
+  `paimos auth login`; INSPR does not declaratively provision keyring
+  credentials. Headless/CI credentials may come from approved encrypted
+  storage such as agenix, but must be injected only into the running process
+  and never rendered into plaintext YAML, a repository, the Nix store,
+  activation output, arguments, or logs. Sourcing `PPMAPIKEY.env` alone does
+  not authenticate `paimos`; the legacy alias requires the complete pair
+  `PPM_URL` + `PPMAPIKEY`. Prefer `PAIMOS_URL` + `PAIMOS_API_KEY` for headless
+  operation. Use `PPMAPIKEY.env` alone only for raw `curl` against
+  `pm.barta.cm/api/...`. Full setup in `/ppm` (INSPR-193, INSPR-225, PAI-685).
 - **1Password CLI (`op`)** uses its own session token; `op signin` writes session state to `~/.config/op/`. No env-file involved for daily use.
 
 When piping a new env-file to a CLI, check the CLI's docs first — env-var name mismatch is the most common silent failure mode.

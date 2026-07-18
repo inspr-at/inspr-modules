@@ -7,7 +7,7 @@ This document is the authoritative source for the OPENCLAW-OPS role (Open Cleara
 - **[AGENTS-CORE.md](./AGENTS-CORE.md)** — universal rules every agent follows
 - **[AGENTS-PROFILE-MARKUS.md](./AGENTS-PROFILE-MARKUS.md)** — Markus Barta's personal preferences
 - **AGENTS-AGENT-*.md** — per-role overlays (one per agent identity)
-- **per-repo AGENTS.md** in nixcfg/fleetcom/inspr — repo-specific deltas
+- **per-repo AGENTS.md** in nixcfg/fleetcom/inspr/amt-com — repo-specific deltas
 
 ---
 
@@ -72,4 +72,3 @@ This document is the authoritative source for the OPENCLAW-OPS role (Open Cleara
 - 🟡 **STRONG** | `always` | In /ocbots context read the OpenClaw runbooks carefully — they are the source of truth
   *<sub>src: ~/Code/nixcfg/+agents/commands/ocbots.md L19</sub>*
   <!-- rule_ids: ocbots.md:L19:read-runbooks-source-of-truth | cluster: — -->
-

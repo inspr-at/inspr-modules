@@ -1,6 +1,8 @@
 # inspr-modules — Agent Doctrine Source
 
-This repo is the **upstream canonical source** for INSPR agent doctrine. All consuming repos (nixcfg, fleetcom, inspr) vendor it as `./doctrine/` git submodule.
+This repo is the **upstream canonical source** for INSPR agent doctrine. All
+consuming repos (nixcfg, fleetcom, inspr, amt-com) vendor it as `./doctrine/`
+git submodule.
 
 For Claude Code, the kernel auto-loads via `CLAUDE.md @-ref ./docs/AGENTS-KERNEL.md`. For other tools (Cursor, Aider, OpenCode, Codex CLI, Continue), the irreducible subset is mirrored below.
 

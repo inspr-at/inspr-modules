@@ -7,7 +7,7 @@ This document is the authoritative source for the DEV role (development-oriented
 - **[AGENTS-CORE.md](./AGENTS-CORE.md)** — universal rules every agent follows
 - **[AGENTS-PROFILE-MARKUS.md](./AGENTS-PROFILE-MARKUS.md)** — Markus Barta's personal preferences
 - **AGENTS-AGENT-*.md** — per-role overlays (one per agent identity)
-- **per-repo AGENTS.md** in nixcfg/fleetcom/inspr — repo-specific deltas
+- **per-repo AGENTS.md** in nixcfg/fleetcom/inspr/amt-com — repo-specific deltas
 
 ---
 
@@ -20,4 +20,3 @@ This document is the authoritative source for the DEV role (development-oriented
 - 🟡 **STRONG** | `do` | Read CLAUDE.md for full project context at session start.
   *<sub>src: ~/Code/fleetcom/.claude/commands/dev.md L3</sub>*
   <!-- rule_ids: dev.md:L3:read-claude-md | cluster: — -->
-

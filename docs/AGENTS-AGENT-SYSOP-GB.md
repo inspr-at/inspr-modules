@@ -7,7 +7,7 @@ This document is the authoritative source for the SYSOP-GB role (Greenbox-restri
 - **[AGENTS-CORE.md](./AGENTS-CORE.md)** — universal rules every agent follows
 - **[AGENTS-PROFILE-MARKUS.md](./AGENTS-PROFILE-MARKUS.md)** — Markus Barta's personal preferences
 - **AGENTS-AGENT-*.md** — per-role overlays (one per agent identity)
-- **per-repo AGENTS.md** in nixcfg/fleetcom/inspr — repo-specific deltas
+- **per-repo AGENTS.md** in nixcfg/fleetcom/inspr/amt-com — repo-specific deltas
 
 ---
 
@@ -110,4 +110,3 @@ This document is the authoritative source for the SYSOP-GB role (Greenbox-restri
 - 🟡 **STRONG** | `always` | When proposing changes, clearly mark AI-executable vs "Gerhard runs this on hsb8"
   *<sub>src: ~/Code/nixcfg/+agents/rules/SYSOP-GB.md L247</sub>*
   <!-- rule_ids: SYSOP-GB.md:L247:mark-ai-vs-gerhard-on-changes | cluster: — -->
-

@@ -25,8 +25,9 @@
 #   homeManagerModules.git-identity    Multi-identity git config with
 #                                       gitdir + hasconfig:remote.*.url
 #                                       includeIf rules.
-#   homeManagerModules.paimos-config   Auto-bootstrap ~/.paimos/config.yaml
-#                                       from materialized agent secrets.
+#   homeManagerModules.paimos-config   Materialize Paimos instance routing
+#                                       without credentials. Auth stays in the OS
+#                                       keyring or process runtime environment.
 #   homeManagerModules.ssh-authorized  Declarative ~/.ssh/authorized_keys
 #                                       via aliased key map + trust list,
 #                                       with marker-block coexistence.
@@ -150,6 +151,14 @@
                   bash ./run-tests.sh
                 touch $out
               '';
+
+            # Executes rendered paimos-config activations against synthetic
+            # files. Covers fail-before-replace behavior, the legacy api_key
+            # rollout guard, shell-safe diagnostics, and CR/LF/quote-safe URL
+            # encoding without reading any real user configuration.
+            paimos-config-functional = import ./tests/paimos-config-functional.nix {
+              inherit pkgs;
+            };
 
             # Module-eval tests (INSPR-72): exercise HM module options +
             # assertions + eval-time throws via lib.evalModules + a stub

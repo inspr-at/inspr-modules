@@ -14,9 +14,9 @@ Reusable Home Manager modules + utilities from the [INSPR](https://inspr.at) ini
 | `devenv-direnv-fix` | `inspr.devenv.direnv-fix` | Declaratively materialize devenv's direnv-lib snippet (`~/.config/direnv/lib/z-devenv.sh`) with its colliding `_nix_direnv_preflight` function renamed to `_devenv_preflight`, so it stops shadowing nix-direnv's preflight when both libs are loaded. Source comes from `devenv direnvrc` at build time + `sed`-rename + sanity-grep — auto-tracks devenv version bumps. Without this, `use nix` in any `.envrc` errors with `--no-warn-dirty: command not found`. INSPR-175. |
 | `git-atelier-credentials` | `inspr.git.atelier` | Per-atelier outbound git credentials, **forge-agnostic** (works on GitHub, Forgejo, Codeberg, GitLab, Gitea, sourcehut, bare-SSH). **Strategy A** (per-repo SSH deploy keys, narrow servers) and **Strategy B** (per-host user SSH key, account-federated for workstations — the canonical answer to "this machine doesn't have permission to that service") both implemented; **Strategy C** (bot user / access token via credential helper) option-typed and throws on use — INSPR-168 follow-up. Strategy A produces per-repo SSH aliases (`<host>-<atelier>-<repo>`) with narrow URL rewrites; Strategy B produces one alias per atelier (`git-<atelier>`) with owner-prefix URL rewrites covering all repos under `forge.owner` automatically. Per-atelier commit author identity (`git.userName`, `git.userEmail`, optional `git.workspacePath`) wires `includeIf` rules so commits attribute correctly per-persona (gitdir-scoped when `workspacePath` set, else `hasconfig:remote.*.url:` match on git 2.36+). All SSH match blocks use `HostKeyAlias` so one known_hosts entry covers all aliased paths; managed `~/.ssh/known_hosts.d/inspr-git-atelier-<name>` files ship vendor-published host keys for github.com + codeberg.org (self-hosted forges supply via `forge.extraKnownHosts`). Multi-atelier per host supported; Strategy A + B coexist on the same atelier with "longest insteadOf wins" precedence. Full design + 4-tier scaling story in [`inspr/proposals/git-atelier-credentials.md`](https://github.com/markus-barta/inspr/blob/main/proposals/git-atelier-credentials.md). |
 | `git-identity` | `inspr.git-identity` | Multi-identity git config with both `gitdir:` AND `hasconfig:remote.*.url:` includeIf rules. The repo's own remote URL picks the identity automatically — no per-host directory list to maintain. |
-| `paimos-config` | `inspr.paimos-cli` | Auto-bootstrap `~/.paimos/config.yaml` from agent-secrets-materialized API key files. After this, [paimos-cli](https://github.com/markus-barta/paimos) is ready to use without manual `paimos auth login` per host. |
+| `paimos-config` | `inspr.paimos-cli` | Declaratively materializes routing only (`default_instance` + URLs). URLs may be literals or come from a routing env file. It never handles API credentials: INSPR workstations authenticate interactively into the OS keyring; headless automation injects `PAIMOS_URL` + `PAIMOS_API_KEY` into the running process from approved encrypted storage. |
 | `ssh-authorized` | `inspr.ssh.authorized` | Declarative `~/.ssh/authorized_keys` via aliased key map + trust list. Manages a marker-delimited block; lines outside the markers (Headscale deploy keys, GitHub Actions OIDC, recovery keys) are preserved across activations. Sorted output → byte-identical regardless of input order. Throws at eval time if `trust` references an undeclared alias. **Rich keys form** (since INSPR-77) supports per-key `{ status; note; }` metadata for grandfathering: `legacy` keys render with a `[legacy]` tag for fleet-wide audit, `revoked` keys keep the declaration as historical record but are not admitted (and throw if accidentally left in `trust`). |
-| `default` | (aggregate) | Imports all five above. Consumers wanting à-la-carte should import individual modules. |
+| `default` | (aggregate) | Imports all six above. Consumers wanting à-la-carte should import individual modules. |
 
 ### NixOS modules
 
@@ -60,6 +60,14 @@ In your `flake.nix`:
 
 In your `home.nix`:
 
+> **Paimos authentication boundary:** `inspr.paimos-cli` owns routing only. It
+> does not read or render API keys. Authenticate a workstation
+> interactively after activation; Paimos stores the credential in the OS
+> keyring. For headless automation, inject `PAIMOS_URL` + `PAIMOS_API_KEY` into
+> the process from approved encrypted storage at runtime only—never put the
+> plaintext credential in Nix configuration, the Nix store, or
+> `~/.paimos/config.yaml`.
+
 ```nix
 {
   inspr.git-identity = {
@@ -80,14 +88,42 @@ In your `home.nix`:
 
   inspr.paimos-cli = {
     enable = true;
+    defaultInstance = "mine";
     instances.mine = {
       url = "https://your-paimos.example.com";
-      apiKeyEnvFile = "/run/agenix/your-paimos-api-key";  # or wherever
-      apiKeyVar = "PAIMOS_API_KEY";
     };
   };
 }
 ```
+
+For a fresh config, authenticate the workstation at the hidden prompt after
+Home Manager activation. If activation reports a legacy `api_key`, do **not**
+run this login yet; follow the migration order below first.
+
+```bash
+paimos auth login --url https://your-paimos.example.com --name mine
+```
+
+The deprecated `apiKeyEnvFile` and `apiKeyVar` options remain accepted for one
+compatibility release, emit a warning, and are ignored. This compatibility is
+evaluation-only; it does not migrate or reuse a credential. On an existing
+legacy consumer, **migrate before any new login**. First force Paimos 4.8 to
+load the old config with every auth override unset:
+
+```bash
+env -u PAIMOS_URL -u PAIMOS_API_KEY -u PPM_URL -u PPMAPIKEY \
+  paimos auth whoami
+```
+
+Then retry Home Manager; activation remains fail-closed until the legacy
+`api_key` field is gone. Only after that migration may you use interactive
+`paimos auth login` if authentication still fails. This order matters because
+logging in first can let the subsequent legacy migration overwrite the newly
+entered keyring credential. Remove the deprecated Nix options after migration.
+
+For a URL managed outside Nix, set `urlEnvFile` plus `urlVar` instead of `url`.
+The file must contain only trusted routing input; credential env files are not
+supported by this module.
 
 ## Architecture notes — the atelier pattern
 
@@ -95,7 +131,7 @@ These modules emerged from the INSPR onboarding sessions documented in the (priv
 
 **Atelier metaphor:** imagine a master's workshop where the *tools* (mechanics) are publicly shared, but each *artist's commissions* (per-context values) stay private to that artist. INSPR is structured the same way:
 
-- **The atelier — universal mechanics** (this library: how to materialize secrets, how to compose git includeIfs, how to write a paimos config). Public, OSS, MIT-licensed. Reusable across every context.
+- **The atelier — universal mechanics** (this library: how to materialize secrets, how to compose git includeIfs, how to declare Paimos instance routing). Public, OSS, MIT-licensed. Reusable across every context.
 - **Each studio — per-context values** (your flake: identities, instance URLs, fleet patterns). Private to that context. Never shared between studios.
 
 A "studio" (context flake) is anything that consumes inspr-modules + provides its own values: Markus's personal `nixcfg`, his BYTEPOETS work flake, his family flake, future paid-product flakes — each declares its own identity, hosts, and secrets, and gets the rest for free from the shared atelier.
@@ -114,7 +150,8 @@ nix build .#checks.aarch64-darwin.secrets-audit-functional --print-build-logs
 | Check | Coverage |
 |---|---|
 | `secrets-audit-functional` | Drift detection logic (clean / declared-missing / orphan / commented-out fixtures); `--help` regression test for [INSPR-50](https://github.com/markus-barta/inspr-modules/commit/8fa4b37) (PATH-leak-in-help symptom that prompted the writeShellApplication migration) |
-| `module-eval` (since INSPR-72) | 47 sub-tests across the four HM modules + the NixOS module (since INSPR-73), run via `lib.evalModules` + stub HM and NixOS harnesses (`tests/module-eval/harness.nix`). Verifies: assertions fire when they should (paimos-config), throws fire when they should (agent-secrets undefined hostname, git-identity unknown identity reference, ssh-authorized undeclared trust alias OR revoked-key-in-trust on BOTH HM + NixOS variants), defaults are sane (decryptedDir derives from homeDirectory, identityFiles tries ed25519 before rsa), required options stay required (encryptedRoot has no default), deprecated options still warn, `programs.git.includes` count matches context declarations, ssh-authorized output is deterministic regardless of input order, ssh-authorized rich keys form supports legacy/revoked grandfathering with declaration preservation, NixOS variant supports multi-user rendering and `force` toggle for displacing upstream injection. Runs entirely at flake-eval time — no activation, no real HM, no network. |
+| `paimos-config-functional` | Executes synthetic activations to prove legacy `api_key`, missing files, and unset/empty URL variables preserve the prior config; diagnostics resist shell interpolation; jq encoding safely preserves quoted and multiline routing URLs. Never reads a real user config or credential. |
+| `module-eval` (since INSPR-72) | 73 sub-tests across the Home Manager and NixOS modules, run via `lib.evalModules` + stub HM and NixOS harnesses (`tests/module-eval/harness.nix`). Verifies: assertions and throws fire when they should, required options stay required, deprecations warn, Paimos literal/env URL output stays nested under `instances` without credential references, rollout/failure guards precede replacement, git include counts match declarations, and SSH authorization output and guards remain deterministic. Runs entirely at flake-eval time—no activation, real HM, or network. |
 
 ### Local dev (without nix sandbox)
 
@@ -164,8 +201,9 @@ What to do when things go wrong:
 | **Activation half-completes** (e.g., one `.age` file is corrupt) | Partial decrypt; `set -e` exit; doctor flags missing secrets | The relock-trap (since v0.1.0) ensures the dir is still 0500 outside activation. Fix the corrupt `.age` file (or remove its declaration) and re-run `home-manager switch`. |
 | **Headscale / control server is down** | `inspr-doctor` flags `headscale_reachable` ✗ | Tailnet keeps working with last-known peers; no immediate action. Wait for control plane to recover. |
 | **Manual edit to `~/Secrets/age/decrypted/agents/`** | Directory is 0500 → write fails OR (if you chmod'd) overwritten on next switch | Don't manually edit. The dir is activation-managed. Re-encrypt the source `.age` file via `agenix -e`. |
-| **`paimos auth whoami` fails** but the API key materialized fine | API key may have been rotated upstream | Re-encrypt the `.age` file with the fresh key value, switch, retry. |
-| **`paimos.barta.cm` / your PAIMOS instance is down** | `paimos auth whoami` fails; doctor flags `paimos_auth` ✗ | Transient — wait. Local paimos config is still fine. |
+| **`paimos auth whoami` fails** | The OS-keyring credential (interactive) or `PAIMOS_API_KEY` runtime input (headless) may be missing/rotated | First confirm `paimos_instance_config` passes. Then re-authenticate interactively with `paimos auth login --url INSTANCE_URL --name INSTANCE_NAME` and enter the credential at the hidden prompt, or repair the headless runtime injection without printing the value. |
+| **Paimos activation refuses an existing legacy `api_key` config** | Home Manager stops before creating or replacing `config.yaml`; the old config remains unchanged | Before any new login, run `env -u PAIMOS_URL -u PAIMOS_API_KEY -u PPM_URL -u PPMAPIKEY paimos auth whoami` once to trigger the Paimos 4.8 migration, then retry Home Manager. Use interactive `paimos auth login` only after activation no longer reports the legacy field and only if auth still fails. |
+| **`pm.barta.cm` / your Paimos instance is down** | `paimos auth whoami` fails; doctor flags `paimos_auth` ✗ | Transient — wait. Local instance routing remains available. |
 | **Eval-time error: "hostname could not be determined"** (since v0.1.0) | nix-rebuild fails immediately | Pass `hostname` via `extraSpecialArgs` in your homeConfigurations entry, OR set `inspr.secrets.agents.hostname = "your-host"` explicitly. |
 | **Eval-time error: "defaultInstance must be a key in instances"** (since v0.1.0) | nix-rebuild fails immediately | Typo in `inspr.paimos-cli.defaultInstance`, or you set it but never declared the corresponding instance. Fix and re-eval. |
 | **First fresh host: `agent-secrets` discovery returns zero** | Activation succeeds but dir is empty | Either you forgot to set `inspr.secrets.agents.encryptedRoot`, OR your repo's secrets/agents subdir is empty / not git-tracked. (Untracked files are invisible to flake eval.) |
@@ -188,4 +226,4 @@ consumers — see roadmap).
 Roadmap:
 - NixOS-equivalent modules (currently HM-only — server-side `system_agenix_decrypted` is a doctor check, not yet a module here)
 - 1Password tag-export integration (Phase 2 secrets graduation)
-- Cross-platform paimos-cli config (Linux + macOS verified; Windows untested)
+- Remove the ignored `paimos-config` `apiKeyEnvFile` / `apiKeyVar` compatibility options after their one-release deprecation window (INSPR-225)
