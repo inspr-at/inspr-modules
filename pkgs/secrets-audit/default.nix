@@ -19,6 +19,7 @@
 #   - dependency closure is automatic-minimum
 #
 {
+  lib,
   writeShellApplication,
   coreutils,
   findutils,
@@ -51,7 +52,7 @@ writeShellApplication {
   meta = {
     description = "Audit drift between secrets/*.age and secrets.nix declarations";
     homepage = "https://github.com/markus-barta/inspr-modules";
-    license = "MIT";
+    license = lib.licenses.agpl3Only;
     mainProgram = "secrets-audit";
   };
 }

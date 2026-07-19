@@ -28,7 +28,7 @@
 # to decrypt the .age files. The user identity (`identityFile`) MUST be
 # in the recipient list of every materialized secret.
 #
-# License: MIT (part of inspr-modules — see flake.nix).
+# SPDX-License-Identifier: AGPL-3.0-only
 # ─────────────────────────────────────────────────────────────────────────
 { config, pkgs, lib, hostname ? null, ... }:
 

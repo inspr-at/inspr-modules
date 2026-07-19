@@ -28,7 +28,7 @@
 # Per instance, exactly one of {url, urlEnvFile} must be set. urlEnvFile
 # requires urlVar.
 #
-# License: MIT (part of inspr-modules — see flake.nix).
+# SPDX-License-Identifier: AGPL-3.0-only
 #
 {
   config,

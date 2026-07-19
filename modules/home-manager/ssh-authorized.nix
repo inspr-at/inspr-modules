@@ -84,7 +84,7 @@
 #   - INSPR-74: file-per-key keyring layout for fleet-scale (~10+ keys)
 #   - INSPR-75: eval-time `ssh-keygen -l` validation of each key
 #
-# License: MIT (part of inspr-modules — see flake.nix).
+# SPDX-License-Identifier: AGPL-3.0-only
 # ─────────────────────────────────────────────────────────────────────────
 {
   config,

@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Repository license is now AGPL-3.0-only** - canonical legal text, Nix
+  package metadata, module headers, public documentation and licensing doctrine
+  now share one exact identifier. Existing grants on earlier revisions remain
+  valid; the new license boundary begins with INSPR-236.
 - **`homeManagerModules.paimos-config` now manages routing only** — generated `~/.paimos/config.yaml` contains `default_instance` and instance URLs, never `api_key`. Existing literal `url` and `urlEnvFile` + `urlVar` routing sources remain supported; runtime URLs are encoded through an explicit jq store path so quotes, CR/LF, backslashes, and control characters cannot corrupt YAML. Missing/empty routing input fails before the atomic move and preserves the prior config. INSPR workstations authenticate interactively with `paimos auth login` into the OS keyring; headless automation injects `PAIMOS_URL` + `PAIMOS_API_KEY` into the process from approved encrypted storage. The old `apiKeyEnvFile` and `apiKeyVar` options remain accepted for one compatibility release but are ignored and emit an evaluation warning—this is evaluation-only compatibility, not credential migration. A non-printing structural guard refuses to replace an existing legacy `api_key` config until `paimos auth whoami` runs with all auth overrides unset and performs the Paimos 4.8 migration. Migration must happen before any new interactive login so the old inline credential cannot overwrite a newly entered keyring credential. Structural and executable regressions prove nested YAML, fail-before-replace behavior, shell-safe diagnostics, legacy-config preservation, and absence of configured credential-file/variable markers from activation. [INSPR-225]
 
 ### Added

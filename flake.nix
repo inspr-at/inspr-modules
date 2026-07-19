@@ -54,9 +54,8 @@
 #     # ... or .default for all
 #   ];
 #
-# License: MIT — deliberately permissive. This is a *library*; restrictive
-# licenses on infrastructure modules would discourage exactly the adoption
-# the mission depends on.
+# SPDX-License-Identifier: AGPL-3.0-only
+# See LICENSE for the complete terms and the network-source obligation.
 #
 {
   description = "INSPR atelier — reusable Home Manager + NixOS modules and utilities (the public, shared mechanics layer)";
@@ -128,6 +127,22 @@
             };
           in
           {
+            # Repository licensing is part of the build contract: canonical
+            # legal text, package metadata, source headers and public doctrine
+            # must stay aligned on the exact SPDX identifier.
+            license-surface = pkgs.runCommand "license-surface"
+              {
+                nativeBuildInputs = [
+                  pkgs.bash
+                  pkgs.coreutils
+                  pkgs.gnugrep
+                ];
+              }
+              ''
+                bash ${./tests/license-surface.sh} ${self}
+                touch $out
+              '';
+
             # Functional tests for the secrets-audit binary. Runs each
             # fixture (clean / declared-missing / orphan / with-comments)
             # through the binary and asserts exit codes + output content.

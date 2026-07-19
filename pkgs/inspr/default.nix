@@ -11,6 +11,7 @@
 # continues past individual check failures (each check returns its own code).
 #
 {
+  lib,
   writeShellApplication,
   coreutils,
   findutils,
@@ -76,7 +77,7 @@ writeShellApplication {
   meta = {
     description = "INSPR onboarding + drift-heal CLI (check / heal / onboard / --vision)";
     homepage = "https://github.com/markus-barta/inspr-modules";
-    license = "MIT";
+    license = lib.licenses.agpl3Only;
     mainProgram = "inspr";
   };
 }

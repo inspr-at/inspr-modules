@@ -107,7 +107,7 @@
 # Multi-atelier per host: declare multiple keys in the attrset; each gets
 # its own SSH alias namespace and url.insteadOf rewrite.
 #
-# License: MIT — see inspr-modules/flake.nix.
+# SPDX-License-Identifier: AGPL-3.0-only
 #
 {
   config,

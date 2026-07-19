@@ -52,7 +52,7 @@
 # namespace its private functions as `_devenv_*`, not pretend to be
 # nix-direnv). Filing upstream is INSPR-175 follow-up.
 #
-# License: MIT (part of inspr-modules — see flake.nix).
+# SPDX-License-Identifier: AGPL-3.0-only
 # ─────────────────────────────────────────────────────────────────────────
 {
   config,

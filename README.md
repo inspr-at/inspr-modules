@@ -131,7 +131,7 @@ These modules emerged from the INSPR onboarding sessions documented in the (priv
 
 **Atelier metaphor:** imagine a master's workshop where the *tools* (mechanics) are publicly shared, but each *artist's commissions* (per-context values) stay private to that artist. INSPR is structured the same way:
 
-- **The atelier — universal mechanics** (this library: how to materialize secrets, how to compose git includeIfs, how to declare Paimos instance routing). Public, OSS, MIT-licensed. Reusable across every context.
+- **The atelier — universal mechanics** (this library: how to materialize secrets, how to compose git includeIfs, how to declare Paimos instance routing). Public, OSS, and licensed under AGPL-3.0-only. Reusable across every context.
 - **Each studio — per-context values** (your flake: identities, instance URLs, fleet patterns). Private to that context. Never shared between studios.
 
 A "studio" (context flake) is anything that consumes inspr-modules + provides its own values: Markus's personal `nixcfg`, his BYTEPOETS work flake, his family flake, future paid-product flakes — each declares its own identity, hosts, and secrets, and gets the rest for free from the shared atelier.
@@ -149,6 +149,7 @@ nix build .#checks.aarch64-darwin.secrets-audit-functional --print-build-logs
 
 | Check | Coverage |
 |---|---|
+| `license-surface` | Canonical AGPLv3 text, exact AGPL-3.0-only declarations across public/source/doctrine surfaces, and Nix package metadata for both shipped utilities |
 | `secrets-audit-functional` | Drift detection logic (clean / declared-missing / orphan / commented-out fixtures); `--help` regression test for [INSPR-50](https://github.com/markus-barta/inspr-modules/commit/8fa4b37) (PATH-leak-in-help symptom that prompted the writeShellApplication migration) |
 | `paimos-config-functional` | Executes synthetic activations to prove legacy `api_key`, missing files, and unset/empty URL variables preserve the prior config; diagnostics resist shell interpolation; jq encoding safely preserves quoted and multiline routing URLs. Never reads a real user config or credential. |
 | `module-eval` (since INSPR-72) | 73 sub-tests across the Home Manager and NixOS modules, run via `lib.evalModules` + stub HM and NixOS harnesses (`tests/module-eval/harness.nix`). Verifies: assertions and throws fire when they should, required options stay required, deprecations warn, Paimos literal/env URL output stays nested under `instances` without credential references, rollout/failure guards precede replacement, git include counts match declarations, and SSH authorization output and guards remain deterministic. Runs entirely at flake-eval time—no activation, real HM, or network. |
@@ -210,7 +211,11 @@ What to do when things go wrong:
 
 ## License
 
-MIT — deliberately permissive. This is a *library*; restrictive licenses on infrastructure modules would discourage exactly the adoption the mission depends on.
+The original work in this repository is licensed under
+[AGPL-3.0-only](./LICENSE). Improvements to this shared operating layer remain
+inspectable under the same terms, including when a modified version is used to
+provide network-accessible functionality. Independent consumer configuration,
+data, and third-party components retain their own licensing boundaries.
 
 ## Status
 

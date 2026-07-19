@@ -81,7 +81,7 @@
 #     would symlink into /nix/store, breaking sshd's StrictModes).
 #     NixOS renders `authorized_keys.d/<u>` natively via `users.users`.
 #
-# License: MIT (part of inspr-modules — see flake.nix).
+# SPDX-License-Identifier: AGPL-3.0-only
 # ─────────────────────────────────────────────────────────────────────────
 {
   config,

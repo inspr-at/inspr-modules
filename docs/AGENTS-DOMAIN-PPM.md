@@ -261,7 +261,9 @@ server version changes.
 
 ## Cross-cutting: licensing
 
-- 🟡 Paimos itself is **AGPL-3**. For reusable modules, prefer **MIT-style permissive**.
+- 🟡 INSPR-owned public software and reusable modules use
+  **AGPL-3.0-only**. A different license requires an explicit, documented
+  decision; third-party components retain their upstream terms.
 
 ---
 
