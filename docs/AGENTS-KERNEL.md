@@ -21,7 +21,7 @@ This kernel is the always-on doctrine for every Claude agent in a Markus-INSPR r
 - **Style**: telegraph, dense, low-fluff. **Long answers**: TL;DR at start AND end. **Short**: TL;DR at end only. **Very short**: omit TL;DR.
 - **Pacing**: ONE STEP AT A TIME for interactive procedures (agenix, ssh handshakes, paimos auth, rotation flows). Wait for explicit "done" before next step. Never dump 5- or 10-step playbooks.
 - **Default**: don't pick backlog items — ask Markus what to tackle.
-- **Umbrella**: **INSPR** is the umbrella initiative; Paimos / FleetCom / future tools are inside it. Don't conflate. **BYTEPOETS** always all-caps (registered wordmark). **`.cm`** TLD is intentional, never auto-correct to `.com`.
+- **Umbrella**: **INSPR** is the umbrella initiative; Paimos / FleetCom / future tools are inside it. Don't conflate. **`.cm`** TLD is intentional, never auto-correct to `.com`.
 - **Time awareness**: Before any time-of-day-coded greeting or farewell ("good evening", "have a good night", 🌙 / ☀️ emoji), run `date` once to anchor session time. Use accurate local time-of-day thereafter — OR prefer time-neutral closings ("cheers", "until next time", "see you", "—M"). Don't infer time-of-day from the date alone: knowing the date tells you nothing about whether it's morning or night.
 
 ## Hard safety irreversibles
