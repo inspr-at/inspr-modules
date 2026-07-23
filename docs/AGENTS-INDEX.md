@@ -45,7 +45,7 @@ Phase 4 (synthesized 2026-05-14) produced **521 canonical rules across 12 layer 
 | AGENTS-AGENT-PPM-READONLY.md        | `agent:ppm-readonly`  | 4     | `/ppm` (read-only mode)                     | PPM read-only overlay — audit / discovery only.                                                          |
 | AGENTS-AGENT-DEV.md                 | `agent:dev`           | 2     | `/dev`                                      | DEV role overlay — development-oriented agents.                                                          |
 | `nixcfg/AGENTS.md`                  | `repo:nixcfg`         | 55    | auto via per-repo CLAUDE.md @-ref           | nixcfg repo-specific delta (Nix darwin + Home Manager, NixOS host quirks, PII rule).                     |
-| `fleetcom/AGENTS.md`                | `repo:fleetcom`       | 26    | auto via per-repo CLAUDE.md @-ref           | fleetcom repo-specific delta (FleetCom API + deploy + project IDs).                                      |
+| `fleetcom/AGENTS.md`                | `repo:fleetcom`       | 26    | auto via per-repo CLAUDE.md @-ref           | fleetcom repo-specific delta (archived tool — superseded by Pharos).                                      |
 | `inspr/AGENTS.md`                   | `repo:inspr`          | 0     | auto via per-repo CLAUDE.md @-ref           | inspr meta-repo delta (umbrella initiative root; 0-rule overlay by design).                              |
 
 **Phase-4 baseline rule count: 521 canonical rules** (Phase 4 synthesis, 2026-05-14) — every rule lands in exactly one Phase-4 layer. Phase 6 (2026-05-15) carved CORE into kernel + 5 domain packs WITHOUT adding new rules; the same 521 entries are now distributed across more files, optimized for on-demand loading.

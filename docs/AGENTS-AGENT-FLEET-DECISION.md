@@ -33,7 +33,7 @@ This document is the authoritative source for the FLEET-DECISION role (cross-fle
   *<sub>src: ~/Code/inspr/architecture.md L81-87</sub>*
   <!-- rule_ids: architecture.md:L81:bootstrap-exception-self-retire | cluster: — -->
 
-- 🔴 **HARD** | `never` | Never let one harness's vocabulary (e.g. Flue's Skills/Sessions/Sandboxes) shape the INSPR Agent Protocol — define from Paimos and FleetCom-native abstractions
+- 🔴 **HARD** | `never` | Never let one harness's vocabulary (e.g. Flue's Skills/Sessions/Sandboxes) shape the INSPR Agent Protocol — define from Paimos- and Pharos-native abstractions
   *<sub>src: ~/Code/inspr/architecture.md L59-60</sub>*
   <!-- rule_ids: architecture.md:L59:never-let-one-harness-shape-protocol | cluster: — -->
 

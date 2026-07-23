@@ -77,7 +77,7 @@ All projects live on PPM (`pm.barta.cm`) — there is no second instance.
 | `NIX`    | 1  | nixcfg                          | nixcfg              |
 | `PAI`    | 6  | Paimos (the OSS PM tool itself) | paimos, paimos-site |
 | `PWEB`   | 7  | paimos.com                      | paimos-site         |
-| `FLEET`  | 4  | FleetCom                        | fleetcom            |
+| `FLEET`  | 4  | FleetCom (archived — see PHAROS) | fleetcom            |
 | `DSC26`  | 2  | DSC Infrastructure              | dsccfg              |
 | `OPS`    | 14 | Operations                      | inspr, nixcfg       |
 | `HAUSV`  | 21 | WEG Portal (hausv.org)          | hausv-org           |
@@ -267,4 +267,4 @@ server version changes.
 
 ---
 
-*See also*: `/secrets` (`PPMAPIKEY.env` handling), `/dev` (ticket-key conventions in commits), `/ops` (FleetCom is a separate API). Full source: `AGENTS-CORE.md` and PROFILE-MARKUS topic `workflow/ppm`, plus `process/licensing`.*
+*See also*: `/secrets` (`PPMAPIKEY.env` handling), `/dev` (ticket-key conventions in commits), `/ops` (Pharos is a separate API). Full source: `AGENTS-CORE.md` and PROFILE-MARKUS topic `workflow/ppm`, plus `process/licensing`.*

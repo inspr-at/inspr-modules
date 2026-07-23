@@ -12,12 +12,12 @@ Detailed rules for **Layer 5 — Service Configuration**: declarative state for 
 
 ```
 L7 — Doctrine + agent operating layer        (inspr-modules, inspr CLI)
-L6 — Applications & data                     (Paimos, FleetCom, Janus, customer apps)
+L6 — Applications & data                     (Paimos, Pharos, Janus, customer apps)
 L5 — Service configuration (Terraform/IaC)   ← THIS PACK
 L4 — Secrets at rest                         (agenix .age, ~/.inspr/secrets/agents/, 1Password)
 L3 — OS / host config                        (nix-darwin, NixOS — nixcfg)
 L2 — Network / mesh                          (Tailscale + Headscale, Cloudflare DNS surface)
-L1 — Hardware                                (iMacs, MBPs, NixOS servers — FleetCom inventory)
+L1 — Hardware                                (iMacs, MBPs, NixOS servers — Pharos inventory)
 ```
 
 **L5 owns**: API-managed service state that does NOT need OS rebuild and does NOT live inside an application. Examples: Zitadel project/app/grant definitions, Cloudflare DNS records, GitHub repo branch protection, Headscale ACL policy, Vaultwarden org config.

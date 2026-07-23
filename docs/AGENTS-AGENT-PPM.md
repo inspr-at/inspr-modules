@@ -21,7 +21,7 @@ This document is the authoritative source for the PPM role (Paimos Project Manag
   *<sub>src: ~/Code/fleetcom/.claude/commands/ppm.md L10</sub>*
   <!-- rule_ids: ppm.md:L10:ppm-interaction-allowed | cluster: — -->
 
-- 🟢 SOFT | `do` | When invoked without arguments show the FleetCom project dashboard.
+- 🟢 SOFT | `do` | When invoked without arguments show the current repo's project dashboard.
   *<sub>src: ~/Code/fleetcom/.claude/commands/ppm.md L66</sub>*
   <!-- rule_ids: ppm.md:L66:default-dashboard | cluster: — -->
 

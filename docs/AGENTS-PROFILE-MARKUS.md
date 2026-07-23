@@ -468,7 +468,7 @@ This document is the authoritative source for Markus Barta's personal preference
   *<sub>src: ~/Code/inspr/RESUMING-2026-05-13.md L49</sub>*
   <!-- rule_ids: RESUMING-2026-05-13.md:L49:codify-and-handoff-multi-session | cluster: — -->
 
-- 🟡 **STRONG** | `do` | Query FleetCom (fleet.barta.cm) as the canonical live source for fleet inventory; never assume static lists
+- 🟡 **STRONG** | `do` | Query Pharos (pharos.barta.cm) as the canonical live source for fleet inventory; never assume static lists (FleetCom retired — superseded by Pharos)
   *<sub>src: ~/Code/nixcfg/+agents/rules/AGENTS.md L20</sub>*
   <!-- rule_ids: AGENTS.md:L20:fleetcom-canonical-inventory | cluster: — -->
 
