@@ -77,7 +77,7 @@ Initial Pattern β extraction from [markus-barta/nixcfg](https://github.com/mark
 ### Changed
 
 - **`paimos-config.instances` default is `{}`** (was `ppm = { ... }` Markus-specific). Consumers MUST declare their own instances; no sensible cross-context default for a public library.
-- **`git-identity` accepts `identities` + `contexts` as options** (was hardcoded Markus-personal + BYTEPOETS values). Universal mechanics; per-consumer values.
+- **`git-identity` accepts `identities` + `contexts` as options** (was hardcoded Markus-personal + former-work values). Universal mechanics; per-consumer values.
 - **All module documentation** — stripped Markus-specific identifiers, paths, and roadmap details from module source. Public-library-appropriate framing throughout.
 
 ### Provenance

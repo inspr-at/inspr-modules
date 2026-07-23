@@ -134,7 +134,7 @@ These modules emerged from the INSPR onboarding sessions documented in the (priv
 - **The atelier — universal mechanics** (this library: how to materialize secrets, how to compose git includeIfs, how to declare Paimos instance routing). Public, OSS, and licensed under AGPL-3.0-only. Reusable across every context.
 - **Each studio — per-context values** (your flake: identities, instance URLs, fleet patterns). Private to that context. Never shared between studios.
 
-A "studio" (context flake) is anything that consumes inspr-modules + provides its own values: Markus's personal `nixcfg`, his BYTEPOETS work flake, his family flake, future paid-product flakes — each declares its own identity, hosts, and secrets, and gets the rest for free from the shared atelier.
+A "studio" (context flake) is anything that consumes inspr-modules + provides its own values: Markus's personal `nixcfg`, his family flake, future paid-product flakes — each declares its own identity, hosts, and secrets, and gets the rest for free from the shared atelier.
 
 ## Testing
 

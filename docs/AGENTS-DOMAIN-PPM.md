@@ -63,7 +63,7 @@ ls ~/.inspr/secrets/agents/         # raw-curl env-files only; never read conten
 - **One instance: PPM — `https://pm.barta.cm`.** Everything routes there; there is no second instance and no routing decision to make.
 - Auth: `Authorization: Bearer $PPMAPIKEY` for raw curl; the `paimos` CLI uses a complete environment-only URL/key pair when present, otherwise configured routing plus a process-only `PAIMOS_API_KEY` override or the OS keyring.
 
-🟡 The **PMO** instance (`pm.bytepoets.com`, the BYTEPOETS Paimos) was **decommissioned in June 2026** when Markus left BYTEPOETS. Its keys (`PMOAPIKEY`, `PMOURL`, `PMOSERVER*`) and the `pmo` entry in `~/.paimos/config.yaml` are gone. If you see `$PMOURL`, `paimos --instance pmo`, or a `~/Code/BYTEPOETS/ → PMO` routing rule anywhere, it's stale — it will 401. Flag it.
+🟡 The **PMO** instance (`pm.bytepoets.com`, the former second Paimos) was **decommissioned in June 2026** with the employer exit. Its keys (`PMOAPIKEY`, `PMOURL`, `PMOSERVER*`) and the `pmo` entry in `~/.paimos/config.yaml` are gone. If you see `$PMOURL`, `paimos --instance pmo`, or a former-work → PMO routing rule anywhere, it's stale — it will 401. Flag it.
 
 ## Project key reference
 
@@ -92,7 +92,7 @@ All projects live on PPM (`pm.barta.cm`) — there is no second instance.
 | `AMTWEB` | 22 | Augmentoring Website            | amt-com             |
 | `AMTCO`  | 16 | Augmentoring Content            | _(pending — David)_ |
 
-🟡 **`DSC26` is personal, despite the `-26` suffix.** It's DSC Infrastructure (the `dsccfg` fleet). The suffix pattern-matched the old BYTEPOETS `BON26`/`MER26` keys, and doctrine mislabeled it "BYTEPOETS internal / PMO" until 2026-07-13. It's an ordinary PPM project.
+🟡 **`DSC26` is personal, despite the `-26` suffix.** It's DSC Infrastructure (the `dsccfg` fleet). The suffix pattern-matched the legacy `BON26`/`MER26`-era keys, and doctrine mislabeled it as PMO-internal until 2026-07-13. It's an ordinary PPM project.
 
 🟡 **`AMTWEB` is not `AMTCO`.** AMTWEB = the augmentoring.com website relaunch (`amt-com` repo). AMTCO = Augmentoring content production. Keys sit one character apart and `paimos` accepts either interchangeably.
 

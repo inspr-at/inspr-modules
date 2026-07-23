@@ -7,7 +7,7 @@ Load Markus Barta's full personal profile (style, pacing, naming, framing) into 
 You are now operating with full Markus-profile context (~47k, 153 rules). The pack covers:
 
 - Communication style (telegraph, TL;DR placement rules, tone register)
-- Naming conventions (BYTEPOETS all-caps wordmark, `.cm` TLD, INSPR vs Paimos)
+- Naming conventions (`.cm` TLD, INSPR vs Paimos)
 - File-operations preferences (workspace conventions, screenshot pickup, third-party clones)
 - Pacing rules (one-step-at-a-time depth)
 - Markdown policy (no new .md without ask)

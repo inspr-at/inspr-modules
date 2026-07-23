@@ -304,21 +304,6 @@ check_git_identity_personal_default() {
     return "$rc"
 }
 
-check_git_identity_bytepoets_override() {
-    local tmp
-    tmp=$(mktemp -d) || return 1
-    (
-        cd "$tmp" && git init -q
-        git remote add origin "git@github.com:BYTEPOETS/foo.git"
-        local email
-        email=$(git config user.email 2>/dev/null)
-        [[ "$email" == "markus.barta@bytepoets.com" ]]
-    )
-    local rc=$?
-    rm -rf "$tmp"
-    return "$rc"
-}
-
 check_gh_auth() {
     command -v gh >/dev/null || {
         echo "gh not on PATH"
@@ -811,8 +796,6 @@ _run_all_check_sections() {
         "mv ~/.gitconfig ~/.gitconfig.legacy-\$(date +%Y%m%d) — HM XDG config will then take effect"
     run_check any git_identity_personal_default "git default identity = Markus Barta <markus@barta.com>" \
         "Add modules/shared/git-identity.nix to imports + inspr.git-identity.enable = true"
-    run_check workstation git_identity_bytepoets_override "git BYTEPOETS override fires on github.com:BYTEPOETS/* remotes" \
-        "Same module as above; check pattern syntax in modules/shared/git-identity.nix"
     run_check workstation gh_auth "gh CLI authenticated (gh api user succeeds)" \
         "gh auth login (or check that GH_TOKEN.env materialized correctly)"
     run_check workstation paimos_instance_config "~/.paimos/config.yaml present, mode 0600, and free of legacy api_key" \

@@ -9,7 +9,7 @@
 #   inspr.secrets.agents   — per-host agent secrets via agenix
 #
 # This module fills the gap surfaced 2026-05-12 (Day-9 of the INSPR rollout)
-# when neither m5 nor msbp could push to BYTEPOETS/bpnixcfg without
+# when neither m5 nor msbp could push to ACME/acmecfg without
 # hand-rolled per-host wiring. Full design rationale + 4-tier scaling story
 # in the proposal doc: ~/Code/inspr/proposals/git-atelier-credentials.md.
 #
@@ -43,50 +43,50 @@
 #   inspr.git.atelier.<name>.git.{userName, userEmail, workspacePath} sets
 #   user.name + user.email scoped to either a workspace path (via gitdir:
 #   includeIf) or the forge-owner remote URL pattern (via hasconfig:
-#   includeIf, git 2.36+). So commits to BYTEPOETS repos can attribute to
-#   bytepoets-mba while commits to markus-barta repos attribute to
+#   includeIf, git 2.36+). So commits to ACME repos can attribute to
+#   acme-mba while commits to markus-barta repos attribute to
 #   markus-barta — automatic, declarative, no per-repo `git config` toil.
 #
 # Usage — Strategy A (per-repo deploy key; servers, narrow scope):
 #
-#   inspr.git.atelier.bytepoets = {
+#   inspr.git.atelier.acme = {
 #     enable = true;
 #     forge = {
 #       kind  = "github";              # github | forgejo | gitlab | gitea | sourcehut | ssh
 #       url   = "https://github.com";  # full origin URL, used for known_hosts + alias
-#       owner = "BYTEPOETS";           # org/user/group on that forge
+#       owner = "ACME";           # org/user/group on that forge
 #     };
-#     credentials.deployKeys.bpnixcfg = {
-#       privateKeyPath = "/run/agenix/miniserver-bp-bpnixcfg-deploy-key";
+#     credentials.deployKeys.acmecfg = {
+#       privateKeyPath = "/run/agenix/miniserver-bp-acmecfg-deploy-key";
 #       pubKey = "ssh-ed25519 AAA…";   # documentation field (audit only)
 #     };
 #   };
 #
 # Usage — Strategy B (per-host user SSH key; workstations, federated access):
 #
-#   inspr.git.atelier.bytepoets = {
+#   inspr.git.atelier.acme = {
 #     enable = true;
 #     forge = {
 #       kind  = "github";
 #       url   = "https://github.com";
-#       owner = "BYTEPOETS";
-#       extraOwners = [ "bytepoets-mba" ]; # optional: extra accounts sharing this key
+#       owner = "ACME";
+#       extraOwners = [ "acme-mba" ]; # optional: extra accounts sharing this key
 #     };
 #     credentials.userKey = {
-#       privateKeyPath = "/run/agenix/m5-bytepoets-userkey";
-#       pubKey = "ssh-ed25519 AAA…";   # registered on bytepoets-mba account
+#       privateKeyPath = "/run/agenix/m5-acme-userkey";
+#       pubKey = "ssh-ed25519 AAA…";   # registered on acme-mba account
 #     };
 #     git = {
-#       userName  = "bytepoets-mba";
-#       userEmail = "mba@bytepoets.com";
-#       workspacePath = "~/Code/BYTEPOETS";   # commits in this dir attribute to bytepoets-mba
+#       userName  = "acme-mba";
+#       userEmail = "mba@acme.com";
+#       workspacePath = "~/Code/ACME";   # commits in this dir attribute to acme-mba
 #     };
 #   };
 #
-# After rebuild on m5/imac0/imacw, any `git clone git@github.com:BYTEPOETS/<any>.git`
-# or `git clone https://github.com/BYTEPOETS/<any>.git` is transparently rewritten
-# to `git@git-bytepoets:BYTEPOETS/<any>.git`, authenticated by m5's bytepoets userKey,
-# with commits in that workspace attributed to bytepoets-mba.
+# After rebuild on m5/imac0/imacw, any `git clone git@github.com:ACME/<any>.git`
+# or `git clone https://github.com/ACME/<any>.git` is transparently rewritten
+# to `git@git-acme:ACME/<any>.git`, authenticated by m5's acme userKey,
+# with commits in that workspace attributed to acme-mba.
 #
 # Consumer is responsible for:
 #   - agenix declaration in secrets/secrets.nix
@@ -478,7 +478,7 @@ in
                 and as the default URL-rewrite prefix. Additional owners that
                 share this atelier's key/identity go in `extraOwners`.
               '';
-              example = "BYTEPOETS";
+              example = "ACME";
             };
             extraOwners = lib.mkOption {
               type = lib.types.listOf lib.types.str;
@@ -495,7 +495,7 @@ in
                 Strategy A (per-repo deploy keys) stays scoped to `owner`, since
                 a deploy key is bound to a single repo under a single owner.
               '';
-              example = [ "bytepoets-mba" ];
+              example = [ "acme-mba" ];
             };
             extraKnownHosts = lib.mkOption {
               type = lib.types.listOf lib.types.str;
@@ -508,7 +508,7 @@ in
               '';
               example = lib.literalExpression ''
                 [
-                  "git.bytepoets.com ssh-ed25519 AAAA…"
+                  "git.acme.com ssh-ed25519 AAAA…"
                 ]
               '';
             };
@@ -547,7 +547,7 @@ in
                 match — preferred when set) or by the forge-owner remote
                 URL pattern (hasconfig match, git 2.36+).
               '';
-              example = "bytepoets-mba";
+              example = "acme-mba";
             };
             userEmail = lib.mkOption {
               type = lib.types.nullOr lib.types.str;
@@ -556,7 +556,7 @@ in
                 Per-atelier git author email (`user.email`). Same scoping
                 semantics as `userName`.
               '';
-              example = "mba@bytepoets.com";
+              example = "mba@acme.com";
             };
             workspacePath = lib.mkOption {
               type = lib.types.nullOr lib.types.str;
@@ -573,9 +573,9 @@ in
                 which requires git 2.36+ but auto-matches any clone of an
                 atelier-owner's repos regardless of directory.
 
-                Tilde (`~`) is honored by git, so `~/Code/BYTEPOETS` works.
+                Tilde (`~`) is honored by git, so `~/Code/ACME` works.
               '';
-              example = "~/Code/BYTEPOETS";
+              example = "~/Code/ACME";
             };
           };
 
@@ -598,7 +598,7 @@ in
                       `age.secrets.<name>` (NixOS-level) with owner=<user>
                       and mode=0600. Typical value: /run/agenix/<name>.
                     '';
-                    example = "/run/agenix/host-bp-bpnixcfg-deploy-key";
+                    example = "/run/agenix/host-bp-acmecfg-deploy-key";
                   };
                   pubKey = lib.mkOption {
                     type = lib.types.str;
@@ -608,14 +608,14 @@ in
                       the module at runtime. Recommended: include comment
                       identifying host + repo + date.
                     '';
-                    example = "ssh-ed25519 AAAAC3Nz… bp-bpnixcfg-deploy@msbp 2026-05-12";
+                    example = "ssh-ed25519 AAAAC3Nz… bp-acmecfg-deploy@msbp 2026-05-12";
                   };
                 };
               });
               example = lib.literalExpression ''
                 {
-                  bpnixcfg = {
-                    privateKeyPath = "/run/agenix/msbp-bp-bpnixcfg-deploy-key";
+                  acmecfg = {
+                    privateKeyPath = "/run/agenix/msbp-bp-acmecfg-deploy-key";
                     pubKey = "ssh-ed25519 AAAA…";
                   };
                 }
@@ -647,7 +647,7 @@ in
                       `age.secrets.<name>` (NixOS-level) with owner=<user>
                       and mode=0600. Typical value: /run/agenix/<name>.
                     '';
-                    example = "/run/agenix/m5-bytepoets-userkey";
+                    example = "/run/agenix/m5-acme-userkey";
                   };
                   pubKey = lib.mkOption {
                     type = lib.types.str;
@@ -658,7 +658,7 @@ in
                       identifying host + identity + date so the GH-side key
                       listing stays auditable.
                     '';
-                    example = "ssh-ed25519 AAAAC3Nz… m5-bytepoets-userkey@bytepoets-mba 2026-05-12";
+                    example = "ssh-ed25519 AAAAC3Nz… m5-acme-userkey@acme-mba 2026-05-12";
                   };
                 };
               });

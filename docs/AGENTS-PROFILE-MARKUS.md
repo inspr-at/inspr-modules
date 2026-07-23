@@ -311,8 +311,8 @@ This document is the authoritative source for Markus Barta's personal preference
   <!-- rule_ids: project_inspr.md:L168:declare-before-edit-agenix | cluster: — -->
 
 - 🟡 **STRONG** | `do` | For cross-island rekeys pass MULTIPLE -i flags (e.g. agenix --rekey -i ~/.ssh/island_a_ed25519 -i ~/.ssh/island_b_ed25519); aborts on first error
-  *<sub>src: ~/.claude/.../memory/project_bytepoets.md L52</sub>*
-  <!-- rule_ids: project_bytepoets.md:L52:agenix-rekey-multi-key | cluster: — -->
+  *<sub>src: harvested 2026-05 former-work memory file L52</sub>*
+  <!-- rule_ids: former-work-memory.md:L52:agenix-rekey-multi-key | cluster: — -->
 
 - 🟡 **STRONG** | `always` | Recipient additions/removals on existing .age files always require agenix --rekey; without it the change is just metadata and the blob keeps old recipients
   *<sub>src: ~/.claude/.../memory/project_inspr.md L169</sub>*

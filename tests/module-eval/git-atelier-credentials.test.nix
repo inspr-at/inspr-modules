@@ -25,7 +25,7 @@ let
 
   # Reference deploy key — same shape consumers will use.
   refDeployKey = {
-    privateKeyPath = "/run/agenix/test-bp-bpnixcfg-deploy-key";
+    privateKeyPath = "/run/agenix/test-bp-acmecfg-deploy-key";
     pubKey = "ssh-ed25519 AAAAFakeKeyForTesting test@test 2026-05-12";
   };
 
@@ -34,9 +34,9 @@ let
     forge = {
       kind = "github";
       url = "https://github.com";
-      owner = "BYTEPOETS";
+      owner = "ACME";
     };
-    credentials.deployKeys.bpnixcfg = refDeployKey;
+    credentials.deployKeys.acmecfg = refDeployKey;
   };
 
   tests = [
@@ -72,18 +72,18 @@ let
         let r = evalModule {
           module = gitAtelier;
           config = {
-            inspr.git.atelier.bytepoets = refAtelier;
+            inspr.git.atelier.acme = refAtelier;
           };
         };
         in r.success
            && r.config.programs.ssh.enable == true
-           && (r.config.programs.ssh.settings ? "github.com-bytepoets-bpnixcfg")
-           && r.config.programs.ssh.settings."github.com-bytepoets-bpnixcfg".hostname == "github.com"
-           && r.config.programs.ssh.settings."github.com-bytepoets-bpnixcfg".identityFile
-                == "/run/agenix/test-bp-bpnixcfg-deploy-key"
-           && r.config.programs.ssh.settings."github.com-bytepoets-bpnixcfg".identitiesOnly == true
+           && (r.config.programs.ssh.settings ? "github.com-acme-acmecfg")
+           && r.config.programs.ssh.settings."github.com-acme-acmecfg".hostname == "github.com"
+           && r.config.programs.ssh.settings."github.com-acme-acmecfg".identityFile
+                == "/run/agenix/test-bp-acmecfg-deploy-key"
+           && r.config.programs.ssh.settings."github.com-acme-acmecfg".identitiesOnly == true
            && (r.config.programs.git.settings.url
-                 ? "git@github.com-bytepoets-bpnixcfg:BYTEPOETS/bpnixcfg");
+                 ? "git@github.com-acme-acmecfg:ACME/acmecfg");
     }
 
     # ── Atelier with no credentials at all → eval throws ─────────────────
@@ -141,21 +141,21 @@ let
         let r = evalModule {
           module = gitAtelier;
           config = {
-            inspr.git.atelier.bytepoets = {
+            inspr.git.atelier.acme = {
               enable = true;
               forge = {
                 kind = "github";
                 url = "https://github.com";
-                owner = "BYTEPOETS";
-                extraOwners = [ "bytepoets-mba" ];
+                owner = "ACME";
+                extraOwners = [ "acme-mba" ];
               };
               credentials.userKey = {
-                privateKeyPath = "/run/agenix/m5-bytepoets-userkey";
-                pubKey = "ssh-ed25519 AAAAFakeUser m5-bytepoets@bytepoets-mba";
+                privateKeyPath = "/run/agenix/m5-acme-userkey";
+                pubKey = "ssh-ed25519 AAAAFakeUser m5-acme@acme-mba";
               };
               git = {
-                userName = "bytepoets-mba";
-                userEmail = "mba@bytepoets.com";
+                userName = "acme-mba";
+                userEmail = "mba@acme.com";
                 # workspacePath omitted → hasconfig per-owner includeIf
               };
             };
@@ -163,17 +163,17 @@ let
         };
         in r.success
            # owner-prefix url rewrite for BOTH the primary owner and the extra owner
-           && (r.config.programs.git.settings.url ? "git@git-bytepoets:BYTEPOETS/")
-           && (r.config.programs.git.settings.url ? "git@git-bytepoets:bytepoets-mba/")
-           && r.config.programs.git.settings.url."git@git-bytepoets:bytepoets-mba/".insteadOf
+           && (r.config.programs.git.settings.url ? "git@git-acme:ACME/")
+           && (r.config.programs.git.settings.url ? "git@git-acme:acme-mba/")
+           && r.config.programs.git.settings.url."git@git-acme:acme-mba/".insteadOf
                 == [
-                     "https://github.com/bytepoets-mba/"
-                     "git@github.com:bytepoets-mba/"
+                     "https://github.com/acme-mba/"
+                     "git@github.com:acme-mba/"
                    ]
            # author-identity includeIf rendered for the extra owner too
            && lib.any (i:
                 lib.hasInfix "hasconfig:remote.*.url:" i.condition
-                && lib.hasInfix "bytepoets-mba" i.condition
+                && lib.hasInfix "acme-mba" i.condition
               ) r.config.programs.git.includes;
     }
 
@@ -184,27 +184,27 @@ let
         let r = evalModule {
           module = gitAtelier;
           config = {
-            inspr.git.atelier.bytepoets = {
+            inspr.git.atelier.acme = {
               enable = true;
-              forge = { kind = "github"; url = "https://github.com"; owner = "BYTEPOETS"; };
+              forge = { kind = "github"; url = "https://github.com"; owner = "ACME"; };
               # Strategy A: per-repo deploy key
-              credentials.deployKeys.bpnixcfg = refDeployKey;
-              # Strategy B: userKey for everything else under BYTEPOETS
+              credentials.deployKeys.acmecfg = refDeployKey;
+              # Strategy B: userKey for everything else under ACME
               credentials.userKey = {
-                privateKeyPath = "/run/agenix/m5-bytepoets-userkey";
-                pubKey = "ssh-ed25519 AAAAFakeUser m5-bytepoets@bytepoets-mba";
+                privateKeyPath = "/run/agenix/m5-acme-userkey";
+                pubKey = "ssh-ed25519 AAAAFakeUser m5-acme@acme-mba";
               };
             };
           };
         };
         in r.success
            # Strategy A alias (per-repo, narrow)
-           && (r.config.programs.ssh.settings ? "github.com-bytepoets-bpnixcfg")
+           && (r.config.programs.ssh.settings ? "github.com-acme-acmecfg")
            # Strategy B alias (per-atelier, owner-glob)
-           && (r.config.programs.ssh.settings ? "git-bytepoets")
+           && (r.config.programs.ssh.settings ? "git-acme")
            # Both URL rewrites present
-           && (r.config.programs.git.settings.url ? "git@github.com-bytepoets-bpnixcfg:BYTEPOETS/bpnixcfg")
-           && (r.config.programs.git.settings.url ? "git@git-bytepoets:BYTEPOETS/");
+           && (r.config.programs.git.settings.url ? "git@github.com-acme-acmecfg:ACME/acmecfg")
+           && (r.config.programs.git.settings.url ? "git@git-acme:ACME/");
     }
 
     # ── Per-atelier author identity (workspacePath form, gitdir-scoped) ────
@@ -214,26 +214,26 @@ let
         let r = evalModule {
           module = gitAtelier;
           config = {
-            inspr.git.atelier.bytepoets = refAtelier // {
+            inspr.git.atelier.acme = refAtelier // {
               git = {
-                userName = "bytepoets-mba";
-                userEmail = "mba@bytepoets.com";
-                workspacePath = "~/Code/BYTEPOETS";
+                userName = "acme-mba";
+                userEmail = "mba@acme.com";
+                workspacePath = "~/Code/ACME";
               };
             };
           };
         };
         in r.success
            # fragment file rendered
-           && (r.config.home.file ? ".config/git/inspr-atelier-bytepoets.gitconfig")
-           && lib.hasInfix "name = bytepoets-mba"
-                r.config.home.file.".config/git/inspr-atelier-bytepoets.gitconfig".text
-           && lib.hasInfix "email = mba@bytepoets.com"
-                r.config.home.file.".config/git/inspr-atelier-bytepoets.gitconfig".text
+           && (r.config.home.file ? ".config/git/inspr-atelier-acme.gitconfig")
+           && lib.hasInfix "name = acme-mba"
+                r.config.home.file.".config/git/inspr-atelier-acme.gitconfig".text
+           && lib.hasInfix "email = mba@acme.com"
+                r.config.home.file.".config/git/inspr-atelier-acme.gitconfig".text
            # gitdir-based includeIf wired
            && lib.any (i:
-                i.condition == "gitdir:~/Code/BYTEPOETS/"
-                && i.path == "~/.config/git/inspr-atelier-bytepoets.gitconfig"
+                i.condition == "gitdir:~/Code/ACME/"
+                && i.path == "~/.config/git/inspr-atelier-acme.gitconfig"
               ) r.config.programs.git.includes;
     }
 
@@ -294,7 +294,7 @@ let
         let r = evalModule {
           module = gitAtelier;
           config = {
-            inspr.git.atelier.bytepoets = refAtelier;
+            inspr.git.atelier.acme = refAtelier;
             inspr.git.atelier.personal = {
               enable = true;
               forge = { kind = "github"; url = "https://github.com"; owner = "markus-barta"; };
@@ -305,9 +305,9 @@ let
           };
         };
         in r.success
-           && (r.config.programs.ssh.settings ? "github.com-bytepoets-bpnixcfg")
+           && (r.config.programs.ssh.settings ? "github.com-acme-acmecfg")
            && (r.config.programs.ssh.settings ? "github.com-personal-nixcfg")
-           && (r.config.home.file ? ".ssh/known_hosts.d/inspr-git-atelier-bytepoets")
+           && (r.config.home.file ? ".ssh/known_hosts.d/inspr-git-atelier-acme")
            && (r.config.home.file ? ".ssh/known_hosts.d/inspr-git-atelier-personal");
     }
 
@@ -318,13 +318,13 @@ let
         let r = evalModule {
           module = gitAtelier;
           config = {
-            inspr.git.atelier.bytepoets = refAtelier;
+            inspr.git.atelier.acme = refAtelier;
           };
         };
         in r.success
-           && r.config.home.file.".ssh/known_hosts.d/inspr-git-atelier-bytepoets".text != ""
+           && r.config.home.file.".ssh/known_hosts.d/inspr-git-atelier-acme".text != ""
            && lib.hasInfix "github.com ssh-ed25519"
-                r.config.home.file.".ssh/known_hosts.d/inspr-git-atelier-bytepoets".text;
+                r.config.home.file.".ssh/known_hosts.d/inspr-git-atelier-acme".text;
     }
 
     # ── Unknown forge + no extras + manageKnownHosts=true → warning ─────

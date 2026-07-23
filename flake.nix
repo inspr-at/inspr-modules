@@ -7,7 +7,7 @@
 # letting anyone consume the same primitives Markus uses on his own fleet.
 #
 # Atelier-pattern graduation: this is the shared atelier — the public
-# library that "studios" (context flakes: Markus's nixcfg, BYTEPOETS
+# library that "studios" (context flakes: Markus's nixcfg, family
 # flake, family flake, future paid-product flakes) consume. Each studio
 # provides only its identity-specific values; the rest comes from the
 # atelier for free. See README.md "atelier pattern" for the full metaphor.
