@@ -200,7 +200,21 @@ prefer the stored underscore form there. Verify `url_segment` mappings against
 - 🟡 PUT replaces **wholesale** (same as issues) — GET-before-PUT.
 - 🟡 `memory` type has extra lifecycle endpoints (`.../memory/stale?days=`, `.../memory/proposed/stale?days=`, `POST .../memory/references`) — reserved for the auto-memory subsystem; ignore for hand-authored docs.
 
-### Create example
+### CLI (prefer over raw curl — PAI-394 verb tree)
+
+```bash
+paimos knowledge list   --project <KEY> [--type <kebab-type>] [--json]
+paimos knowledge get    <type> <slug> --project <KEY> [--json]
+paimos knowledge create --type <type> --slug <slug> --project <KEY> --title "…" --body-file f.md [--status s]
+paimos knowledge update <type> <slug> --project <KEY> [--body-file f.md] [--status s] [--metadata-file m.json] [--title "…"] [--slug new-slug]
+paimos knowledge delete <type> <slug> --project <KEY>
+```
+
+- 🟡 Positional `<type>` uses the kebab-singular form (`external-system`, `related-project`).
+- 🟡 `update` replaces the supplied field wholesale (body, metadata) — GET first, edit, resend; same discipline as issue PUTs.
+- 🟡 `create` requires the `--type` flag (positional type is get/update/delete only).
+
+### Raw-curl create example
 
 ```bash
 ( set -a; source ~/.inspr/secrets/agents/PPMAPIKEY.env
