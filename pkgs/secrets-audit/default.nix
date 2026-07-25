@@ -51,7 +51,7 @@ writeShellApplication {
 
   meta = {
     description = "Audit drift between secrets/*.age and secrets.nix declarations";
-    homepage = "https://github.com/markus-barta/inspr-modules";
+    homepage = "https://github.com/inspr-at/inspr-modules";
     license = lib.licenses.agpl3Only;
     mainProgram = "secrets-audit";
   };
