@@ -46,7 +46,7 @@
 #                                       the older inspr-doctor.sh probe.
 #
 # Consumer pattern (in your flake.nix):
-#   inputs.inspr-modules.url = "github:markus-barta/inspr-modules";
+#   inputs.inspr-modules.url = "github:inspr-at/inspr-modules";
 #   inputs.inspr-modules.inputs.nixpkgs.follows = "nixpkgs";
 #
 #   home.imports = [
@@ -140,6 +140,22 @@
               }
               ''
                 bash ${./tests/license-surface.sh} ${self}
+                touch $out
+              '';
+
+            # Current repository and container references are operational
+            # inputs. Keep them on the canonical INSPR organization while
+            # preserving the intentionally personal nixcfg location.
+            repository-location-surface = pkgs.runCommand "repository-location-surface"
+              {
+                nativeBuildInputs = [
+                  pkgs.bash
+                  pkgs.coreutils
+                  pkgs.gnugrep
+                ];
+              }
+              ''
+                bash ${./tests/repository-location-surface.sh} ${self}
                 touch $out
               '';
 

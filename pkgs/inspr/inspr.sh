@@ -815,7 +815,7 @@ _run_all_check_sections() {
     run_check workstation repo_nixcfg "$NIXCFG_DIR present" \
         "git clone https://github.com/markus-barta/nixcfg.git $NIXCFG_DIR"
     run_check workstation repo_inspr "$INSPR_DIR present" \
-        "git clone https://github.com/markus-barta/inspr.git $INSPR_DIR (private)"
+        "git clone https://github.com/inspr-at/inspr.git $INSPR_DIR (private)"
     run_check workstation repo_fleetcom "$FLEETCOM_DIR present" \
         "git clone https://github.com/markus-barta/fleetcom.git $FLEETCOM_DIR"
 
@@ -1163,7 +1163,7 @@ ${BOLD}Flags:${RESET}
   ${CYAN}--heartbeat-interval=<sec>${RESET} Beacon cadence. Default: 60.
   ${CYAN}--pharos-token-out=<path>${RESET}  Where to write PHAROS_TOKEN. Default: ~/.config/pharos/pharos-beacon.env.
   ${CYAN}--pharos-deploy=docker|none${RESET} Deploy pharos-beacon after registration or from an existing token file.
-  ${CYAN}--pharos-image=<image>${RESET}      Beacon image for Docker deploy. Default: ghcr.io/markus-barta/pharos/pharosd:latest.
+  ${CYAN}--pharos-image=<image>${RESET}      Beacon image for Docker deploy. Default: ghcr.io/inspr-at/pharos/pharosd:latest.
   ${CYAN}-h, --help${RESET}                 Show this help.
 
 ${BOLD}What it does:${RESET}
@@ -1191,7 +1191,7 @@ cmd_onboard() {
     local pharos_interval="${INSPR_PHAROS_INTERVAL:-60}"
     local pharos_token_out="${INSPR_PHAROS_TOKEN_OUT:-$HOME/.config/pharos/pharos-beacon.env}"
     local pharos_deploy="${INSPR_PHAROS_DEPLOY:-none}"
-    local pharos_image="${INSPR_PHAROS_IMAGE:-ghcr.io/markus-barta/pharos/pharosd:latest}"
+    local pharos_image="${INSPR_PHAROS_IMAGE:-ghcr.io/inspr-at/pharos/pharosd:latest}"
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -1340,7 +1340,9 @@ cmd_onboard() {
     s1=$(_step_status repo_nixcfg repo_inspr repo_fleetcom)
     _step_label "$s1" 1 "Clone nixcfg + inspr + fleetcom under ~/Code/"
     if [[ "$s1" != "ok" ]]; then
-        echo "     ${DIM}\$${RESET} git clone https://github.com/markus-barta/{nixcfg,inspr,fleetcom}.git ~/Code/"
+        echo "     ${DIM}\$${RESET} git clone https://github.com/markus-barta/nixcfg.git ~/Code/nixcfg"
+        echo "     ${DIM}\$${RESET} git clone https://github.com/inspr-at/inspr.git ~/Code/inspr"
+        echo "     ${DIM}\$${RESET} git clone https://github.com/markus-barta/fleetcom.git ~/Code/fleetcom"
     fi
 
     # 2. Doctrine submodules initialized

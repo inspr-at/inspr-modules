@@ -45,7 +45,7 @@ Three tiers:
 
 ## Key references
 
-- **Doctrine source**: <https://github.com/markus-barta/inspr-modules/tree/main/docs>
+- **Doctrine source**: <https://github.com/inspr-at/inspr-modules/tree/main/docs>
 - **PPM** (project tracker): <https://pm.barta.cm> — INSPR project key, `/ppm` for ops
 - **Fleet inventory**: `~/Code/fleetcom` (canonical machine list)
 - **Field notes / runbooks**: per-repo `docs/`

@@ -76,7 +76,7 @@ writeShellApplication {
 
   meta = {
     description = "INSPR onboarding + drift-heal CLI (check / heal / onboard / --vision)";
-    homepage = "https://github.com/markus-barta/inspr-modules";
+    homepage = "https://github.com/inspr-at/inspr-modules";
     license = lib.licenses.agpl3Only;
     mainProgram = "inspr";
   };
