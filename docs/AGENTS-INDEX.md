@@ -50,6 +50,36 @@ Phase 4 (synthesized 2026-05-14) produced **521 canonical rules across 12 layer 
 
 **Phase-4 baseline rule count: 521 canonical rules** (Phase 4 synthesis, 2026-05-14) — every rule lands in exactly one Phase-4 layer. Phase 6 (2026-05-15) carved CORE into kernel + 5 domain packs WITHOUT adding new rules; the same 521 entries are now distributed across more files, optimized for on-demand loading.
 
+## Kernel gatekeeper & size budget
+
+_Moved out of `AGENTS-KERNEL.md` on 2026-07-26 — it is guidance for whoever **edits** the kernel, and was costing every agent context on every turn to serve a rare action._
+
+**The kernel grows ONLY for**:
+
+1. A new safety irreversible (would prevent immediate damage in turn 1)
+2. A new global protocol change affecting every agent in every repo
+3. A new slash command (router update)
+
+Everything else — domain knowledge, role-specific rules, technique notes, style preferences — goes to a **domain pack**. Don't add a rule to the kernel that could live elsewhere. Default to a domain pack; promote to kernel only when the cost of NOT having it always-loaded exceeds the auto-load cost. When the kernel is near budget, prefer **merging into an adjacent bullet** over adding a new one.
+
+### The budget is 12 000 BYTES
+
+Measure with `wc -c`, not a character count — the 🔴/🟡 emoji are multibyte, so the two differ by ~130. Enforced by `inspr check` → `check_doctrine_kernel_size_budget` (`pkgs/inspr/inspr.sh`), which reads `$NIXCFG_DIR/doctrine/docs/AGENTS-KERNEL.md`.
+
+Historical note: the kernel header long claimed a `≤ 10 000 chars` budget while the only enforcement was at 12 000 bytes. The two numbers were reconciled to 12 000 bytes in the 2026-07-26 audit.
+
+### 2026-07-26 budget audit
+
+Kernel went **9 997 → 7 334 bytes** with no rule lost. What changed:
+
+- **Corrected 5 wrong router sizes.** The `Adds (~chars)` column understated `/style` (20k → actual 46k), `/incident` (5k → 20k), `/ppm` (8k → 22k), `/ops` (12k → 18k), `/dev` (8k → 11k). Replaced the per-row column with a single "heavy ones" line — accurate and far cheaper to maintain.
+- **Removed 6 🟡 rules that violated the gatekeeper** and were already duplicated in packs: `gh pr view/diff`, push-is-normal-flow, the multi-agent stash recipe, `git config --global` (all in `/dev`), and the PPM keyring paragraph (`/ppm` covers it far better). `zellij, NOT tmux` existed only in the 46k `PROFILE-MARKUS`, so it was added to `/dev` rather than dropped.
+- **Moved meta out**: this gatekeeper section, the cross-reference footer, and the per-repo-deltas paragraph. ~20 % of the kernel was describing itself.
+- **Deduplicated**: the kernel's purpose was stated three times (subtitle, intro, gatekeeper closing) — now once. The secret-read prohibition was stated twice — now folded into one bullet with the positive `[ -n "$VAR" ]` check.
+- **Compacted** the time-awareness bullet (416 → ~190 bytes) and trimmed the env-dump example list, which had grown long enough to undercut its own "apply the principle, not the literal list" instruction.
+
+**Stale scope fixed**: the kernel header listed its consumers as "nixcfg, inspr, fleetcom, inspr-modules" — omitting `ops` and naming `fleetcom`, which the kernel body itself declares archived.
+
 ## Layer-file format conventions
 
 - Topics within a layer follow a LOGICAL order: security → incident-response → secrets → style → tools → process → workflow → pacing → git → nix/nixos → infra → agent-identity → other (alphabetical tail).
@@ -97,7 +127,9 @@ Day-12's auto-loaded doctrine triggered Claude Code's >40k char performance warn
 - **Slash commands** (`/dev /secrets /nix /ops /ppm /style /incident /inspr`) — each `@-ref`s its target pack(s)
 - **CORE.md and PROFILE-MARKUS.md** preserved for exhaustive reference (load via `/style` or direct Read); not auto-loaded
 
-Result: nixcfg session opens with **≤25 k chars** (kernel + nixcfg/AGENTS.md) instead of ~127 k. >80 % reduction. >40 k warning gone.
+Result: nixcfg session opens with **~30 k** (kernel + nixcfg/AGENTS.md) instead of ~127 k. >75 % reduction, >40 k warning gone.
+
+> ⚠️ **Corrected 2026-07-26.** This line originally claimed ≤25 k. Measured: `inspr` 13.6 k ✓, `ops` 23.7 k ✓, but **nixcfg 30.4 k ✗** — the kernel got disciplined, the per-repo delta did not. nixcfg's `AGENTS.md` alone is ~20.8 k (the 55 Phase-4 synthesized rules) and is now the binding constraint, not the kernel. Trimming it is tracked separately.
 
 The transitional INSPR-190 startup-hint rule (added 2026-05-15 morning, tagged sunset 2026-06-15) was DROPPED in this Phase 6 commit because the kernel router supersedes it.
 

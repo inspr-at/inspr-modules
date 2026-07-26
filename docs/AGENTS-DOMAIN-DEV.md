@@ -106,6 +106,7 @@ Kernel: never create new `.md` files unless explicitly requested; prefer editing
 
 - 🟡 Prefix commands >10s with `date &&` (bash) or `date; and` (fish) for timestamping. Applies to nix builds, docker ops, large file ops, test suites, package installs.
 - 🟡 Background or zellij session for jobs >30s.
+- 🟡 Terminal multiplexer is **zellij**, NOT tmux. Layouts in `~/.config/zellij/`. _(Was a kernel rule until the INSPR-189 budget audit; demoted here because it is a preference, not a turn-1 irreversible.)_
 
 ## Sync triad (Prime Directive)
 
