@@ -10,16 +10,31 @@ Detailed rules for fleet ops, SSH, Tailscale/Headscale, host recovery, multi-ses
 
 ## SSH access matrix
 
-| Target                        | Command                                      | Notes                              |
-| ----------------------------- | -------------------------------------------- | ---------------------------------- |
-| Home LAN host                 | `ssh mba@<host>.lan`                         | hsb0, hsb1, hsb8, gpc0             |
-| **imac0 exception**           | `ssh markus@imac0.lan`                       | user is `markus`, not `mba`        |
-| Cloud server                  | `ssh mba@cs<n>.barta.cm -p 2222`             | csb0, csb1                         |
-| Tailnet fallback              | `ssh mba@<host>.ts.barta.cm`                 | use when LAN doesn't route         |
+| Target          | Command                          | Notes                          |
+| --------------- | -------------------------------- | ------------------------------ |
+| Home LAN host   | `ssh mba@<host>.lan`             | hsb0, hsb1, hsb8, hsb9         |
+| Cloud server    | `ssh mba@cs<n>.barta.cm -p 2222` | csb0, csb1                     |
+| Tailnet         | `ssh mba@<tailnet-ip>`           | **IP, not name** — see below   |
 
-- 🟡 Always use Tailscale (`*.ts.barta.cm`) when LAN access does not work — works from everywhere.
+### 🔴 MagicDNS is permanently OFF — `*.ts.barta.cm` does NOT resolve
+
+Markus disabled MagicDNS deliberately and indefinitely: it was breaking agent sessions. Any `<host>.ts.barta.cm` name will fail with `nodename nor servname provided`. **This is expected, not an outage — do not debug it, do not try to "fix" DNS, and do not report the tailnet as down.**
+
+Reach tailnet hosts by **IP**. Get the current IP from the local Tailscale CLI — never hardcode one, and never assume a static list:
+
+```sh
+/Applications/Tailscale.app/Contents/MacOS/Tailscale status   # macOS
+tailscale status                                              # Linux
+ssh -p 2222 mba@100.64.0.4                                    # e.g. csb1
+```
+
+`tailscale status` is also the fastest way to see whether a host is actually alive — it reports `offline, last seen …` for retired or dead nodes.
+
 - 🟡 Reach internal hosts through the tailnet, not VPN concentrators, port-forwarding, public IP exposure, or SSH bastions.
+- 🟡 Cloud servers keep their non-standard port on the tailnet too: `-p 2222` for csb0 / csb1.
+- 🟡 A retired host can linger as a tailnet node long after its config is gone — removing it from Headscale is a separate teardown step.
 - 🟢 Confirm with user before assuming Tailscale SSH is enabled vs classic SSH keys.
+- ⚠️ **imac0 / imacw are decommissioned** (OPS guideline `imac-fleet-decommissioned`) and **gpc0 was retired 2026-07 → stm2607**. None of them are reachable; don't route work to them.
 
 ### `ssh_config` Match scoping
 
@@ -35,6 +50,7 @@ On macOS, `/etc/ssh/*.pub` is world-readable — read pubkeys via plain `cat`, n
 
 ## Pattern: Tailscale / Headscale topology
 
+- 🔴 **MagicDNS is permanently disabled** (it broke agent sessions). `*.ts.barta.cm` does not resolve — address tailnet hosts by IP from `tailscale status`. See the SSH access matrix above.
 - 🔴 Canonical Tailscale `--login-server`: `https://hs.barta.cm` (**service URL**). NEVER use the container host hostname `cs0.barta.cm` — it's the SSH/admin host, not the service.
 - 🟡 On reverse-proxy fleets, distinguish host hostname (SSH/admin) from service hostname (clients) — ask which is needed if ambiguous.
 - 🟡 `tailscale up` automation: always pass `--login-server` explicitly — macOS Tailscale daemon prefs do NOT reliably survive reboot.
