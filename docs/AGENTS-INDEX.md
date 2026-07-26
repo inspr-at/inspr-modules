@@ -80,6 +80,21 @@ Kernel went **9 997 → 7 334 bytes** with no rule lost. What changed:
 
 **Stale scope fixed**: the kernel header listed its consumers as "nixcfg, inspr, fleetcom, inspr-modules" — omitting `ops` and naming `fleetcom`, which the kernel body itself declares archived.
 
+### 2026-07-26 second sweep — kernel 7 334 → 5 494 bytes
+
+A follow-up pass over the **combined** auto-load surface (kernel + per-repo delta), not just the kernel:
+
+- **Router 1 713 → 739.** The table's "If you're about to… Edit nix-darwin / Home Manager / devenv / NixOS module → `/nix`" prose became a compact `·`-separated line. Same routing signal, ~1 000 bytes cheaper. The per-pack size warning stayed, since it is the part agents actually need before loading.
+- **Editor-facing meta 1 168 → 353.** The HTML preamble and the Gatekeeper stub are addressed to whoever *edits* the kernel; the full text already lives here. Every agent was paying for it on every turn.
+- **Identity & protocol compressed** — Style / Pacing / Time / Default kept, said shorter. Trust-contexts keeps the 🔴 crossing rule inline and points at the guidelines for classification detail.
+- **Cross-linked two guidelines describing the same split on different axes**: INSPR `trust-contexts` (repos and code) ↔ INSPR `domain-separation-barta-vs-augmentoring` (domains and services). Neither had referenced the other.
+
+**Per-repo delta, nixcfg**: `AGENTS.md` 21 291 → 6 003 in the first pass (host rules → OPS runbooks, dead provenance dropped), then split so Claude stops reading the kernel twice — see below.
+
+**The mirror was being read twice.** `CLAUDE.md` loads the kernel *and* `AGENTS.md`, which contained a 1 488-byte paraphrase of the kernel for tools that do not follow `@-ref`s. nixcfg now splits them: `AGENTS-NIXCFG.md` holds the repo delta and is what `CLAUDE.md` loads; `AGENTS.md` keeps the 🔴 mirror plus a pointer, for Cursor / Aider / OpenCode / Codex CLI. No generated file and no sync burden — the delta exists once.
+
+**Also relocated to PPM**: the agenix rekey recovery procedure and setup facts → NIX runbook `agenix-rekey-safety` (#3707). The 🔴 *detection* rule (578-byte marker, `git diff --stat` before commit) stays in the repo, because it has to be visible without loading anything.
+
 ## Layer-file format conventions
 
 - Topics within a layer follow a LOGICAL order: security → incident-response → secrets → style → tools → process → workflow → pacing → git → nix/nixos → infra → agent-identity → other (alphabetical tail).
