@@ -438,7 +438,7 @@ check_doctrine_kernel_size_budget() {
     local size
     size=$(wc -c <"$kernel" | tr -d ' ')
     if [[ $size -gt 12000 ]]; then
-        echo "kernel is $size chars, exceeds 12000 hard budget"
+        echo "kernel is $size bytes, exceeds 12000 hard budget"
         return 1
     fi
     return 0
@@ -832,7 +832,7 @@ _run_all_check_sections() {
         "edit $INSPR_DIR/CLAUDE.md to use @./doctrine/docs/AGENTS-KERNEL.md"
     run_check workstation doctrine_fleetcom_claude_md_loader "fleetcom/CLAUDE.md @-refs kernel (not legacy CORE+PROFILE)" \
         "edit $FLEETCOM_DIR/CLAUDE.md to use @./doctrine/docs/AGENTS-KERNEL.md"
-    run_check workstation doctrine_kernel_size_budget "kernel is ≤12000 chars (gatekeeper budget)" \
+    run_check workstation doctrine_kernel_size_budget "kernel is ≤12000 bytes (gatekeeper budget)" \
         "trim $NIXCFG_DIR/doctrine/docs/AGENTS-KERNEL.md OR move content to a domain pack"
 }
 
