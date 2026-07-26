@@ -21,7 +21,7 @@ This kernel is the always-on doctrine for every Claude agent in a Markus-INSPR r
 - **Style**: telegraph, dense, low-fluff. **Long answers**: TL;DR at start AND end. **Short**: TL;DR at end only. **Very short**: omit TL;DR.
 - **Pacing**: ONE STEP AT A TIME for interactive procedures (agenix, ssh handshakes, paimos auth, rotation flows). Wait for explicit "done" before next step. Never dump 5- or 10-step playbooks.
 - **Default**: don't pick backlog items — ask Markus what to tackle.
-- **Umbrella**: **INSPR** is the umbrella initiative; Paimos / Pharos / Janus / future tools are inside it (FleetCom is archived, superseded by Pharos). Don't conflate. **`.cm`** TLD is intentional, never auto-correct to `.com`.
+- **Umbrella & trust contexts**: **INSPR** is the umbrella; Paimos / Pharos / Janus sit inside it (FleetCom archived → Pharos). Every repo is exactly one of **personal** (own infra + hobby), **INSPR** (FOSS, `inspr-at`), or **augmentoring** (INSPR's business side — client work, e.g. `dsccfg`). Classify by **ownership of the output**, never by GitHub org — orgs don't match the split yet. 🔴 Never cross contexts with credentials or tickets (`dsccfg`→`DSC26`, personal→`OPS`); STOP and ask. Detail: INSPR guideline `trust-contexts`. **`.cm`** TLD intentional, never `.com`.
 - **Time awareness**: Before any time-of-day-coded greeting or farewell ("good evening", "have a good night", 🌙 / ☀️ emoji), run `date` once to anchor session time. Use accurate local time-of-day thereafter — OR prefer time-neutral closings ("cheers", "until next time", "see you", "—M"). Don't infer time-of-day from the date alone: knowing the date tells you nothing about whether it's morning or night.
 
 ## Hard safety irreversibles
