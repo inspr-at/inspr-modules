@@ -16,6 +16,10 @@
 # Exports:
 #   homeManagerModules.agent-secrets   Materialize agenix-encrypted env files
 #                                       to a per-user "agent-exception" dir.
+#   homeManagerModules.agent-skills    Declarative agent-skill provisioning
+#                                       across CLI harnesses (Claude Code,
+#                                       Codex, extensible). Bundled skills
+#                                       ship under skills/<name>/.
 #   homeManagerModules.git-atelier-credentials
 #                                       Per-atelier outbound git credentials
 #                                       (Strategy A deploy keys; B/C option-
@@ -31,7 +35,7 @@
 #   homeManagerModules.ssh-authorized  Declarative ~/.ssh/authorized_keys
 #                                       via aliased key map + trust list,
 #                                       with marker-block coexistence.
-#   homeManagerModules.default         Aggregate of all four above.
+#   homeManagerModules.default         Aggregate of all HM modules above.
 #   nixosModules.ssh-authorized        System-side counterpart to the HM
 #                                       ssh-authorized — manages
 #                                       users.users.<u>.openssh.authorizedKeys.keys
@@ -77,6 +81,7 @@
       # and configure via the `inspr.<name>.*` option namespace.
       homeManagerModules = {
         agent-secrets = ./modules/home-manager/agent-secrets.nix;
+        agent-skills = ./modules/home-manager/agent-skills.nix;
         devenv-direnv-fix = ./modules/home-manager/devenv-direnv-fix.nix;
         git-atelier-credentials = ./modules/home-manager/git-atelier-credentials.nix;
         git-identity = ./modules/home-manager/git-identity.nix;

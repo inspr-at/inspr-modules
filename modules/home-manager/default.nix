@@ -10,6 +10,7 @@
 {
   imports = [
     ./agent-secrets.nix
+    ./agent-skills.nix
     ./devenv-direnv-fix.nix
     ./git-atelier-credentials.nix
     ./git-identity.nix
