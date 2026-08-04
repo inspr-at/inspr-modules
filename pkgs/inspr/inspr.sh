@@ -534,6 +534,15 @@ pharos_step_status() {
     fi
 }
 
+# Validate a Pharos bootstrap/registration token before it is embedded in
+# the curl --config heredoc (INSPR-255). The config parser treats quotes and
+# newlines as syntax: a double quote truncates the Authorization header, a
+# newline injects arbitrary curl directives (output=/url=/write-out). Only a
+# conservative token alphabet passes; curl must never run otherwise.
+_validate_bootstrap_token() {
+    [[ -n "$1" && "$1" =~ ^[A-Za-z0-9._~+/=-]+$ ]]
+}
+
 pharos_register_host() {
     local pharos_url="$1" host="$2" role="$3" is_nix="$4" interval="$5" token_out="$6"
     local bootstrap="${INSPR_PHAROS_REGISTRATION_TOKEN:-${PHAROS_REGISTRATION_TOKEN:-}}"
@@ -541,6 +550,11 @@ pharos_register_host() {
 
     if [[ -z "$bootstrap" ]]; then
         echo "${RED}error:${RESET} set INSPR_PHAROS_REGISTRATION_TOKEN before --pharos-register" >&2
+        return 2
+    fi
+    if ! _validate_bootstrap_token "$bootstrap"; then
+        # Never echo the value — it is (or was meant to be) a secret.
+        echo "${RED}error:${RESET} registration token contains characters outside the token alphabet (A-Za-z0-9 . _ ~ + / = -); refusing to build the request" >&2
         return 2
     fi
     if [[ -e "$token_out" ]]; then
