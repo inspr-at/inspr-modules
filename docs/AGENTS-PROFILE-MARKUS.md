@@ -7,7 +7,7 @@ This document is the authoritative source for Markus Barta's personal preference
 - **[AGENTS-CORE.md](./AGENTS-CORE.md)** — universal rules every agent follows
 - **[AGENTS-PROFILE-MARKUS.md](./AGENTS-PROFILE-MARKUS.md)** — Markus Barta's personal preferences
 - **AGENTS-AGENT-*.md** — per-role overlays (one per agent identity)
-- **per-repo AGENTS.md** in nixcfg/fleetcom/inspr/amt-com — repo-specific deltas
+- **per-repo AGENTS.md** in nixcfg/inspr/amt-com/ops — repo-specific deltas
 
 ---
 

@@ -33,7 +33,7 @@ L1 — Hardware                                (iMacs, MBPs, NixOS servers — P
 
 ## Pattern: inspr-services repo layout
 
-- 🟡 Home for L5 code: **`~/Code/inspr-services/`** (sibling to nixcfg, fleetcom, inspr).
+- 🟡 Home for L5 code: **`~/Code/inspr-services/`** (sibling to nixcfg, inspr).
 - 🟡 Per-service subdirectory: `services/<service>/` (e.g., `services/zitadel/`, `services/cloudflare/`).
 - 🟡 Each service dir contains: `*.tf` files, `RUNBOOK.md`, optional `tests/` (post-apply health probes), `.terraform.lock.hcl`.
 - 🟡 Repo-root `justfile` provides cross-cutting recipes (`just plan <service>`, `just apply <service>`, `just status`).

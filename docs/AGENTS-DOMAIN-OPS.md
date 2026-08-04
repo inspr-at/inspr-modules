@@ -61,7 +61,7 @@ On macOS, `/etc/ssh/*.pub` is world-readable — read pubkeys via plain `cat`, n
 
 ## Pattern: fleet inventory
 
-- 🟡 Query **FleetCom** (`fleet.barta.cm`) as the canonical live source for fleet inventory. Never assume static lists.
+- 🟡 Query **Pharos** (<https://pharos.barta.cm> — `pharosd` on csb1) as the canonical live source for fleet inventory; HostDash renders the same data for humans. Never assume static lists. FleetCom is archived — never query `fleet.barta.cm`.
 - 🟡 **msbp is gone.** It left with the June 2026 employer exit — not our host, not our config, not our tickets. Its config lived in the former work flake and its tickets in PMO/BPOPS26; both are out of scope. Don't route work there, and don't expect it in fleet inventory.
 
 ## Pattern: host recovery

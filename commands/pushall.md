@@ -3,7 +3,8 @@ Commit and push across all workspace doctrine-vendoring repos. Process each repo
 1. `~/Code/inspr-modules` (upstream doctrine source — push first so submodule bumps downstream resolve)
 2. `~/Code/nixcfg`
 3. `~/Code/inspr`
-4. `~/Code/fleetcom`
+4. `~/Code/amt-com`
+5. `~/Code/ops`
 
 For each repo:
 
@@ -20,8 +21,9 @@ After all repos are processed, print a **summary table**:
 | inspr-modules | 1 commit pushed     |
 | nixcfg        | submodule bump only |
 | inspr         | clean, skipped      |
-| fleetcom      | 2 commits pushed    |
+| amt-com       | 2 commits pushed    |
+| ops           | submodule bump only |
 
 Do NOT ask for confirmation between repos — just do it. Ask only if a STOP-worthy issue surfaces.
 
-**Note on scope**: this `/pushall` covers the four doctrine-vendoring repos (where doctrine changes need to ripple). It does NOT push OpenClaw workspaces (`oc-workspace-*`) or other personal projects — those have their own ad-hoc push cadences. If you want to push everything in `~/Code/`, run `/push` per repo manually.
+**Note on scope**: this `/pushall` covers the five doctrine-vendoring repos (where doctrine changes need to ripple). It does NOT push OpenClaw workspaces (`oc-workspace-*`) or other personal projects — those have their own ad-hoc push cadences. If you want to push everything in `~/Code/`, run `/push` per repo manually.
