@@ -386,12 +386,17 @@ let
     ) enabledIdentityAteliers
   );
 
-  # known_hosts files (one per atelier that opts into management).
+  # known_hosts files (one per atelier that opts into management). Any
+  # credential strategy needs the file once its match block references it:
+  # Strategy A (deployKeys) AND Strategy B (userKey) both set
+  # UserKnownHostsFile under manageKnownHosts (INSPR-260).
   renderedKnownHosts = lib.listToAttrs (
     lib.concatLists (
       lib.mapAttrsToList (
         atelierName: atelier:
-          if atelier.manageKnownHosts && atelier.credentials.deployKeys != { }
+          if
+            atelier.manageKnownHosts
+            && (atelier.credentials.deployKeys != { } || atelier.credentials.userKey != null)
           then [{
             name = ".ssh/known_hosts.d/inspr-git-atelier-${atelierName}";
             value = {
@@ -422,7 +427,8 @@ let
           baked = builtinKnownHosts.${host} or [ ];
           hasExtras = atelier.forge.extraKnownHosts != [ ];
         in
-        if atelier.manageKnownHosts && atelier.credentials.deployKeys != { }
+        if atelier.manageKnownHosts
+           && (atelier.credentials.deployKeys != { } || atelier.credentials.userKey != null)
            && baked == [ ] && !hasExtras
         then [''
           inspr.git.atelier."${atelierName}": manageKnownHosts = true but no

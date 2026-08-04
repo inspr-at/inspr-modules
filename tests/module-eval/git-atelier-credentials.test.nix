@@ -13,6 +13,8 @@
 #     alias namespace, per-atelier known_hosts file)
 #   - manageKnownHosts=true with a built-in forge (github.com) renders a
 #     non-empty known_hosts file
+#   - Strategy B (userKey-only) + manageKnownHosts renders the known_hosts
+#     file its matchBlock references (INSPR-260 regression)
 #   - manageKnownHosts=true with an unknown forge + no extraKnownHosts
 #     emits a warning
 # ─────────────────────────────────────────────────────────────────────────
@@ -344,6 +346,33 @@ let
         };
         in r.success
            && lib.any (w: lib.hasInfix "manageKnownHosts" w) r.config.warnings;
+    }
+
+    # ── Strategy B + manageKnownHosts → known_hosts file rendered (INSPR-260)
+    # Regression: the render guard was deployKeys-only, so a userKey-only
+    # atelier pointed UserKnownHostsFile at a file that never materialized.
+    {
+      name = "Strategy B userKey-only atelier renders its managed known_hosts file";
+      assertion =
+        let r = evalModule {
+          module = gitAtelier;
+          config = {
+            inspr.git.atelier.personal = {
+              enable = true;
+              forge = { kind = "github"; url = "https://github.com"; owner = "markus-barta"; };
+              credentials.userKey = {
+                privateKeyPath = "/run/agenix/m5-personal-userkey";
+                pubKey = "ssh-ed25519 AAAAFakePersonal m5-personal@markus-barta";
+              };
+            };
+          };
+        };
+        in r.success
+           && (r.config.home.file ? ".ssh/known_hosts.d/inspr-git-atelier-personal")
+           && lib.hasInfix "github.com ssh-ed25519"
+                r.config.home.file.".ssh/known_hosts.d/inspr-git-atelier-personal".text
+           && lib.hasInfix "known_hosts.d/inspr-git-atelier-personal"
+                r.config.programs.ssh.settings."git-personal".UserKnownHostsFile;
     }
 
     # ── manageKnownHosts=false → no known_hosts file rendered ────────────
