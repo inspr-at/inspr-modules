@@ -699,7 +699,14 @@ pharos_deploy_beacon_docker() {
 #
 # Each heal_fix_<slug> function corresponds to a check_<slug>. Output:
 #   line 1: tier — "auto" | "confirm" | "manual"
-#   line 2+: command (for auto/confirm) or explanation (for manual)
+#   line 2+: DISPLAY string (for auto/confirm) or explanation (for manual)
+#
+# Execution contract (INSPR-256): the display string is never executed.
+# Every auto/confirm mapping has an executable twin heal_cmd_<slug> that
+# runs the fix directly as argv — env-derived paths are ordinary quoted
+# arguments, never re-parsed by a shell, so a quote in $NIXCFG_DIR & co.
+# cannot become code. Keep heal_fix display text in sync with the
+# heal_cmd body by review; _heal_apply refuses tiers without a heal_cmd.
 #
 # Tier semantics:
 #   auto    — safe, idempotent, can run with --yes. Examples: submodule init,
@@ -715,23 +722,40 @@ heal_fix_doctrine_nixcfg_kernel_present() {
     echo "auto"
     echo "cd '$NIXCFG_DIR' && git submodule update --init --recursive"
 }
+heal_cmd_doctrine_nixcfg_kernel_present() {
+    cd "$NIXCFG_DIR" && git submodule update --init --recursive
+}
+
 heal_fix_doctrine_inspr_kernel_present() {
     echo "auto"
     echo "cd '$INSPR_DIR' && git submodule update --init --recursive"
 }
+heal_cmd_doctrine_inspr_kernel_present() {
+    cd "$INSPR_DIR" && git submodule update --init --recursive
+}
+
 heal_fix_doctrine_fleetcom_kernel_present() {
     echo "auto"
     echo "cd '$FLEETCOM_DIR' && git submodule update --init --recursive"
+}
+heal_cmd_doctrine_fleetcom_kernel_present() {
+    cd "$FLEETCOM_DIR" && git submodule update --init --recursive
 }
 
 heal_fix_no_legacy_gitconfig() {
     echo "confirm"
     echo "mv ~/.gitconfig ~/.gitconfig.legacy-$(date +%Y%m%d)"
 }
+heal_cmd_no_legacy_gitconfig() {
+    mv "$HOME/.gitconfig" "$HOME/.gitconfig.legacy-$(date +%Y%m%d)"
+}
 
 heal_fix_agent_secrets_locked() {
     echo "confirm"
     echo "chmod 0500 '$SECRETS_DIR'"
+}
+heal_cmd_agent_secrets_locked() {
+    chmod 0500 "$SECRETS_DIR"
 }
 
 heal_fix_paimos_auth() {
@@ -1022,12 +1046,19 @@ EOF
 }
 
 # Apply one heal action and verify it took (INSPR-254). Healed requires BOTH
-# the command exiting 0 AND the check that failed now passing (0) or skipping
+# the executor exiting 0 AND the check that failed now passing (0) or skipping
 # (77); a check function that vanished counts as unverifiable-but-applied.
+# Executes the typed heal_cmd_<slug> twin — never a display string (INSPR-256);
+# an auto/confirm mapping without one is a script bug and counts as failed.
 # Mutates the caller's healed / fix_failed counters (bash dynamic scoping).
 _heal_apply() {
-    local slug="$1" action="$2"
-    if bash -c "$action" 2>&1 | sed 's/^/     /'; then
+    local slug="$1"
+    if ! declare -f "heal_cmd_${slug}" >/dev/null; then
+        printf "     ${RED}✗ no heal_cmd_%s executor for this mapping (script bug)${RESET}\n\n" "$slug"
+        fix_failed=$((fix_failed + 1))
+        return
+    fi
+    if "heal_cmd_${slug}" 2>&1 | sed 's/^/     /'; then
         local rc=0
         if declare -f "check_${slug}" >/dev/null; then
             "check_${slug}" >/dev/null 2>&1 || rc=$?
@@ -1123,12 +1154,12 @@ cmd_heal() {
             printf "  ${GREEN}🟢 AUTO${RESET}     ${BOLD}%s${RESET}\n" "$slug"
             printf "     ${DIM}\$${RESET} %s\n" "$action"
             if [[ $auto_yes -eq 1 ]]; then
-                _heal_apply "$slug" "$action"
+                _heal_apply "$slug"
             else
                 printf "     Apply? [y/N] "
                 read -r ans
                 if [[ "$ans" =~ ^[Yy] ]]; then
-                    _heal_apply "$slug" "$action"
+                    _heal_apply "$slug"
                 else
                     printf "     ${DIM}deferred${RESET}\n\n"
                     deferred=$((deferred + 1))
@@ -1141,7 +1172,7 @@ cmd_heal() {
             printf "     Apply? [y/N] "
             read -r ans
             if [[ "$ans" =~ ^[Yy] ]]; then
-                _heal_apply "$slug" "$action"
+                _heal_apply "$slug"
             else
                 printf "     ${DIM}deferred${RESET}\n\n"
                 deferred=$((deferred + 1))
