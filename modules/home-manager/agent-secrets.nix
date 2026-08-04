@@ -85,6 +85,28 @@ let
   # All discovered variable names — used by the `requireFiles` validation.
   discoveredNames = map varNameOf (sharedFiles ++ hostFiles);
 
+  # Eval-time validation (INSPR-263): secret basenames land inside the
+  # activation script and become filenames under decryptedDir, so restrict
+  # them to a conservative alphabet before any rendering. Env-identifier
+  # chars plus `-` and `.` — dashes are in real use for materialized SSH
+  # key names (e.g. `m5-personal-userkey.env`); everything shell-dangerous
+  # (spaces, quotes, `$`, backticks, backslashes, newlines) is rejected.
+  invalidNames =
+    builtins.filter (n: builtins.match "[A-Za-z0-9_][A-Za-z0-9_.-]*" n == null) discoveredNames;
+
+  _validateNames =
+    if invalidNames == [ ] then null
+    else throw ''
+
+      inspr.secrets.agents: secret file name(s) outside the allowed
+      alphabet ([A-Za-z0-9_][A-Za-z0-9_.-]*):
+      ${lib.concatMapStringsSep "\n      " (n: "  - ${n}.age") invalidNames}
+
+      Rename the .age file(s) — names become shell-visible filenames and
+      env-file identifiers; spaces, quotes, and other shell metacharacters
+      are not supported.
+    '';
+
   # Eval-time validation: every name in `requireFiles` MUST be discoverable
   # via `readDir` of the flake source. Catches the common failure mode where
   # a new `.age` file exists on disk but is UNTRACKED in git, so the flake
@@ -113,12 +135,17 @@ let
       alone is enough for the flake to include the file in source.
     '';
 
-  # Newline-separated list of expected target basenames (for orphan cleanup).
-  # Forces `_validateRequired` so any missing-file throw fires before the
-  # activation script renders.
+  # Newline-separated list of expected target basenames (for orphan cleanup):
+  # one per line so the matcher is exact (`grep -Fxq`) — a space-delimited
+  # list let a basename containing a space corrupt the match (INSPR-263).
+  # Forces `_validateRequired` + `_validateNames` so any throw fires before
+  # the activation script renders.
   expectedBasenames =
-    builtins.seq _validateRequired
-      (lib.concatStringsSep " " (map (s: "${s.name}.env") allSecrets));
+    builtins.seq _validateRequired (
+      builtins.seq _validateNames (
+        lib.concatMapStringsSep "\n" (s: "${s.name}.env") allSecrets
+      )
+    );
 
 in
 {
@@ -262,12 +289,15 @@ in
     home.activation.materializeAgentSecrets = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
       set -e
 
-      DECRYPTED_DIR="${cfg.decryptedDir}"
+      DECRYPTED_DIR=${lib.escapeShellArg cfg.decryptedDir}
       AGE_BIN="${pkgs.age}/bin/age"
 
       # Pick the first existing SSH identity from the configured list.
       # Backward-compat: if the deprecated singular `identityFile` was set,
       # it's prepended to the search order.
+      # DELIBERATE EXCEPTION (INSPR-263): identity paths are interpolated
+      # unescaped because `$HOME`-relative entries are documented to expand
+      # at activation time. Everything else in this script is escaped.
       IDENTITY=""
       ${lib.concatMapStringsSep "\n" (path: ''
         if [[ -z "$IDENTITY" && -f "${path}" ]]; then
@@ -299,8 +329,9 @@ in
       # writes in the meantime. (Audit-flagged: INSPR-55.)
       trap 'chmod 0500 "$DECRYPTED_DIR" 2>/dev/null || true' EXIT
 
-      # Build the expected file set (computed at Nix eval time; baked into script)
-      expected="${expectedBasenames}"
+      # Expected file set: one basename per line (computed at Nix eval time;
+      # baked into the script as a single escaped literal).
+      expected=${lib.escapeShellArg expectedBasenames}
 
       # Decrypt every declared secret
       ${lib.concatMapStringsSep "\n" (s: ''
@@ -313,25 +344,26 @@ in
         # umask narrows default file perms so the plaintext is never even
         # momentarily readable by other accounts.
         umask 0277
-        "$AGE_BIN" --decrypt --identity "$IDENTITY" "${s.src}" > "$target"
+        "$AGE_BIN" --decrypt --identity "$IDENTITY" ${lib.escapeShellArg s.src} > "$target"
         chmod 0400 "$target"
       '') allSecrets}
 
-      # Cleanup orphans: remove .env files not in current declaration
+      # Cleanup orphans: remove .env files not in current declaration.
+      # Exact whole-line match against the newline list — immune to spaces
+      # or glob characters in stray basenames (INSPR-263).
       for f in "$DECRYPTED_DIR"/*.env; do
         [ -e "$f" ] || continue
         base="$(basename "$f")"
-        case " $expected " in
-          *" $base "*) ;;  # expected, keep
-          *)
-            echo "agent-secrets: removing orphan $base"
-            # chflags is macOS-only (BSD nouchg flag clearing). The `|| true`
-            # makes this a silent no-op on Linux, which is correct (Linux
-            # doesn't use the immutable flag in this pipeline).
-            chflags nouchg "$f" 2>/dev/null || true
-            rm -f "$f"
-            ;;
-        esac
+        if printf '%s\n' "$expected" | ${pkgs.gnugrep}/bin/grep -Fxq -- "$base"; then
+          : # expected, keep
+        else
+          echo "agent-secrets: removing orphan $base"
+          # chflags is macOS-only (BSD nouchg flag clearing). The `|| true`
+          # makes this a silent no-op on Linux, which is correct (Linux
+          # doesn't use the immutable flag in this pipeline).
+          chflags nouchg "$f" 2>/dev/null || true
+          rm -f "$f"
+        fi
       done
 
       # Lock the directory: no further writes possible without explicit chmod.
