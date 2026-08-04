@@ -196,6 +196,15 @@
               inherit pkgs;
             };
 
+            # Executes the rendered ssh-authorized activation against
+            # synthetic authorized_keys files (INSPR-261): fresh host,
+            # valid-marker replacement preserving manual lines, missing
+            # end marker fails loudly with the original untouched, and
+            # substring-only markers never truncate.
+            ssh-authorized-functional = import ./tests/ssh-authorized-functional.nix {
+              inherit pkgs;
+            };
+
             # Module-eval tests (INSPR-72): exercise HM module options +
             # assertions + eval-time throws via lib.evalModules + a stub
             # HM harness. Catches regressions BEFORE `home-manager switch`

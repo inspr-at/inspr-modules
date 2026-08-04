@@ -371,17 +371,23 @@ in
           in_block { next }
           { print }
           END {
-            # Defensive: if begin marker was present but end marker was
-            # missing (truncated file?), the in_block flag would still be
-            # set here. We have already printed the new block, so the
-            # rest of the file is gone — that is the right outcome (the
-            # file was already corrupt; we cleanly replaced it).
+            # If the begin marker matched but the end marker never did,
+            # every line after begin was swallowed — including manual
+            # entries BELOW the managed block (recovery keys, deploy
+            # keys) that this module promises to preserve. Truncating
+            # here can lock the operator out of a remote host (INSPR-261).
+            # Refuse loudly instead: output goes to a temp file the
+            # caller discards on failure, so the original stays intact.
             #
             # NOTE: NO APOSTROPHES in comments inside this awk block.
             # The whole awk script is wrapped in bash single quotes;
             # any apostrophe terminates the bash string and bash then
             # tries to parse the awk syntax as bash. Use full forms
             # (we have, that is, does not, etc.) instead of contractions.
+            if (in_block == 1) {
+              print "inspr ssh-authorized: ERROR: begin marker found but end marker is missing in authorized_keys; refusing to rewrite (manual entries below the block would be lost). Repair or delete the marker lines, then re-run Home Manager." > "/dev/stderr"
+              exit 1
+            }
             if (printed_block == 0) {
               # Should not be reachable given the outer if-grep above,
               # but be paranoid: append the new block if for any reason
