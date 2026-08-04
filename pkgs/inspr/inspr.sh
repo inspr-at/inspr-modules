@@ -1007,6 +1007,30 @@ ${BOLD}Symptom→fix coverage:${RESET}
 EOF
 }
 
+# Apply one heal action and verify it took (INSPR-254). Healed requires BOTH
+# the command exiting 0 AND the check that failed now passing (0) or skipping
+# (77); a check function that vanished counts as unverifiable-but-applied.
+# Mutates the caller's healed / fix_failed counters (bash dynamic scoping).
+_heal_apply() {
+    local slug="$1" action="$2"
+    if bash -c "$action" 2>&1 | sed 's/^/     /'; then
+        local rc=0
+        if declare -f "check_${slug}" >/dev/null; then
+            "check_${slug}" >/dev/null 2>&1 || rc=$?
+        fi
+        if [[ $rc -eq 0 || $rc -eq 77 ]]; then
+            printf "     ${GREEN}✓ applied${RESET}\n\n"
+            healed=$((healed + 1))
+        else
+            printf "     ${RED}✗ command ran, but the check still fails${RESET}\n\n"
+            fix_failed=$((fix_failed + 1))
+        fi
+    else
+        printf "     ${RED}✗ failed${RESET}\n\n"
+        fix_failed=$((fix_failed + 1))
+    fi
+}
+
 cmd_heal() {
     local auto_yes=0
     local profile_override=""
@@ -1064,7 +1088,7 @@ cmd_heal() {
     echo "${YELLOW}${BOLD}Found ${FAIL} issue(s).${RESET} Reviewing each:"
     echo ""
 
-    local healed=0 deferred=0 unfixable=0 no_mapping=0
+    local healed=0 deferred=0 unfixable=0 no_mapping=0 fix_failed=0
 
     for slug in "${FAILED_CHECKS[@]}"; do
         local fix_fn="heal_fix_${slug}"
@@ -1085,22 +1109,12 @@ cmd_heal() {
             printf "  ${GREEN}🟢 AUTO${RESET}     ${BOLD}%s${RESET}\n" "$slug"
             printf "     ${DIM}\$${RESET} %s\n" "$action"
             if [[ $auto_yes -eq 1 ]]; then
-                if bash -c "$action" 2>&1 | sed 's/^/     /'; then
-                    printf "     ${GREEN}✓ applied${RESET}\n\n"
-                    healed=$((healed + 1))
-                else
-                    printf "     ${RED}✗ failed${RESET}\n\n"
-                fi
+                _heal_apply "$slug" "$action"
             else
                 printf "     Apply? [y/N] "
                 read -r ans
                 if [[ "$ans" =~ ^[Yy] ]]; then
-                    if bash -c "$action" 2>&1 | sed 's/^/     /'; then
-                        printf "     ${GREEN}✓ applied${RESET}\n\n"
-                        healed=$((healed + 1))
-                    else
-                        printf "     ${RED}✗ failed${RESET}\n\n"
-                    fi
+                    _heal_apply "$slug" "$action"
                 else
                     printf "     ${DIM}deferred${RESET}\n\n"
                     deferred=$((deferred + 1))
@@ -1113,12 +1127,7 @@ cmd_heal() {
             printf "     Apply? [y/N] "
             read -r ans
             if [[ "$ans" =~ ^[Yy] ]]; then
-                if bash -c "$action" 2>&1 | sed 's/^/     /'; then
-                    printf "     ${GREEN}✓ applied${RESET}\n\n"
-                    healed=$((healed + 1))
-                else
-                    printf "     ${RED}✗ failed${RESET}\n\n"
-                fi
+                _heal_apply "$slug" "$action"
             else
                 printf "     ${DIM}deferred${RESET}\n\n"
                 deferred=$((deferred + 1))
@@ -1132,14 +1141,15 @@ cmd_heal() {
             ;;
         *)
             printf "  ${RED}?${RESET}  ${BOLD}%s${RESET}: unknown tier '%s' in heal_fix function (script bug)\n\n" "$slug" "$tier"
+            fix_failed=$((fix_failed + 1))
             ;;
         esac
     done
 
-    echo "${BOLD}heal summary:${RESET} ${GREEN}${healed} applied${RESET}, ${YELLOW}${deferred} deferred${RESET}, ${RED}${unfixable} need manual action${RESET}, ${DIM}${no_mapping} no mapping yet${RESET}"
+    echo "${BOLD}heal summary:${RESET} ${GREEN}${healed} applied${RESET}, ${RED}${fix_failed} failed${RESET}, ${YELLOW}${deferred} deferred${RESET}, ${RED}${unfixable} need manual action${RESET}, ${DIM}${no_mapping} no mapping yet${RESET}"
     echo ""
     echo "${DIM}re-run 'inspr check' to verify state${RESET}"
-    if [[ $((unfixable + no_mapping)) -eq 0 && $deferred -eq 0 ]]; then
+    if [[ $((fix_failed + unfixable + no_mapping)) -eq 0 && $deferred -eq 0 ]]; then
         exit 0
     else
         exit 1
