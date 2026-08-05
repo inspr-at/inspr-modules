@@ -121,12 +121,16 @@
           let
             secretsAuditPkg = pkgs.callPackage ./pkgs/secrets-audit { };
 
-            # Run the module-eval suite at FLAKE-EVAL time (not at build
-            # time). The suite's default.nix throws on failure, which
-            # surfaces here as an eval error if `moduleEvalReport` is
-            # forced. The runCommand below is just a thin wrapper that
-            # records the report into $out so we have a tangible artifact.
-            moduleEvalReport = import ./tests/module-eval {
+            # Module-eval suite results (INSPR-267). Evaluation is lazy —
+            # nothing forces until the module-eval check derivation is
+            # instantiated — and the suite never throws, so `nix flake
+            # show` and check enumeration always work; a red unit test
+            # fails as an ordinary check build below. Deliberately NOT
+            # deduplicated across systems: per-system eval can genuinely
+            # differ (e.g. the darwin-only stdenv recursion documented in
+            # devenv-direnv-fix.test.nix), and deduping would mask
+            # system-specific eval regressions.
+            moduleEvalResults = import ./tests/module-eval {
               inherit pkgs;
               inherit (pkgs) lib;
             };
@@ -211,14 +215,24 @@
             # — assertions firing at the right times, REQUIRED options
             # staying required, deprecated options still warning, etc.
             #
-            # The actual eval happens inside `moduleEvalReport` above
-            # (forced at flake-eval time). This derivation just persists
-            # the resulting summary report as a build artifact.
-            module-eval = pkgs.runCommand "module-eval-tests" { } ''
-              cat > $out <<'REPORT'
-              ${moduleEvalReport}
-              REPORT
-            '';
+            # The eval happens when this derivation is instantiated; the
+            # pass/fail decision happens when it is BUILT (INSPR-267):
+            # report always lands in the build log, $out persists it on
+            # success, and any failed sub-test exits non-zero — an
+            # ordinary failed check, not a flake-eval error.
+            module-eval = pkgs.runCommand "module-eval-tests"
+              {
+                report = moduleEvalResults.report;
+                failedCount = toString (builtins.length moduleEvalResults.failedTests);
+                passAsFile = [ "report" ];
+              } ''
+                cat "$reportPath"
+                cp "$reportPath" $out
+                if [ "$failedCount" != "0" ]; then
+                  echo "module-eval: $failedCount sub-test(s) failed" >&2
+                  exit 1
+                fi
+              '';
           };
       }
     );

@@ -3,9 +3,13 @@
 #
 # Entry point for the module-eval test suite. Imports every *.test.nix
 # file in this directory and aggregates their per-suite results into a
-# single PASS/FAIL summary. On failure, throws with a list of failed
-# test names — Nix surfaces the throw as an eval error, which the
-# `flake.checks.<system>.module-eval` derivation catches as build failure.
+# structured result: { ok; report; totalRun; totalPassed; failedTests; }.
+#
+# NO THROW on failure (INSPR-267): a throw here became a flake-EVAL error
+# that broke `nix flake show` and aborted check enumeration for every
+# sibling check. The pass/fail decision now lives in the
+# `flake.checks.<system>.module-eval` derivation, which exits non-zero on
+# `failedTests != []` — a red unit test fails as one ordinary check.
 #
 # Add a new suite by adding it to the `testFiles` list below.
 # ─────────────────────────────────────────────────────────────────────────
@@ -35,20 +39,27 @@ let
     "  ${r.name}: ${toString r.passed}/${toString r.total}"
   ) results;
 
+  report =
+    if allFailed == [ ]
+    then ''
+      ✓ ALL ${toString totalPassed}/${toString totalRun} MODULE-EVAL TESTS PASSED
+
+      Per-suite:
+      ${perSuiteSummary}
+    ''
+    else ''
+
+      ✗ MODULE-EVAL TESTS FAILED — ${toString (lib.length allFailed)}/${toString totalRun} failed:
+
+      ${lib.concatMapStringsSep "\n" (t: "  ✗ ${t}") allFailed}
+
+      Per-suite:
+      ${perSuiteSummary}
+    '';
+
 in
-  if allFailed == [ ]
-  then ''
-    ✓ ALL ${toString totalPassed}/${toString totalRun} MODULE-EVAL TESTS PASSED
-
-    Per-suite:
-    ${perSuiteSummary}
-  ''
-  else throw ''
-
-    ✗ MODULE-EVAL TESTS FAILED — ${toString (lib.length allFailed)}/${toString totalRun} failed:
-
-    ${lib.concatMapStringsSep "\n" (t: "  ✗ ${t}") allFailed}
-
-    Per-suite:
-    ${perSuiteSummary}
-  ''
+{
+  ok = allFailed == [ ];
+  inherit report totalRun totalPassed;
+  failedTests = allFailed;
+}
