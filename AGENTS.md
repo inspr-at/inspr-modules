@@ -11,7 +11,7 @@ For Claude Code, the kernel auto-loads via `CLAUDE.md @-ref ./docs/AGENTS-KERNEL
 | Layer | File | Loaded |
 |---|---|---|
 | **KERNEL** (always-on) | `docs/AGENTS-KERNEL.md` (8.9k) | auto via CLAUDE.md @-ref |
-| **DOMAIN packs** (on-demand) | `docs/AGENTS-DOMAIN-{DEV,SECRETS,NIX,OPS,PPM}.md` | via `/dev /secrets /nix /ops /ppm` slash commands |
+| **DOMAIN packs** (on-demand) | `docs/AGENTS-DOMAIN-{DEV,IAC,NIX,OPS,PPM,SECRETS}.md` | via `/dev /iac /nix /ops /ppm /secrets` slash commands |
 | **PROFILE** (on-demand) | `docs/AGENTS-PROFILE-MARKUS.md` (full Markus profile) | via `/style` slash command |
 | **AGENT role overlays** (on-demand) | `docs/AGENTS-AGENT-{SYSOP,SYSOP-GB,OPENCLAW-OPS,FLEET-DECISION,PPM,PPM-READONLY,DEV}.md` | via role-specific slash commands |
 | **Reference** (on-demand) | `docs/AGENTS-CORE.md` (full universal-rules reference, 64k) | direct Read tool when exhaustive citation needed |
@@ -36,7 +36,7 @@ Index: [`docs/AGENTS-INDEX.md`](docs/AGENTS-INDEX.md) tracks all layer files + P
 - **Naming**: **`.cm`** TLD intentional, never auto-correct to `.com`. **INSPR** is the umbrella; Paimos / Pharos / Janus / future tools are inside it (FleetCom is archived, superseded by Pharos).
 - 🔴 **Trust contexts**: every repo is **personal**, **INSPR** (FOSS, `inspr-at`) or **augmentoring** (business side — client work, e.g. `dsccfg`) — classify by **ownership of the output**, never by GitHub org. **Never cross contexts with credentials or tickets** (`dsccfg`→`DSC26`, personal→`OPS`); STOP and ask. Detail: INSPR PPM guidelines `trust-contexts` + `domain-separation-barta-vs-augmentoring`.
 
-For full kernel: see [`docs/AGENTS-KERNEL.md`](docs/AGENTS-KERNEL.md). For depth: load the relevant domain pack via slash command (`/dev /secrets /nix /ops /ppm /style /incident`). Run `/inspr` for the TL;DR map.
+For full kernel: see [`docs/AGENTS-KERNEL.md`](docs/AGENTS-KERNEL.md). For depth: load the relevant domain pack via slash command (`/dev /iac /nix /ops /ppm /secrets /style /incident`). Run `/inspr` for the TL;DR map.
 
 <!-- KERNEL-MIRROR-END -->
 

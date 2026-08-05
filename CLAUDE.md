@@ -3,7 +3,7 @@
 
   POST-PHASE-6 (INSPR-189, 2026-05-15):
   Auto-loaded doctrine = KERNEL only. Domain-specific rules load on demand
-  via slash commands (/dev, /ops, /secrets, /nix, /ppm, /style, /incident).
+  via slash commands (/dev, /iac, /nix, /ops, /ppm, /secrets, /style, /incident).
   Kernel includes the slash-command router; run /inspr for the TL;DR map.
 
   Pre-Phase-6 sessions auto-loaded ~127k chars (CORE 64k + PROFILE-MARKUS 47k +

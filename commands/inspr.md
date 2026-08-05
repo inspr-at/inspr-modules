@@ -34,6 +34,7 @@ Three tiers:
 | `/ops`             | `AGENTS-DOMAIN-OPS.md` + `AGENTS-AGENT-SYSOP.md`                     | Fleet ops, SSH between hosts, NixOS deploys              |
 | `/secrets`         | `AGENTS-DOMAIN-SECRETS.md`                                           | agenix, 1P CLI, env-file pipeline, secrets rotation      |
 | `/nix`             | `AGENTS-DOMAIN-NIX.md`                                               | nix-darwin, Home Manager, devenv, NixOS modules          |
+| `/iac`             | `AGENTS-DOMAIN-IAC.md`                                               | Terraform, Zitadel, Cloudflare — L5 declarative services |
 | `/ppm`             | `AGENTS-DOMAIN-PPM.md` + `AGENTS-AGENT-PPM.md`                       | Project planning, ticket triage, dashboards              |
 | `/style`           | `AGENTS-PROFILE-MARKUS.md`                                           | Need Markus's full style + pacing prefs in depth         |
 | `/incident`        | Incident-response section of CORE + secret-leak protocol             | Security incident, suspected secret leak                 |
