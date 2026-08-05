@@ -39,6 +39,7 @@ Index: [`docs/AGENTS-INDEX.md`](docs/AGENTS-INDEX.md) tracks all layer files + P
 For full kernel: see [`docs/AGENTS-KERNEL.md`](docs/AGENTS-KERNEL.md). For depth: load the relevant domain pack via slash command (`/dev /iac /nix /ops /ppm /secrets /style /incident`). Run `/inspr` for the TL;DR map.
 
 <!-- KERNEL-MIRROR-END -->
+<!-- KERNEL-MIRROR-OF: sha256:7b0e44f00e16bc4d8b954a6fa7eb6810132da227162da08aa1b1d9a92c942e6b — attestation that the mirror block above reflects this exact kernel revision. Update via: sha256sum docs/AGENTS-KERNEL.md (enforced by the kernel-mirror-stamp flake check, INSPR-278). -->
 
 ## Editing rules
 
@@ -50,7 +51,7 @@ For full kernel: see [`docs/AGENTS-KERNEL.md`](docs/AGENTS-KERNEL.md). For depth
 | `docs/AGENTS-AGENT-<ROLE>.md` | per-role overlays |
 | `<repo>/AGENTS.md` (per consuming repo) | repo-specific delta |
 
-After editing kernel: re-mirror the irreducible subset above by hand, OR (future) run a build script when one exists.
+After editing kernel: re-mirror the irreducible subset above by hand, then update the KERNEL-MIRROR-OF stamp below the mirror block (`sha256sum docs/AGENTS-KERNEL.md`) — the `kernel-mirror-stamp` flake check fails until you do (INSPR-278).
 
 After editing anything in `docs/`: bump submodule pin in each consuming repo:
 

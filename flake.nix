@@ -200,6 +200,37 @@
               inherit pkgs;
             };
 
+            # Kernel-mirror freshness gate (INSPR-278). Editing the kernel
+            # without re-mirroring AGENTS.md burned us in INSPR-269 (the 🔴
+            # trust-contexts rule was invisible to non-Claude harnesses for
+            # over a week). The mirror block carries a KERNEL-MIRROR-OF
+            # sha256 attestation the re-mirror step must update; this check
+            # recomputes the kernel hash and fails on mismatch — drift dies
+            # at commit time, before it distributes to any consumer.
+            kernel-mirror-stamp =
+              pkgs.runCommand "kernel-mirror-stamp"
+                {
+                  nativeBuildInputs = [
+                    pkgs.coreutils
+                    pkgs.gnugrep
+                    pkgs.gnused
+                  ];
+                }
+                ''
+                  kernel_hash="$(sha256sum ${./docs/AGENTS-KERNEL.md} | cut -d' ' -f1)"
+                  stamp="$(grep -o 'KERNEL-MIRROR-OF: sha256:[0-9a-f]*' ${./AGENTS.md} | sed 's/.*sha256://')"
+                  if [ -z "$stamp" ]; then
+                    echo "AGENTS.md lacks the KERNEL-MIRROR-OF stamp" >&2
+                    exit 1
+                  fi
+                  if [ "$stamp" != "$kernel_hash" ]; then
+                    echo "kernel-mirror drift: docs/AGENTS-KERNEL.md sha256 ($kernel_hash) != AGENTS.md stamp ($stamp)." >&2
+                    echo "Re-mirror the irreducible subset into AGENTS.md, then update the stamp (sha256sum docs/AGENTS-KERNEL.md)." >&2
+                    exit 1
+                  fi
+                  touch $out
+                '';
+
             # inspr --help must tell the truth (INSPR-258): every dispatch
             # command appears and no stale NOT-YET-IMPLEMENTED claims remain.
             inspr-help-surface =
