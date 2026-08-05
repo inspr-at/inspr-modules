@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **license-surface no longer follows symlinks (INSPR-279).** The legacy-license scan used `grep -R`, which dereferences every symlink met during recursion — on dev machines it traversed `/nix/store` closures through `result`/`result-1` build artifacts (spurious token hits, perf sink, same commit passing in CI but failing locally depending on which artifacts exist), and the new `doctrine -> .` self-symlink (INSPR-272) raised the exposure. Lowercase `-r` scans only real files; verified in 62 ms against a checkout with all three symlinks present. Lineage: housekeeping finding SH-5, downgraded to low by the Codex challenge and shipped as exactly that.
+
 - **module-eval failures are ordinary check failures, not flake-eval errors (INSPR-267).** The suite threw at flake-eval time, so one red unit test broke `nix flake show` and aborted check enumeration for every sibling check. The suite now returns a structured no-throw result (`{ ok; report; totalRun; totalPassed; failedTests; }`) and the `module-eval` derivation makes the pass/fail decision at build time — report in the build log and at `$out`, non-zero exit on any failure. Proven both ways: with a deliberately failing test injected, `nix flake show` enumerates cleanly and only the module-eval check fails (with a `nix log` pointer). The challenger's cross-system dedup refinement was deliberately declined: per-system eval can genuinely differ (the darwin-only stdenv recursion documented in devenv-direnv-fix.test.nix), so deduping would mask system-specific eval regressions. Found by the 2026-08-04 /housekeeping sweep (NIXMOD-9), KEEP from the Codex adversarial challenge.
 
 ### Planned

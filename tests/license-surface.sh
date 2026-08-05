@@ -19,7 +19,12 @@ fi
 
 legacy_license_token='M''IT'
 legacy_license_pattern="(^|[^[:alnum:]_])${legacy_license_token}([^[:alnum:]_]|$)"
-if grep -REIn --exclude-dir=.git -- "$legacy_license_pattern" "$repo_root"; then
+# Lowercase -r on purpose (INSPR-279): -R dereferences every symlink met
+# during recursion, so the scan followed result/result-1 build artifacts
+# into /nix/store (spurious hits, perf sink, machine-dependent outcome)
+# and would loop-warn on the doctrine -> . self-symlink. -r scans only
+# real files under the root.
+if grep -rEIn --exclude-dir=.git -- "$legacy_license_pattern" "$repo_root"; then
   printf 'legacy project-license declaration remains\n' >&2
   exit 1
 fi
