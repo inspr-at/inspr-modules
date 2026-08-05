@@ -6,6 +6,11 @@
   via slash commands (/dev, /iac, /nix, /ops, /ppm, /secrets, /style, /incident).
   Kernel includes the slash-command router; run /inspr for the TL;DR map.
 
+  IN THIS REPO the commands resolve through self-consumption (INSPR-272):
+  `.claude/commands/*` symlink to `./commands/*`, and the `doctrine -> .`
+  self-symlink makes the consumer-form `@./doctrine/docs/...` refs inside
+  them resolve here too — same layout as every consuming repo.
+
   Pre-Phase-6 sessions auto-loaded ~127k chars (CORE 64k + PROFILE-MARKUS 47k +
   per-repo AGENTS.md). Post-Phase-6 ≤10k chars in this repo (kernel only).
 -->
