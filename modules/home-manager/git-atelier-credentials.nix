@@ -183,19 +183,13 @@ let
     ''
     else true;  # sentinel value — non-null so callers can `builtins.seq` it
 
-  # Forge-kind support gate. MVP supports any forge that uses ssh git@
-  # transport with deploy keys (all enum values in practice). The kind
-  # field is captured for documentation + future forge-specific rendering
-  # (e.g., GitHub Apps under Strategy G1).
-  validateForgeKind =
-    atelierName: atelier:
-    let supportedForMvp = [ "github" "forgejo" "gitlab" "gitea" "sourcehut" "ssh" ]; in
-    if !(lib.elem atelier.forge.kind supportedForMvp)
-    then throw ''
-      inspr.git.atelier."${atelierName}".forge.kind = "${atelier.forge.kind}":
-      not recognized. Supported (MVP): ${lib.concatStringsSep ", " supportedForMvp}.
-    ''
-    else true;
+  # Forge-kind gating: the `forge.kind` enum in the option type is the
+  # single gate — the module system rejects unknown kinds before any code
+  # here can run. (A duplicate validateForgeKind runtime check was deleted
+  # as unreachable dead code, INSPR-264; if per-kind gating returns for
+  # Strategy G1, reintroduce it against the enum, not a second list.)
+  # The kind field is captured for documentation + future forge-specific
+  # rendering (e.g., GitHub Apps under Strategy G1).
 
   # ── Per-atelier renderers ────────────────────────────────────────────────
   # Direct attrset construction via lib.listToAttrs — avoids lib.mkMerge,
@@ -208,12 +202,10 @@ let
       lib.mapAttrsToList (atelierName: atelier:
         # Force validation BEFORE rendering this atelier's contributions.
         # builtins.seq forces its first arg, then returns its second; a
-        # throw in validateAtelier/validateForgeKind propagates here.
+        # throw in validateAtelier propagates here.
         builtins.seq
           (validateAtelier atelierName atelier)
-          (builtins.seq
-            (validateForgeKind atelierName atelier)
-            (lib.mapAttrsToList (repoName: dk:
+          (lib.mapAttrsToList (repoName: dk:
               let
                 host = forgeHost atelier.forge.url;
                 alias = "${host}-${atelierName}-${repoName}";
@@ -237,7 +229,6 @@ let
                 };
               }
             ) atelier.credentials.deployKeys)
-          )
       ) enabledAteliers
     )
   );
@@ -287,22 +278,20 @@ let
       in
         builtins.seq
           (validateAtelier atelierName atelier)
-          (builtins.seq
-            (validateForgeKind atelierName atelier)
-            {
-              name = alias;
-              # HM ≥25.05: see comment in renderedMatchBlocks above.
-              value = {
-                hostname       = host;
-                user           = "git";
-                identityFile   = atelier.credentials.userKey.privateKeyPath;
-                identitiesOnly = true;
-                HostKeyAlias   = host;
-              } // lib.optionalAttrs atelier.manageKnownHosts {
-                UserKnownHostsFile =
-                  "~/.ssh/known_hosts ~/.ssh/known_hosts.d/inspr-git-atelier-${atelierName}";
-              };
-            })
+          {
+            name = alias;
+            # HM ≥25.05: see comment in renderedMatchBlocks above.
+            value = {
+              hostname       = host;
+              user           = "git";
+              identityFile   = atelier.credentials.userKey.privateKeyPath;
+              identitiesOnly = true;
+              HostKeyAlias   = host;
+            } // lib.optionalAttrs atelier.manageKnownHosts {
+              UserKnownHostsFile =
+                "~/.ssh/known_hosts ~/.ssh/known_hosts.d/inspr-git-atelier-${atelierName}";
+            };
+          }
     ) enabledUserKeyAteliers
   );
 

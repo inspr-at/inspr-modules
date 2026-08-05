@@ -6,9 +6,10 @@
 #   - enabled with one atelier + one deployKey renders an SSH match block AND
 #     a url.insteadOf rewrite
 #   - missing-credentials atelier throws (clear error pointing at strategies)
-#   - Strategy B (userKey) throws "not implemented" at eval time
+#   - Strategy B (userKey) renders matchBlock + url rewrites (implemented)
 #   - Strategy C (token) throws "not implemented" at eval time
-#   - Unrecognized forge.kind throws
+#   - Unrecognized forge.kind is rejected by the option ENUM (the type is
+#     the single gate — validateForgeKind deleted as dead code, INSPR-264)
 #   - Multiple ateliers per host materialize independently (per-atelier SSH
 #     alias namespace, per-atelier known_hosts file)
 #   - manageKnownHosts=true with a built-in forge (github.com) renders a
@@ -346,6 +347,21 @@ let
         };
         in r.success
            && lib.any (w: lib.hasInfix "manageKnownHosts" w) r.config.warnings;
+    }
+
+    # ── Unrecognized forge.kind rejected by the enum type (INSPR-264) ────
+    {
+      name = "unrecognized forge.kind fails eval via the option enum";
+      assertion =
+        let r = evalModule {
+          module = gitAtelier;
+          config = {
+            inspr.git.atelier.bogus = refAtelier // {
+              forge = { kind = "subversion"; url = "https://github.com"; owner = "ACME"; };
+            };
+          };
+        };
+        in !r.success;
     }
 
     # ── Strategy B + manageKnownHosts → known_hosts file rendered (INSPR-260)
