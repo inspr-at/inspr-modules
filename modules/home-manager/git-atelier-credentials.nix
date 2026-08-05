@@ -112,7 +112,6 @@
 {
   config,
   lib,
-  options,
   pkgs,
   ...
 }:
@@ -120,12 +119,11 @@
 let
   cfg = config.inspr.git.atelier;
 
-  # HM ≥25.05 introduces `programs.ssh.enableDefaultConfig` and warns when
-  # `programs.ssh.enable = true` without explicit opt-out. Older HM versions
-  # don't have the option — so we conditionally set it only when the
-  # consumer's HM exposes it. INSPR-172 deprecation cleanup, 2026-05-13.
-  hasEnableDefaultConfig =
-    options ? programs && options.programs ? ssh && options.programs.ssh ? enableDefaultConfig;
+  # HM FLOOR: ≥ 25.05 (INSPR-265). The module unconditionally uses
+  # `programs.ssh.settings` / `programs.git.settings` (the ≥25.05 names,
+  # INSPR-172), so older HM fails eval on those regardless — the former
+  # `hasEnableDefaultConfig` options-introspection guard advertised a
+  # compatibility it could never deliver and was removed as dead weight.
 
   # ── Forge URL → host (strip scheme + trailing slash) ────────────────────
   forgeHost =
@@ -721,9 +719,10 @@ in
     # We set it to false (opt-out of the legacy auto-inject) and re-declare
     # the previously-injected defaults under `settings."*"` via mkDefault
     # so consumer flakes keep their historical behaviour but can override.
-    # Guarded so older HM (no `enableDefaultConfig` option) still evaluates
-    # cleanly.
-    (lib.mkIf hasEnableDefaultConfig {
+    # Unconditional since INSPR-265 — HM ≥25.05 is the module's floor, and
+    # the outer `config = lib.mkIf (enabledAteliers != { }) …` already
+    # scopes everything to actually-enabled ateliers.
+    {
       programs.ssh.enableDefaultConfig = lib.mkDefault false;
       programs.ssh.settings."*" = {
         forwardAgent = lib.mkDefault false;
@@ -737,6 +736,6 @@ in
         controlPath = lib.mkDefault "~/.ssh/master-%r@%n:%p";
         controlPersist = lib.mkDefault "no";
       };
-    })
+    }
   ]);
 }

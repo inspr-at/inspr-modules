@@ -349,6 +349,26 @@ let
            && lib.any (w: lib.hasInfix "manageKnownHosts" w) r.config.warnings;
     }
 
+    # ── enableDefaultConfig opt-out + "*" defaults render (INSPR-265) ────
+    # Previously untestable: the block hid behind an options-introspection
+    # guard the stub harness could never satisfy. Now unconditional.
+    {
+      name = "enabled atelier sets enableDefaultConfig=false and the star defaults";
+      assertion =
+        let r = evalModule {
+          module = gitAtelier;
+          config = {
+            inspr.git.atelier.acme = refAtelier;
+          };
+        };
+        ssh = r.config.programs.ssh;
+        in r.success
+           && ssh.enableDefaultConfig == false
+           && ssh.settings."*".forwardAgent == false
+           && ssh.settings."*".addKeysToAgent == "no"
+           && ssh.settings."*".userKnownHostsFile == "~/.ssh/known_hosts";
+    }
+
     # ── Unrecognized forge.kind rejected by the enum type (INSPR-264) ────
     {
       name = "unrecognized forge.kind fails eval via the option enum";
