@@ -1629,6 +1629,13 @@ cmd_post_deploy() {
             --arg host "$host" '.schema == "inspr.hostdash.config.v1" and .version == 1 and .host.name == $host and .policy.declaredOnly == true'
     else
         post_fail "nixcfg generated manifest evaluates" "NIX-277/NIX-279"
+        # Surface the captured diagnosis (INSPR-259): the nix eval error is
+        # usually the entire explanation, and the trap deletes the capture
+        # file on exit — print a labelled bounded tail before it vanishes.
+        if [[ -s "$tmpdir/nix-eval.err" ]]; then
+            echo "    ${DIM}nix eval stderr (last 20 lines):${RESET}" >&2
+            tail -20 "$tmpdir/nix-eval.err" | sed 's/^/    │ /' >&2
+        fi
     fi
 
     if [[ -s "$generated_json" && -f "$artifact" ]]; then
