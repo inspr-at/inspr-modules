@@ -904,8 +904,8 @@ cmd_help() {
     echo ""
     echo "${BOLD}Sub-command flags${RESET} (see each sub-command's help for full list):"
     echo "  ${DIM}inspr check --verbose | --quiet | --list | --profile=<workstation|server>${RESET}"
-    echo "  ${DIM}inspr heal --yes${RESET}     ${DIM}# auto-apply fixable items (NOT YET IMPLEMENTED — see INSPR-195)${RESET}"
-    echo "  ${DIM}inspr onboard${RESET}         ${DIM}# interactive walkthrough (NOT YET IMPLEMENTED — see INSPR-195)${RESET}"
+    echo "  ${DIM}inspr heal --yes${RESET}     ${DIM}# auto-apply fixable items without prompting${RESET}"
+    echo "  ${DIM}inspr onboard${RESET}         ${DIM}# interactive walkthrough (10 steps; optional Pharos registration)${RESET}"
     echo "  ${DIM}inspr post-deploy --host=hsb8${RESET}"
     echo ""
 }

@@ -200,6 +200,28 @@
               inherit pkgs;
             };
 
+            # inspr --help must tell the truth (INSPR-258): every dispatch
+            # command appears and no stale NOT-YET-IMPLEMENTED claims remain.
+            inspr-help-surface =
+              let
+                insprPkg = pkgs.callPackage ./pkgs/inspr { };
+              in
+              pkgs.runCommand "inspr-help-surface"
+                { nativeBuildInputs = [ pkgs.gnugrep ]; } ''
+                  help="$(${insprPkg}/bin/inspr --help)"
+                  for cmd in check heal onboard post-deploy; do
+                    printf '%s' "$help" | grep -q "$cmd" || {
+                      echo "inspr --help no longer mentions '$cmd'" >&2
+                      exit 1
+                    }
+                  done
+                  if printf '%s' "$help" | grep -qi "NOT YET IMPLEMENTED"; then
+                    echo "stale NOT-YET-IMPLEMENTED claim in inspr --help" >&2
+                    exit 1
+                  fi
+                  touch $out
+                '';
+
             # Executes the rendered ssh-authorized activation against
             # synthetic authorized_keys files (INSPR-261): fresh host,
             # valid-marker replacement preserving manual lines, missing
