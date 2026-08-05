@@ -41,4 +41,4 @@ Cross-references on demand:
 - `/secrets` — full secrets pipeline depth
 - `/ops` — SSH matrix, host inventory, recovery routes
 
-For the comprehensive rule reference, see `inspr-modules/docs/AGENTS-CORE.md` topics `incident-response/secret-leak`, `process/host-recovery`, `process/lockout-recovery`.
+For the comprehensive rule reference, see `inspr-modules/docs/AGENTS-CORE.md` topics `incident-response/secret-leak` and `process/host-recovery`; lockout depth lives in `inspr-modules/docs/AGENTS-PROFILE-MARKUS.md` topic `process/lockout-recovery` (INSPR-275: it was never a CORE topic).
