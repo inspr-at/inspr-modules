@@ -170,6 +170,33 @@ let
         };
         in r.success && r.warnings == [ ];
     }
+
+    # ── Retired-dir residue check (INSPR-262) ────────────────────────────
+    {
+      name = "activation renders the retired-dir residue warning for the legacy default";
+      assertion =
+        let r = evalModule {
+          module = agentSecrets;
+          config = baseEnabled;
+        };
+        script = r.config.home.activation.materializeAgentSecrets.data;
+        in r.success
+           && lib.hasInfix "retired secrets dir" script
+           && lib.hasInfix "/Secrets/age/decrypted/agents" script
+           # warn-only contract: the residue block must not delete anything
+           && !(lib.hasInfix "rm -rf \"$RETIRED\"" script);
+    }
+    {
+      name = "retiredDirs = [ ] silences the residue check";
+      assertion =
+        let r = evalModule {
+          module = agentSecrets;
+          config = mkConfig { retiredDirs = [ ]; };
+        };
+        in r.success
+           && !(lib.hasInfix "retired secrets dir"
+                  r.config.home.activation.materializeAgentSecrets.data);
+    }
   ];
 
 in

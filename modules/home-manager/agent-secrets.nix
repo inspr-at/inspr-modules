@@ -240,6 +240,25 @@ in
       '';
     };
 
+    retiredDirs = lib.mkOption {
+      type        = lib.types.listOf lib.types.str;
+      default     = [ "${config.home.homeDirectory}/Secrets/age/decrypted/agents" ];
+      defaultText = lib.literalExpression ''[ "''${config.home.homeDirectory}/Secrets/age/decrypted/agents" ]'';
+      description = ''
+        Former decryptedDir locations to check for plaintext residue at
+        activation (INSPR-262). Any listed directory that differs from the
+        current `decryptedDir` and still contains `*.env` files triggers a
+        loud warning — never deletion: the files are secrets, and disposal
+        is the operator's explicit call.
+
+        The default is the module's own pre-2026-05-13 default
+        (`~/Secrets/age/decrypted/agents/`, retired by the INSPR-164 path
+        flip): hosts that upgraded through that flip may still hold
+        plaintext there, untracked and never rotated. Add entries when you
+        retire a custom decryptedDir; set `[ ]` to silence the check.
+      '';
+    };
+
     identityFiles = lib.mkOption {
       type        = lib.types.listOf lib.types.str;
       default     = [
@@ -291,6 +310,23 @@ in
 
       DECRYPTED_DIR=${lib.escapeShellArg cfg.decryptedDir}
       AGE_BIN="${pkgs.age}/bin/age"
+
+      # Residue check (INSPR-262): warn when a retired decryptedDir still
+      # holds plaintext .env files — nothing tracks or rotates them there.
+      # Warn ONLY, never delete: the files are secrets, disposal is the
+      # operator's explicit call. Runs before the identity requirement so
+      # the warning fires even when the rest of activation fails.
+      ${lib.concatMapStringsSep "\n" (dir: ''
+        RETIRED=${lib.escapeShellArg dir}
+        if [[ "$RETIRED" != "$DECRYPTED_DIR" && -d "$RETIRED" ]]; then
+          residue_count="$(${pkgs.findutils}/bin/find "$RETIRED" -maxdepth 1 -name '*.env' -type f 2>/dev/null | ${pkgs.coreutils}/bin/wc -l | ${pkgs.coreutils}/bin/tr -d ' ')"
+          if [[ "$residue_count" -gt 0 ]]; then
+            echo "agent-secrets: WARNING — $residue_count plaintext .env file(s) remain in retired secrets dir: $RETIRED" >&2
+            echo "agent-secrets:           that path is no longer managed: nothing tracks, rotates, or cleans those files." >&2
+            echo "agent-secrets:           after confirming replacements exist under $DECRYPTED_DIR, inspect and remove the residue." >&2
+          fi
+        fi
+      '') cfg.retiredDirs}
 
       # Pick the first existing SSH identity from the configured list.
       # Backward-compat: if the deprecated singular `identityFile` was set,
