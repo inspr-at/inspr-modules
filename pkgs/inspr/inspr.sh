@@ -74,7 +74,6 @@ EOF
 HOSTNAME_SHORT="$(hostname -s)"
 NIXCFG_DIR="${INSPR_NIXCFG_DIR:-$HOME/Code/nixcfg}"
 INSPR_DIR="${INSPR_DIR:-$HOME/Code/inspr}"
-FLEETCOM_DIR="${FLEETCOM_DIR:-$HOME/Code/fleetcom}"
 SECRETS_DIR="${INSPR_AGENT_SECRETS_DIR:-$HOME/.inspr/secrets/agents}"
 
 # Add nix profile to PATH if missing — agent contexts (SSH, cron, MCP)
@@ -395,7 +394,6 @@ check_secrets_audit_clean() {
 # ── repos ──
 check_repo_nixcfg() { [[ -d "$NIXCFG_DIR/.git" ]]; }
 check_repo_inspr() { [[ -d "$INSPR_DIR/.git" ]]; }
-check_repo_fleetcom() { [[ -d "$FLEETCOM_DIR/.git" ]]; }
 
 # ── doctrine (Phase 6, INSPR-187) ──
 _doctrine_kernel_present() {
@@ -423,11 +421,9 @@ _doctrine_claude_md_loader() {
 
 check_doctrine_nixcfg_kernel_present() { _doctrine_kernel_present "$NIXCFG_DIR"; }
 check_doctrine_inspr_kernel_present() { _doctrine_kernel_present "$INSPR_DIR"; }
-check_doctrine_fleetcom_kernel_present() { _doctrine_kernel_present "$FLEETCOM_DIR"; }
 
 check_doctrine_nixcfg_claude_md_loader() { _doctrine_claude_md_loader "$NIXCFG_DIR"; }
 check_doctrine_inspr_claude_md_loader() { _doctrine_claude_md_loader "$INSPR_DIR"; }
-check_doctrine_fleetcom_claude_md_loader() { _doctrine_claude_md_loader "$FLEETCOM_DIR"; }
 
 check_doctrine_kernel_size_budget() {
     local kernel="$NIXCFG_DIR/doctrine/docs/AGENTS-KERNEL.md"
@@ -734,14 +730,6 @@ heal_cmd_doctrine_inspr_kernel_present() {
     cd "$INSPR_DIR" && git submodule update --init --recursive
 }
 
-heal_fix_doctrine_fleetcom_kernel_present() {
-    echo "auto"
-    echo "cd '$FLEETCOM_DIR' && git submodule update --init --recursive"
-}
-heal_cmd_doctrine_fleetcom_kernel_present() {
-    cd "$FLEETCOM_DIR" && git submodule update --init --recursive
-}
-
 heal_fix_no_legacy_gitconfig() {
     echo "confirm"
     echo "mv ~/.gitconfig ~/.gitconfig.legacy-$(date +%Y%m%d)"
@@ -854,22 +842,16 @@ _run_all_check_sections() {
         "git clone https://github.com/markus-barta/nixcfg.git $NIXCFG_DIR"
     run_check workstation repo_inspr "$INSPR_DIR present" \
         "git clone https://github.com/inspr-at/inspr.git $INSPR_DIR (private)"
-    run_check workstation repo_fleetcom "$FLEETCOM_DIR present" \
-        "git clone https://github.com/markus-barta/fleetcom.git $FLEETCOM_DIR"
 
     section "Doctrine (Phase 6, INSPR-187)"
     run_check workstation doctrine_nixcfg_kernel_present "nixcfg/doctrine submodule initialized + KERNEL.md present" \
         "cd $NIXCFG_DIR && git submodule update --init --recursive  # NOT just git pull --recurse-submodules"
     run_check workstation doctrine_inspr_kernel_present "inspr/doctrine submodule initialized + KERNEL.md present" \
         "cd $INSPR_DIR && git submodule update --init --recursive"
-    run_check workstation doctrine_fleetcom_kernel_present "fleetcom/doctrine submodule initialized + KERNEL.md present" \
-        "cd $FLEETCOM_DIR && git submodule update --init --recursive"
     run_check workstation doctrine_nixcfg_claude_md_loader "nixcfg/CLAUDE.md @-refs kernel (not legacy CORE+PROFILE)" \
         "edit $NIXCFG_DIR/CLAUDE.md to use @./doctrine/docs/AGENTS-KERNEL.md (drop CORE+PROFILE @-refs)"
     run_check workstation doctrine_inspr_claude_md_loader "inspr/CLAUDE.md @-refs kernel (not legacy CORE+PROFILE)" \
         "edit $INSPR_DIR/CLAUDE.md to use @./doctrine/docs/AGENTS-KERNEL.md"
-    run_check workstation doctrine_fleetcom_claude_md_loader "fleetcom/CLAUDE.md @-refs kernel (not legacy CORE+PROFILE)" \
-        "edit $FLEETCOM_DIR/CLAUDE.md to use @./doctrine/docs/AGENTS-KERNEL.md"
     run_check workstation doctrine_kernel_size_budget "kernel is ≤12000 bytes (gatekeeper budget)" \
         "trim $NIXCFG_DIR/doctrine/docs/AGENTS-KERNEL.md OR move content to a domain pack"
 }
@@ -1392,20 +1374,19 @@ cmd_onboard() {
 
     # 1. Repo clones
     local s1
-    s1=$(_step_status repo_nixcfg repo_inspr repo_fleetcom)
-    _step_label "$s1" 1 "Clone nixcfg + inspr + fleetcom under ~/Code/"
+    s1=$(_step_status repo_nixcfg repo_inspr)
+    _step_label "$s1" 1 "Clone nixcfg + inspr under ~/Code/"
     if [[ "$s1" != "ok" ]]; then
         echo "     ${DIM}\$${RESET} git clone https://github.com/markus-barta/nixcfg.git ~/Code/nixcfg"
         echo "     ${DIM}\$${RESET} git clone https://github.com/inspr-at/inspr.git ~/Code/inspr"
-        echo "     ${DIM}\$${RESET} git clone https://github.com/markus-barta/fleetcom.git ~/Code/fleetcom"
     fi
 
     # 2. Doctrine submodules initialized
     local s2
-    s2=$(_step_status doctrine_nixcfg_kernel_present doctrine_inspr_kernel_present doctrine_fleetcom_kernel_present)
+    s2=$(_step_status doctrine_nixcfg_kernel_present doctrine_inspr_kernel_present)
     _step_label "$s2" 2 "Initialize doctrine submodules (Phase-5.QA1 gotcha)"
     if [[ "$s2" != "ok" ]]; then
-        echo "     ${DIM}\$${RESET} for r in ~/Code/{nixcfg,inspr,fleetcom}; do (cd \"\$r\" && git submodule update --init --recursive); done"
+        echo "     ${DIM}\$${RESET} for r in ~/Code/{nixcfg,inspr}; do (cd \"\$r\" && git submodule update --init --recursive); done"
     fi
 
     # 3. Tailscale → Headscale
