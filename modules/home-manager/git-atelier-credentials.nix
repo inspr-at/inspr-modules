@@ -683,12 +683,34 @@ in
     {
       programs.ssh = {
         enable = true;
+        # HM ≥25.05 enableDefaultConfig deprecation handling (INSPR-172):
+        # opt out of the legacy auto-inject; the historical defaults are
+        # re-declared under `settings."*"` below via mkDefault so consumer
+        # flakes keep behaviour but can override. Folded into THIS single
+        # programs.ssh definition (INSPR-265) — a second mkMerge element
+        # doesn't deep-merge under `unspecified`-typed stubs (see the
+        # renderedMatchBlocks comment), and HM ≥25.05 is the module floor
+        # so no capability guard applies.
+        enableDefaultConfig = lib.mkDefault false;
         # Strategy A produces per-repo settings entries; Strategy B produces
         # one per-atelier entry. Namespaces don't collide (A uses
         # `<host>-<atelier>-<repo>`, B uses `git-<atelier>`), so a plain merge
         # via `//` is safe. `settings` is HM ≥25.05 (replaces deprecated
         # `matchBlocks`).
-        settings = renderedMatchBlocks // renderedUserKeyMatchBlocks;
+        settings = renderedMatchBlocks // renderedUserKeyMatchBlocks // {
+          "*" = {
+            forwardAgent = lib.mkDefault false;
+            addKeysToAgent = lib.mkDefault "no";
+            compression = lib.mkDefault false;
+            serverAliveInterval = lib.mkDefault 0;
+            serverAliveCountMax = lib.mkDefault 3;
+            hashKnownHosts = lib.mkDefault false;
+            userKnownHostsFile = lib.mkDefault "~/.ssh/known_hosts";
+            controlMaster = lib.mkDefault "no";
+            controlPath = lib.mkDefault "~/.ssh/master-%r@%n:%p";
+            controlPersist = lib.mkDefault "no";
+          };
+        };
       };
 
       programs.git = lib.mkIf (
@@ -713,29 +735,5 @@ in
       warnings = knownHostsWarnings;
     }
 
-    # ── HM ≥25.05 enableDefaultConfig deprecation handling (INSPR-172) ─────
-    # Newer HM versions warn at activation if `programs.ssh.enable=true` and
-    # `programs.ssh.enableDefaultConfig` is left at its default of `true`.
-    # We set it to false (opt-out of the legacy auto-inject) and re-declare
-    # the previously-injected defaults under `settings."*"` via mkDefault
-    # so consumer flakes keep their historical behaviour but can override.
-    # Unconditional since INSPR-265 — HM ≥25.05 is the module's floor, and
-    # the outer `config = lib.mkIf (enabledAteliers != { }) …` already
-    # scopes everything to actually-enabled ateliers.
-    {
-      programs.ssh.enableDefaultConfig = lib.mkDefault false;
-      programs.ssh.settings."*" = {
-        forwardAgent = lib.mkDefault false;
-        addKeysToAgent = lib.mkDefault "no";
-        compression = lib.mkDefault false;
-        serverAliveInterval = lib.mkDefault 0;
-        serverAliveCountMax = lib.mkDefault 3;
-        hashKnownHosts = lib.mkDefault false;
-        userKnownHostsFile = lib.mkDefault "~/.ssh/known_hosts";
-        controlMaster = lib.mkDefault "no";
-        controlPath = lib.mkDefault "~/.ssh/master-%r@%n:%p";
-        controlPersist = lib.mkDefault "no";
-      };
-    }
   ]);
 }

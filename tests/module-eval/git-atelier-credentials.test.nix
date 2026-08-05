@@ -362,11 +362,14 @@ let
           };
         };
         ssh = r.config.programs.ssh;
+        # The stub types `programs` as unspecified, so mkDefault leaves
+        # stay wrapped ({ _type = "override"; content = …; }) — unwrap.
+        unwrap = v: if lib.isAttrs v && v ? content then v.content else v;
         in r.success
-           && ssh.enableDefaultConfig == false
-           && ssh.settings."*".forwardAgent == false
-           && ssh.settings."*".addKeysToAgent == "no"
-           && ssh.settings."*".userKnownHostsFile == "~/.ssh/known_hosts";
+           && unwrap ssh.enableDefaultConfig == false
+           && unwrap ssh.settings."*".forwardAgent == false
+           && unwrap ssh.settings."*".addKeysToAgent == "no"
+           && unwrap ssh.settings."*".userKnownHostsFile == "~/.ssh/known_hosts";
     }
 
     # ── Unrecognized forge.kind rejected by the enum type (INSPR-264) ────
