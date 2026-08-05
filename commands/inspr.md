@@ -12,7 +12,7 @@ All agent doctrine for `~/Code/{nixcfg,inspr,amt-com,ops,inspr-modules}` is publ
 
 Three tiers:
 
-1. **KERNEL** (`AGENTS-KERNEL.md`, ~10 k chars) — auto-loaded by `CLAUDE.md @-ref` in every session. Carries hard-safety irreversibles + identity + slash-command router. ALWAYS in context.
+1. **KERNEL** (`AGENTS-KERNEL.md`, currently ~5.5 k; budget ≤12 000 bytes, `wc -c`, enforced by `inspr check`) — auto-loaded by `CLAUDE.md @-ref` in every session. Carries hard-safety irreversibles + identity + slash-command router. ALWAYS in context.
 2. **DOMAIN PACKS** (`AGENTS-DOMAIN-*.md`, ~5–10 k each) — loaded **on demand** when you run a slash command. Each pack contains depth, technique, and workflow guidance for one area (secrets, nix, dev, ops, ppm).
 3. **PER-REPO DELTA** (`<repo>/AGENTS.md`) — auto-loaded alongside kernel via `CLAUDE.md @-ref`. Carries repo-specific rules unique to nixcfg / inspr / amt-com / ops.
 
@@ -23,7 +23,7 @@ Three tiers:
 - `AGENTS-AGENT-*.md` — per-role overlays (SYSOP, SYSOP-GB, OPENCLAW-OPS, FLEET-DECISION, PPM, PPM-READONLY, DEV). Loaded by relevant slash commands.
 
 **Pre-Phase-6 budget**: ~127 k chars auto-loaded per session in nixcfg.
-**Post-Phase-6 budget**: ≤25 k chars (kernel + per-repo AGENTS.md) → ~80 % reduction.
+**Post-Phase-6 auto-load**: kernel + per-repo AGENTS.md. The kernel is budgeted (≤12 000 bytes, enforced); per-repo deltas are not — measured sizes and the audit history live in `AGENTS-INDEX.md` (the original "≤25 k combined" claim was debunked there 2026-07-26).
 
 ## Slash commands
 

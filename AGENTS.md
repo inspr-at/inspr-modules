@@ -10,7 +10,7 @@ For Claude Code, the kernel auto-loads via `CLAUDE.md @-ref ./docs/AGENTS-KERNEL
 
 | Layer | File | Loaded |
 |---|---|---|
-| **KERNEL** (always-on) | `docs/AGENTS-KERNEL.md` (8.9k) | auto via CLAUDE.md @-ref |
+| **KERNEL** (always-on) | `docs/AGENTS-KERNEL.md` (budget ≤12 000 bytes, enforced by `inspr check`) | auto via CLAUDE.md @-ref |
 | **DOMAIN packs** (on-demand) | `docs/AGENTS-DOMAIN-{DEV,IAC,NIX,OPS,PPM,SECRETS}.md` | via `/dev /iac /nix /ops /ppm /secrets` slash commands |
 | **PROFILE** (on-demand) | `docs/AGENTS-PROFILE-MARKUS.md` (full Markus profile) | via `/style` slash command |
 | **AGENT role overlays** (on-demand) | `docs/AGENTS-AGENT-{SYSOP,SYSOP-GB,OPENCLAW-OPS,FLEET-DECISION,PPM,PPM-READONLY,DEV}.md` | via role-specific slash commands |
