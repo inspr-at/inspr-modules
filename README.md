@@ -30,6 +30,7 @@ Reusable Home Manager modules + utilities from the [INSPR](https://inspr.at) ini
 
 | Package | What it does |
 |---|---|
+| `inspr` | The INSPR CLI (evolved from `inspr-doctor`, INSPR-195): `check` (read-only drift diagnosis, incl. the kernel byte-budget gate), `heal` (apply mapped fixes with verified-applied semantics), `onboard` (fresh-host walkthrough, optional Pharos registration), `post-deploy` (nixcfg → Pharos → HostDash validation). |
 | `secrets-audit` | Bash script: detects drift between `secrets/*.age` files and their declarations in `secrets/secrets.nix`. Three modes: human report, `--quiet`, `--json`. |
 
 ## Consumer pattern
@@ -226,9 +227,9 @@ v0.1.0 — extracted from `markus-barta/nixcfg` on 2026-05-02. Tested on:
 - macOS workstation (imac0, x86_64-darwin)
 - NixOS server (csb0, x86_64-linux)
 
-via `inspr-doctor` (private repo today; the script itself is published in
-the inspr-modules CHANGELOG once it's been generalized for non-Markus
-consumers — see roadmap).
+via the bundled `inspr` CLI (`packages.<system>.inspr` — the doctor
+evolved into it per INSPR-195; `inspr check` is the same 34-check
+diagnosis, now shipped from this repo).
 
 Roadmap:
 - NixOS-equivalent modules (currently HM-only — server-side `system_agenix_decrypted` is a doctor check, not yet a module here)
