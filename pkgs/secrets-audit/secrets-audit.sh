@@ -87,14 +87,13 @@ SECRETS_NIX="$SECRETS_DIR/secrets.nix"
 
 # Build the disk set. Declarations include path prefix (e.g.
 # "agents/shared/FOO.age"), so we capture the full relative path.
-# `find -printf` is GNU-only; on BSD/macOS we fall back to sed-strip.
-# (Audit-flagged: INSPR-59 was unused `disk_list`; removed.)
-if disk_paths="$(find "$SECRETS_DIR" -name '*.age' -type f -printf '%P\n' 2>/dev/null)" &&
-    [[ -n "$disk_paths" ]]; then
-    : # GNU find branch succeeded
-else
-    disk_paths="$(find "$SECRETS_DIR" -name '*.age' -type f | sed "s|^$SECRETS_DIR/||")"
-fi
+# One portable pipeline (INSPR-257): run find from inside the dir and
+# strip the constant "./" prefix. This replaces the old GNU/BSD split,
+# whose fallback interpolated $SECRETS_DIR unescaped into a sed regex —
+# a "|" in the path killed the audit opaquely under pipefail, regex
+# metacharacters silently misparsed, and the GNU branch re-ran find
+# whenever the dir was legitimately empty.
+disk_paths="$( (cd "$SECRETS_DIR" && find . -name '*.age' -type f | sed 's|^\./||') )"
 disk_paths="$(echo "$disk_paths" | sort -u)"
 
 # Declared: anything in quoted form `"...age"` in secrets.nix.
