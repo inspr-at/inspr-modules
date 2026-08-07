@@ -21,6 +21,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.3.5] — 2026-08-07
+
+### Fixed
+
+- **`DSC26` is legacy salvage, not a migration (INSPR-289).** v0.3.4 recorded `DSC26` as "moves to `pma`" on the strength of its issue counts — 29 open, activity two days prior — which read as live client work that would be stranded by a freeze. It is not: `DSC26` is the project for the server **`dsc0`**, which is being repurposed as an augmentoring host. What was wanted was a paper trail and knowledge salvage, not 76 tickets in a new home. Nothing migrated. The disposition table now says **legacy, frozen**, and the pack points at the salvage instead. Corrected within hours, before anything was moved.
+- **The salvage itself.** `pma` OPS runbook `dsc0-to-amg0-salvage` carries what 76 tickets established and a rebuild would otherwise rediscover: the deploy pipeline and its two-SSH-key topology (plus the `Permission denied (publickey)` failure that means the host's deploy key was dropped from the repo, not that the deploy broke); why `system.autoUpgrade` is disabled on VPS hosts and what must be fixed before re-enabling it; the eight-step root→`mba`+sudo migration with its blocking nine-point validation before root is disabled; Pharos beacon replacing FleetCom; and the encrypted-swap label mismatch that bit during install. It also records that the host **already** runs augmentoring workloads (a Zitadel staging instance, the Pharos kernel posture collector), so the successor is not greenfield — and flags one **open security residual** to clear at handover: a live token for a decommissioned fleet system, which is precisely the kind of thing that survives a rebuild unnoticed when a box changes hands. The client and personal agent workloads on that host were deliberately **not** carried across the trust boundary; they stay with the frozen project. Target-name spelling (`amg0` as given vs the existing `agm<N>` convention) is flagged in the runbook for confirmation before it propagates into flake attrs and secrets paths.
+
+---
+
 ## [0.3.4] — 2026-08-07
 
 ### Changed
