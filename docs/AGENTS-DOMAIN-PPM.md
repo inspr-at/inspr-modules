@@ -65,13 +65,15 @@ ls ~/.inspr/secrets/agents/         # raw-curl env-files only; never read conten
   - **`pma`** — the **augmentoring** (business) instance; URL lives in `inspr.paimos-cli.instances`, not here. Reach it with `paimos --instance pma`.
 - 🔴 The two instances **are** the trust boundary from the kernel's trust-contexts rule. Never carry credentials or ticket references across. Classify by **ownership of the output**; if a task doesn't obviously belong to one side, **STOP and ask** rather than guessing.
 - 🔴 **Business work belongs on `pma`** — decided 2026-08-07. Personal and INSPR work stays on `ppm`.
-- 🔴 **A line was drawn on 2026-08-07: nothing migrates in bulk.** The business projects on `ppm` are **frozen** — finish the work already open in them there, but **file nothing new**. New business work starts on `pma`. Two exceptions, decided the same day:
+- 🔴 **A line was drawn on 2026-08-07: nothing migrates.** The business projects on `ppm` are **frozen** — finish the work already open in them there, but **file nothing new**. New business work starts on `pma`.
 
   | `ppm` project | Disposition |
   | --- | --- |
   | `AGM`, `AMTDEL`, `AMTWEB`, `START`, `AMTCO` | **frozen** — close out what's open, file nothing new |
-  | `DSC26` | **moves to `pma`** — live client work, kept whole rather than split (INSPR-289) |
+  | `DSC26` | **legacy, frozen** — the project for server `dsc0`, which is being repurposed as an augmentoring host. Knowledge salvaged, tickets not migrated (INSPR-289) |
   | `GSC26` | **archived** — 0 open of 91, last activity 2026-07-23. File nothing, and do not reopen without asking |
+
+- 🟡 The `DSC26` host transition is a **knowledge salvage, not a migration**: `pma` OPS runbook `dsc0-to-amg0-salvage` carries the deploy pipeline, the two-SSH-key topology and its failure mode, the root→`mba`+sudo sequence, why `system.autoUpgrade` is off on VPS hosts, and an open security residual to clear at handover. The 76 `DSC26` issues stay frozen on `ppm`; cite `DSC26-<n>` as historical pointers, not actionable tickets. The client and personal agent workloads on that host were deliberately **not** carried across the trust boundary.
 
 - 🟡 `GSC26` is archived **by decision, not by mechanism** — Paimos has no project archive (the project entity is `{name, key, description}`; `status` is not writable). It will keep reporting `active`. Treat this table as the truth, not the API. Feature request: PAI-754.
 - 🟡 **Never create a project on one instance to mirror one that lives on the other.** A split project is worse than a temporarily misplaced ticket. `paimos project list --instance pma` before filing anything business-side.
@@ -105,7 +107,7 @@ Every key below lives on **`ppm`** — including the business ones, which are sl
 | `SPELD`  | 19 | Spell Dream                     | spelldream          |
 | `GSC26`  | 3  | Website gsc.co.at               | gsc                 |
 | `AMTWEB` | 22 | Augmentoring Website            | amt-com             |
-| `AMTCO`  | 16 | Augmentoring Content            | _(pending — David)_ |
+| `AMTCO`  | 16 | Augmentoring Content            | _(pending)_         |
 
 🟡 **`DSC26` is personal, despite the `-26` suffix.** It's DSC Infrastructure (the `dsccfg` fleet). The suffix pattern-matched the legacy `BON26`/`MER26`-era keys, and doctrine mislabeled it as PMO-internal until 2026-07-13. It's an ordinary PPM project.
 
