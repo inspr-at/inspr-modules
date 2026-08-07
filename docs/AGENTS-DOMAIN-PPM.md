@@ -60,16 +60,20 @@ ls ~/.inspr/secrets/agents/         # raw-curl env-files only; never read conten
 
 ## Endpoints
 
-- **One instance: PPM — `https://pm.barta.cm`.** Everything routes there; there is no second instance and no routing decision to make.
+- **Two instances — routing is a trust-context decision, not a convenience.**
+  - **`ppm` — `https://pm.barta.cm`** (default). Everything **personal** and **INSPR**. Unless a task is explicitly business-side, this is the one.
+  - **`pma`** — the **augmentoring** (business) instance; URL lives in `inspr.paimos-cli.instances`, not here. Reach it with `paimos --instance pma`.
+- 🔴 The two instances **are** the trust boundary from the kernel's trust-contexts rule. Never file personal/INSPR work on the business instance or vice versa, and never carry credentials or ticket references across. Classify by **ownership of the output**; if a task doesn't obviously belong to one side, **STOP and ask** rather than guessing.
+- 🟡 Adding an instance takes **two** steps on a declaratively-managed workstation: `paimos auth login --name <n>` seeds the credential into the OS keyring, and the URL must be declared in `inspr.paimos-cli.instances` — `~/.paimos/config.yaml` is rendered by Home Manager, so an undeclared instance is erased by the next switch ("instance not found"). Learned 2026-08-07 (INSPR-287).
 - Auth: `Authorization: Bearer $PPMAPIKEY` for raw curl; the `paimos` CLI uses a complete environment-only URL/key pair when present, otherwise configured routing plus a process-only `PAIMOS_API_KEY` override or the OS keyring.
 
-🟡 The **PMO** instance (`pm.bytepoets.com`, the former second Paimos) was **decommissioned in June 2026** with the employer exit. Its keys (`PMOAPIKEY`, `PMOURL`, `PMOSERVER*`) and the `pmo` entry in `~/.paimos/config.yaml` are gone. If you see `$PMOURL`, `paimos --instance pmo`, or a former-work → PMO routing rule anywhere, it's stale — it will 401. Flag it.
+🟡 **`pmo` is dead and is not the business instance.** The **PMO** instance (`pm.bytepoets.com`, the former-employer Paimos) was **decommissioned in June 2026** with the employer exit. Its keys (`PMOAPIKEY`, `PMOURL`, `PMOSERVER*`) and the `pmo` entry in `~/.paimos/config.yaml` are gone. If you see `$PMOURL`, `paimos --instance pmo`, or a former-work → PMO routing rule anywhere, it's stale — it will 401. Flag it.
 
 ## Project key reference
 
 Use the human-visible project key in chat, commits, branches, PR titles. Numeric DB id is for API calls only.
 
-All projects live on PPM (`pm.barta.cm`) — there is no second instance.
+Every key below lives on **`ppm`**. The business instance carries its own separate project set — a key from this table does **not** resolve there, and `paimos` will happily create a lookalike if you point it at the wrong instance. Always know which instance you are writing to.
 
 | Key      | id | Project                         | Repo(s)             |
 | -------- | -- | ------------------------------- | ------------------- |

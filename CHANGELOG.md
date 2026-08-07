@@ -21,6 +21,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.3.2] — 2026-08-07
+
+### Fixed
+
+- **The PPM pack no longer denies that a second Paimos instance exists (INSPR-288).** `AGENTS-DOMAIN-PPM.md` — the pack `/ppm` loads — asserted in two places that there is exactly one instance and, verbatim, "no routing decision to make". A second instance went live the same day (INSPR-287), so the pack was telling agents not to think about routing at precisely the moment routing became safety-relevant: the two instances **are** the personal/INSPR ↔ augmentoring boundary that the kernel's 🔴 trust-contexts rule forbids crossing with credentials or tickets. An agent that believes only one instance exists has no reason to check which one it is writing to, and `paimos` will silently create a lookalike project on the wrong side. The Endpoints section now names both instances, states that routing is a trust-context decision, and says STOP and ask when a task doesn't obviously belong to one side; the project-key table is marked `ppm`-only, since those keys do not resolve on the other instance. The retired `pmo` paragraph gained a lead-in clarifying that it is dead **and is not** the business instance — it previously read as "there was a second one, it is gone", which actively misled. Also records the two-step reality of adding an instance on a declaratively-managed workstation: `paimos auth login` seeds the keyring, but the URL must be declared in `inspr.paimos-cli.instances` or the next Home Manager switch erases it. The business instance's URL is deliberately **not** written here — this repo is public; it lives in the consumer's private config. Found by the `/tidyrepo` knowledgebase-freshness step, hours after the instance it describes came into being.
+
+---
+
 ## [0.3.1] — 2026-08-07
 
 ### Fixed
