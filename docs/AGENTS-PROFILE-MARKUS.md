@@ -363,8 +363,8 @@ This document is the authoritative source for Markus Barta's personal preference
   *<sub>src: ~/.claude/.../memory/reference_network_tailscale_headscale.md L13</sub>*
   <!-- rule_ids: reference_network_tailscale_headscale.md:L13:headscale-enrollment-required | cluster: — -->
 
-- 🟡 **STRONG** | `do` | Always use Tailscale (*.ts.barta.cm) when LAN access does not work — works from everywhere
-  *<sub>src: ~/Code/nixcfg/docs/INFRASTRUCTURE.md L190</sub>*
+- 🔴 **HARD** | `do` | When LAN access does not work, reach hosts over the tailnet **by IP** — `tailscale status` to read it, then `ssh mba@100.64.x.y` (cloud keeps `-p 2222`). 🔴 **Never** `*.ts.barta.cm`: MagicDNS is OFF by Markus's permanent decision (it was breaking agent/API sessions) and those names resolve to nothing. See `AGENTS-DOMAIN-OPS.md` § MagicDNS.
+  *<sub>src: ~/Code/nixcfg/docs/INFRASTRUCTURE.md L190 — corrected 2026-08-07 (INSPR-283 / OPS-146)</sub>*
   <!-- rule_ids: INFRASTRUCTURE.md:L190:always-use-tailscale-when-lan-fails | cluster: — -->
 
 - 🟡 **STRONG** | `do` | Cloud servers: ssh mba@cs<n>.barta.cm -p 2222 (csb0, csb1)
