@@ -21,6 +21,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.3.1] — 2026-08-07
+
+### Fixed
+
+- **The cross-repo carve-out no longer demands a review path that cannot exist (INSPR-286).** v0.3.0 made release-pin edits in a foreign repo conditional on "PR + checks — never a direct push to `main`". That condition was written from a repo which has both, and it does not generalize: vendoring v0.3.0 into the three remaining doctrine consumers hit the defect within hours. `inspr` has no CI and 1 PR in 131 commits, `amt-com` none in 88, `ops` none in 21 — zero merge commits across all three. In a single-maintainer repo with no CI, a PR the agent opens and immediately self-merges has no reviewer and no check: it satisfies the letter of the rule while delivering none of its substance, which is the very pattern the rule's own text rejects as _"the repo let me" is not review_. The condition is now two-tier — **where a review path exists, use it; where none exists, the owner's explicit request for that specific change is the gate, never agent initiative.** This still forbids the 2026-08-07 incident that produced the doctrine, because that repo *does* have a PR path and the agent was acting on its own initiative in the first place; the failure was never "no PR", it was "nobody asked". The carve-out's scope also now covers whatever a repo's documented vendoring step requires beyond the pin itself (re-mirroring a doctrine block), which the v0.3.0 wording excluded even though the procedure has always required it. Kernel 6 500 → 6 677 bytes; mirror and `KERNEL-MIRROR-OF` stamp re-synced in the same commit.
+
+---
+
 ## [0.3.0] — 2026-08-07
 
 ### Added
