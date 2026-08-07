@@ -63,7 +63,9 @@ ls ~/.inspr/secrets/agents/         # raw-curl env-files only; never read conten
 - **Two instances — routing is a trust-context decision, not a convenience.**
   - **`ppm` — `https://pm.barta.cm`** (default). Everything **personal** and **INSPR**. Unless a task is explicitly business-side, this is the one.
   - **`pma`** — the **augmentoring** (business) instance; URL lives in `inspr.paimos-cli.instances`, not here. Reach it with `paimos --instance pma`.
-- 🔴 The two instances **are** the trust boundary from the kernel's trust-contexts rule. Never file personal/INSPR work on the business instance or vice versa, and never carry credentials or ticket references across. Classify by **ownership of the output**; if a task doesn't obviously belong to one side, **STOP and ask** rather than guessing.
+- 🔴 The two instances **are** the trust boundary from the kernel's trust-contexts rule. Never carry credentials or ticket references across. Classify by **ownership of the output**; if a task doesn't obviously belong to one side, **STOP and ask** rather than guessing.
+- 🔴 **Business work belongs on `pma`** — decided 2026-08-07. Personal and INSPR work stays on `ppm`.
+- 🟡 **Migration is not done, so check before you file.** The business projects still live on `ppm` today (`AGM`, `AMTDEL`, `AMTWEB`, `START`, `AMTCO`, `DSC26`, `GSC26`); `pma` currently carries only `OPS`. Until INSPR-289 moves them, **file where the project actually exists** and never create a duplicate of a project on the other instance to satisfy the rule — a split project is worse than a temporarily misplaced ticket. `paimos project list --instance pma` is the check.
 - 🟡 Adding an instance takes **two** steps on a declaratively-managed workstation: `paimos auth login --name <n>` seeds the credential into the OS keyring, and the URL must be declared in `inspr.paimos-cli.instances` — `~/.paimos/config.yaml` is rendered by Home Manager, so an undeclared instance is erased by the next switch ("instance not found"). Learned 2026-08-07 (INSPR-287).
 - Auth: `Authorization: Bearer $PPMAPIKEY` for raw curl; the `paimos` CLI uses a complete environment-only URL/key pair when present, otherwise configured routing plus a process-only `PAIMOS_API_KEY` override or the OS keyring.
 
@@ -73,7 +75,7 @@ ls ~/.inspr/secrets/agents/         # raw-curl env-files only; never read conten
 
 Use the human-visible project key in chat, commits, branches, PR titles. Numeric DB id is for API calls only.
 
-Every key below lives on **`ppm`**. The business instance carries its own separate project set — a key from this table does **not** resolve there, and `paimos` will happily create a lookalike if you point it at the wrong instance. Always know which instance you are writing to.
+Every key below lives on **`ppm`** — including the business ones, which are slated to move to `pma` under INSPR-289 but have not yet. A key from this table does **not** resolve on `pma`, and `paimos` will happily create a lookalike project if you point it at the wrong instance. Always know which instance you are writing to.
 
 | Key      | id | Project                         | Repo(s)             |
 | -------- | -- | ------------------------------- | ------------------- |
