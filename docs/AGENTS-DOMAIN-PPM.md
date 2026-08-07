@@ -65,7 +65,16 @@ ls ~/.inspr/secrets/agents/         # raw-curl env-files only; never read conten
   - **`pma`** — the **augmentoring** (business) instance; URL lives in `inspr.paimos-cli.instances`, not here. Reach it with `paimos --instance pma`.
 - 🔴 The two instances **are** the trust boundary from the kernel's trust-contexts rule. Never carry credentials or ticket references across. Classify by **ownership of the output**; if a task doesn't obviously belong to one side, **STOP and ask** rather than guessing.
 - 🔴 **Business work belongs on `pma`** — decided 2026-08-07. Personal and INSPR work stays on `ppm`.
-- 🟡 **Migration is not done, so check before you file.** The business projects still live on `ppm` today (`AGM`, `AMTDEL`, `AMTWEB`, `START`, `AMTCO`, `DSC26`, `GSC26`); `pma` currently carries only `OPS`. Until INSPR-289 moves them, **file where the project actually exists** and never create a duplicate of a project on the other instance to satisfy the rule — a split project is worse than a temporarily misplaced ticket. `paimos project list --instance pma` is the check.
+- 🔴 **A line was drawn on 2026-08-07: nothing migrates in bulk.** The business projects on `ppm` are **frozen** — finish the work already open in them there, but **file nothing new**. New business work starts on `pma`. Two exceptions, decided the same day:
+
+  | `ppm` project | Disposition |
+  | --- | --- |
+  | `AGM`, `AMTDEL`, `AMTWEB`, `START`, `AMTCO` | **frozen** — close out what's open, file nothing new |
+  | `DSC26` | **moves to `pma`** — live client work, kept whole rather than split (INSPR-289) |
+  | `GSC26` | **archived** — 0 open of 91, last activity 2026-07-23. File nothing, and do not reopen without asking |
+
+- 🟡 `GSC26` is archived **by decision, not by mechanism** — Paimos has no project archive (the project entity is `{name, key, description}`; `status` is not writable). It will keep reporting `active`. Treat this table as the truth, not the API. Feature request: PAI-754.
+- 🟡 **Never create a project on one instance to mirror one that lives on the other.** A split project is worse than a temporarily misplaced ticket. `paimos project list --instance pma` before filing anything business-side.
 - 🟡 Adding an instance takes **two** steps on a declaratively-managed workstation: `paimos auth login --name <n>` seeds the credential into the OS keyring, and the URL must be declared in `inspr.paimos-cli.instances` — `~/.paimos/config.yaml` is rendered by Home Manager, so an undeclared instance is erased by the next switch ("instance not found"). Learned 2026-08-07 (INSPR-287).
 - Auth: `Authorization: Bearer $PPMAPIKEY` for raw curl; the `paimos` CLI uses a complete environment-only URL/key pair when present, otherwise configured routing plus a process-only `PAIMOS_API_KEY` override or the OS keyring.
 
