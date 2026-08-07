@@ -21,6 +21,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.3.4] — 2026-08-07
+
+### Changed
+
+- **Per-project dispositions for the business migration (INSPR-289).** v0.3.3 stated the routing rule but left every business project sitting on the wrong instance with only "file where the project exists" as guidance. The decision landed the same day: **a line is drawn — nothing migrates in bulk.** The five augmentoring-internal projects (`AGM`, `AMTDEL`, `AMTWEB`, `START`, `AMTCO`) are **frozen**: finish what is already open in them on `ppm`, file nothing new, and start new business work on `pma`. Two exceptions — `DSC26` **moves** (live client work, 29 open issues and activity two days before the decision; splitting it across instances would strand the open half, so the project has been created on `pma`), and `GSC26` is **archived** (0 open of 91, last activity 2026-07-23 — genuinely finished). The pack now carries this as a table, because routing by principle alone was not enough to act on.
+- **`GSC26` is archived by decision, not by mechanism — and the pack says so.** Paimos has no project archive: the project entity is `{required: [name, key], optional: [description]}`, `status` is not writable through the documented API, and nothing in `/api/schema` mentions archiving. So the project will keep reporting `active` in `paimos project list` no matter what the doctrine says, and an agent picking work from the API alone cannot tell a finished project from a live one. The pack states explicitly that the table is the truth and the API is not. Feature request filed as PAI-754, covering `frozen` as well — "finish what's open, file nothing new" is likewise a real state with no representation.
+
+---
+
 ## [0.3.3] — 2026-08-07
 
 ### Changed
