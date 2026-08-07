@@ -21,6 +21,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.3.3] — 2026-08-07
+
+### Changed
+
+- **Business work routes to the business Paimos instance (INSPR-289).** v0.3.2 named both instances but left the routing decision open, telling agents to STOP and ask whenever a task was business-side — correct while undecided, and a recurring interruption once it wasn't. Decided 2026-08-07: **business/augmentoring work belongs on `pma`, personal and INSPR work stays on `ppm`.** The pack states the rule, and the INSPR `trust-contexts` guideline's ticket-routing bullet — which had said tickets route to "the context's own **PPM** project", written when PPM was the only instance — now routes by instance as well as by project. The rule ships with the caveat that makes it usable: **migration has not happened.** All seven business projects (`AGM`, `AMTDEL`, `AMTWEB`, `START`, `AMTCO`, `DSC26`, `GSC26` — 281 issues) still live on `ppm`, while `pma` carries only `OPS`, so the doctrine says to file where the project actually exists and explicitly forbids creating a duplicate project on the other instance to satisfy the rule — a split project is worse than a temporarily misplaced ticket. Migration is INSPR-289, and it is an export/import rather than a move: `paimos issue move` reassigns between projects on one instance, but the two instances are separate deployments, so every issue key and numeric id changes and every commit message, branch name, and cross-reference pointing at them breaks. Two of the seven are client projects, which makes changing their ticket keys a coordination question and not only a technical one.
+
+---
+
 ## [0.3.2] — 2026-08-07
 
 ### Fixed
