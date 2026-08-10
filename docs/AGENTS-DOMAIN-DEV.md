@@ -55,6 +55,7 @@ Kernel: scan diff + status before every commit; never amend; never destructive o
 - 🟡 Use the repo's package manager and runtime; no swaps without approval.
 - 🟡 Update docs (README/RUNBOOK) when behavior or API changes — no ship without docs.
 - 🟡 After shipping anything claimed-as-done, do a structured C/H/M/O severity pass through the artifacts: "would this withstand a tough security and validity audit?".
+- 🟡 A claimed-as-done change must name its durable, inspectable artifact evidence. For code, record the repository plus commit or commit range; for deployments, bind the exact release/image/digest to a live behavior check; for documents and generated assets, name the durable artifact/version. Status prose, timestamps, and “tests passed” without the resulting artifact are not a completion trail.
 
 ## Pattern: critical thinking & editing discipline
 
