@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Done claims now require durable artifact evidence (INSPR-293 / PAI-702).** The development pack makes the completion trail explicit across code, deployments, documents, and generated assets: name the repository plus commit/range, bind a deployed release/image/digest to a live behavior check, or name the durable artifact/version. Status prose, timestamps, and “tests passed” without the result no longer count as evidence. This belongs in the development pack rather than the always-loaded kernel because it is a global delivery protocol, not a turn-1 irreversible.
+
 ### Planned
 
 - **NixOS VM integration tests** — `pkgs.testers.runNixOSTest` for end-to-end activation testing. Heavy but the gold standard.
