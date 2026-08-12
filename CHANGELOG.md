@@ -21,6 +21,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.3.7] — 2026-08-12
+
+### Fixed
+
+- **The v0.3.6 credential example was itself unverified — and wrong (INSPR-294 follow-up).** The example said the Home Assistant token is `HASS_TOKEN` in `/run/agenix/hsb1-smarthome-env`, copied from `nixcfg SMARTHOME.md`. The same session disproved it within the hour: a names-only listing of the HA container's environment shows no HA token in that file at all. The real LLAT is agenix `hsb0-openclaw-hass-token`, mounted at `/run/secrets/hass-token` in the OpenClaw containers on **hsb0** — the *consumer's* host, not the service's. The example now points at the verified location, and the pattern gained two bullets the incident earned: credentials live with their consumer, which may not be the host running the service; and repo docs go stale, so verify a credential location (names-only check or live call) before relying on it or re-documenting it. The stale nixcfg doc is NIX-355.
+
+---
+
 ## [0.3.6] — 2026-08-12
 
 ### Added

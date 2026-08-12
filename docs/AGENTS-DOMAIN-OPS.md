@@ -74,8 +74,10 @@ Fleet services (Home Assistant, MQTT brokers, cameras, …) authenticate with pe
   ssh mba@<host>.lan "bash -c '( set -a; source /run/agenix/<host>-<service>-env; set +a; <cmd using \$VAR> )'"
   ```
 
-- 🟡 Which env file carries which variable: the host's PPM runbook entry (`paimos knowledge get runbook host-<name> --project OPS`) is canonical; long-form reference in `nixcfg hosts/<host>/docs/`. Example: Home Assistant API on hsb1 → `HASS_TOKEN` in `/run/agenix/hsb1-smarthome-env`.
-- 🔴 Kernel secret rules apply unchanged: never `cat`/read the env file, never echo the variable — source-and-use only.
+- 🟡 Which file carries which credential: the host's PPM runbook entry (`paimos knowledge get runbook host-<name> --project OPS`) is canonical; long-form reference in `nixcfg hosts/<host>/docs/`. Example: the Home Assistant LLAT is `/run/secrets/hass-token` inside the OpenClaw containers on **hsb0** (agenix `hsb0-openclaw-hass-token`), used cross-host against HA on hsb1.
+- 🟡 The credential lives with its **consumer**, which may be a different host than the service — the HA token sits on hsb0 (OpenClaw consumes it), not on hsb1 where HA runs. Grep the agenix inventory (`nixcfg secrets/*.age` file *names*) before concluding no credential exists.
+- 🟡 Repo docs go stale — verify a documented credential location (names-only env check, or a live call) before relying on it or re-documenting it. Precedent: SMARTHOME.md claimed a `HASS_TOKEN` that did not exist (NIX-355).
+- 🔴 Kernel secret rules apply unchanged: never `cat`/read the env file, never echo the variable — source-and-use only (in-container `$(cat …)` feeding a header, or subshell `source`, never output).
 
 ## Pattern: host recovery
 
