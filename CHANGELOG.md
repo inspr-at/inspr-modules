@@ -9,10 +9,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
-
-- **Done claims now require durable artifact evidence (INSPR-293 / PAI-702).** The development pack makes the completion trail explicit across code, deployments, documents, and generated assets: name the repository plus commit/range, bind a deployed release/image/digest to a live behavior check, or name the durable artifact/version. Status prose, timestamps, and “tests passed” without the result no longer count as evidence. This belongs in the development pack rather than the always-loaded kernel because it is a global delivery protocol, not a turn-1 irreversible.
-
 ### Planned
 
 - **NixOS VM integration tests** — `pkgs.testers.runNixOSTest` for end-to-end activation testing. Heavy but the gold standard.
@@ -22,6 +18,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **1Password tag-export integration** — Phase 2 secrets graduation (consumer-side script that materializes `.age` files from tagged 1Password items). [INSPR-23]
 - **Doctor genericization** — extract Markus-specific values from `inspr-doctor` into config so the same script runs against any consumer's setup. [INSPR-44 follow-up]
 - **Second-instance mirror of the cross-repo authoring doctrine** — the business-side Paimos instance should carry the same guideline as OPS #4336. Blocked on an agent credential for that instance; the `--api-key` argv path is gone (PAI-685), so it needs an interactive `paimos auth login` or a headless `PAIMOS_URL` + `PAIMOS_API_KEY` pair. [INSPR-284 follow-up]
+
+---
+
+## [0.3.6] — 2026-08-12
+
+### Added
+
+- **The ops pack now says where host-local service credentials live (INSPR-294).** A SYSOP session asked to query the Home Assistant API on hsb1 found no token in `~/.inspr/secrets/agents/` and concluded — reasonably, on what doctrine offered — that no access path existed. It did exist: `HASS_TOKEN`, agenix-managed at `/run/agenix/hsb1-smarthome-env` on the host itself. Four layers were checked and none carried it: the kernel documents only the workstation agent-token convention (INSPR-164), the `/ops` pack had an SSH matrix but no credential access pattern, the `/secrets` pack never mentions host-local `*-env` service credentials, and the PPM `host-hsb1` runbook covers automation rules but not API access. The only documentation was `nixcfg/hosts/hsb1/docs/SMARTHOME.md`, findable by grepping a foreign repo. The ops pack now carries the pattern: per-host service tokens live at `/run/agenix/<host>-<service>-env` **on the host**, are sourced there via ssh so the value never leaves it, and the per-host variable inventory is the host's PPM runbook entry. An empty agents dir does not mean no access path exists.
+
+### Changed
+
+- **Done claims now require durable artifact evidence (INSPR-293 / PAI-702).** The development pack makes the completion trail explicit across code, deployments, documents, and generated assets: name the repository plus commit/range, bind a deployed release/image/digest to a live behavior check, or name the durable artifact/version. Status prose, timestamps, and “tests passed” without the result no longer count as evidence. This belongs in the development pack rather than the always-loaded kernel because it is a global delivery protocol, not a turn-1 irreversible.
 
 ---
 

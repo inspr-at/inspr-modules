@@ -64,6 +64,19 @@ On macOS, `/etc/ssh/*.pub` is world-readable — read pubkeys via plain `cat`, n
 - 🟡 Query **Pharos** (<https://pharos.barta.cm> — `pharosd` on csb1) as the canonical live source for fleet inventory; HostDash renders the same data for humans. Never assume static lists. FleetCom is archived — never query `fleet.barta.cm`.
 - 🟡 **msbp is gone.** It left with the June 2026 employer exit — not our host, not our config, not our tickets. Its config lived in the former work flake and its tickets in PMO/BPOPS26; both are out of scope. Don't route work there, and don't expect it in fleet inventory.
 
+## Pattern: host-local service credentials
+
+Fleet services (Home Assistant, MQTT brokers, cameras, …) authenticate with per-host tokens that are **agenix-managed on the host itself** — `/run/agenix/<host>-<service>-env` — and never mirrored to the workstation. The workstation convention (`~/.inspr/secrets/agents/<NAME>.env`, INSPR-164) covers only agent-scoped tokens: **an empty agents dir does NOT mean no access path exists.** (INSPR-294.)
+
+- 🟡 Use the credential **on the host**, so the value never leaves it and never enters the transcript:
+
+  ```sh
+  ssh mba@<host>.lan "bash -c '( set -a; source /run/agenix/<host>-<service>-env; set +a; <cmd using \$VAR> )'"
+  ```
+
+- 🟡 Which env file carries which variable: the host's PPM runbook entry (`paimos knowledge get runbook host-<name> --project OPS`) is canonical; long-form reference in `nixcfg hosts/<host>/docs/`. Example: Home Assistant API on hsb1 → `HASS_TOKEN` in `/run/agenix/hsb1-smarthome-env`.
+- 🔴 Kernel secret rules apply unchanged: never `cat`/read the env file, never echo the variable — source-and-use only.
+
 ## Pattern: host recovery
 
 ### Post-reboot health
