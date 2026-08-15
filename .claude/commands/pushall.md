@@ -1,1 +1,0 @@
-../../commands/pushall.md
