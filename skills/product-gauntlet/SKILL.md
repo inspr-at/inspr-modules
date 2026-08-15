@@ -80,6 +80,12 @@ git worktree add -b feat/<epic>-<slug> .claude/worktrees/<slug> main
 State **explicit file ownership** in every brief — the paths this agent owns, and the paths others
 own that it must not touch. Overlap you do not name in advance becomes a merge you resolve by hand.
 
+**Split shared surfaces out of per-unit work.** When converting one route, page or module at a time,
+anything shared by all of them — a shell, a sidebar, a stylesheet — cannot be changed inside a single
+unit's ticket without either duplicating it or silently changing every other unit at once. Give the
+shared surface its own ticket, ideally one that changes presentation without touching markup, so it
+lands everywhere at once and stays reviewable on its own.
+
 Four environment facts, each learned the hard way. Plan around them rather than discovering them:
 
 - **A sandboxed agent cannot write `.git` at all** — no commit, no `git fetch`, no worktree
@@ -108,6 +114,13 @@ lacks.** And when a verification step fails, check your own harness before blami
 yourself is the same collision with extra steps: a `git add` picks up another task's in-flight edit
 and the commit carries changes that do not belong to it. If two things are being worked on, that is
 two worktrees, and the controller is one of the two.
+
+That rule holds across *sessions*, not just across agents. Another agent working on the human's
+behalf can be operating in the same checkout, and a peer that finishes its work may leave the tree
+on its own branch. Discovering that by running `git checkout main` would yank the tree out from
+under a live session mid-operation. **Convention worth agreeing explicitly with any peer: whoever
+is not the repo's active owner works in a worktree, and the shared checkout stays on the default
+branch.** Announce before touching a repo you do not own, and say what you are working in.
 
 **Long prompts go in a file.** A multi-thousand-character art-direction or spec prompt inlined into
 a shell command will break its own quoting, and the tool may then sit silently waiting on stdin
@@ -197,6 +210,14 @@ When a ticket hits `qa`, you review it. In order:
    two *agree* rather than pinning the literal in both places. A test that hard-codes the same
    number twice does not catch drift, it just fails later and blames the wrong change.
 
+**Know what a checkout can hand you.** Harness configuration — command files, skills, hooks — is
+generally a property of the *working tree*, not of the merged branch. Files arriving from an
+unreviewed branch can become invocable in every session sharing that checkout, with no review gate
+between "an agent wrote it" and "anyone can run it". This is invisible while such files are only
+documentation, which is exactly when the missing gate goes unremarked. `direnv` solves the same
+problem for `.envrc` with per-path explicit consent; treat an unfamiliar checkout with the same
+suspicion.
+
 Then accept in PPM with a close note recording *what you actually verified* and the exact state
 (committed on which branch, merged or not). Or bounce it back with a specific reason.
 
@@ -232,6 +253,27 @@ Builder-plus-blind-critic rounds:
 **Never run a gauntlet where an exact oracle exists.** If a byte-identical diff or a parity test can
 answer the question, use it — a critic's judgement is strictly worse than a check that is either
 empty or not.
+
+## The failure class worth building checks against
+
+The most expensive defects share one shape: **an artefact asserts something false, and no layer
+contradicts it.** Nothing errors, tests pass, health is green, and the only thing that fails is
+whoever believed the assertion. Real examples, all found only by using the thing:
+
+- help text describing a private repository as public, so the first real deploy failed for want of
+  credentials nobody knew were needed
+- a container network flagged `internal: true`, which silently disables host port publishing — the
+  binding is accepted, never established, and the container still reports **healthy**
+- a value pinned independently in two files, which drifted, after which the test blamed the wrong
+  change
+
+None is catchable by linting one file, because the bug is not *in* an artefact — it is in the gap
+between two artefacts. Only something comparing them can see it. So prefer checks of the form
+**declared versus actual**: derive the value from its source of truth and assert the consumer
+matches, rather than asserting either against a literal.
+
+Corollary for briefs: a claim in a brief is an artefact too. Verify the environment before asserting
+it to an agent, or you will send it confidently in the wrong direction.
 
 ## Daily recap
 
