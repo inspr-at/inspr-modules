@@ -7,9 +7,39 @@ You are now in **PPM mode**. Focus: planning, ticket workflow, time tracking. Re
 
 ## Default project resolution
 
-Each consuming repo declares its PPM project in its own `AGENTS.md`. Look for sections like "Project ID" / "PPM Project" / "Project Management" — that's the default project for this session.
+Each consuming repo declares its Paimos project in its own `AGENTS.md`. Look for sections like "Project ID" / "PPM Project" / "Project Management" — that's the default project for this session.
 
 If the current repo has no such declaration, ask the user which project to scope to.
+
+🔴 **Resolve the INSTANCE, not just the project key.** The CLI defaults to
+`ppm` (personal). A business repo whose project lives on `pma` will, unqualified,
+silently read the wrong tracker — in an augmentoring-team repo that means hitting
+a *frozen* project instead of the live one. Read the instance from the same
+`AGENTS.md` declaration and pass it explicitly on every call:
+
+```bash
+paimos --instance <declared> issue list -p <PROJECT_KEY>
+```
+
+If the repo names a project but not an instance, that is a defect in the repo's
+`AGENTS.md` — say so rather than guessing. Personal and INSPR work is `ppm`;
+business/augmentoring work is `pma`.
+
+🟡 **A key that does not resolve is not proof the data is gone.** Frozen
+projects are omitted from `project list` and rejected by project-scoped calls,
+while their issues stay readable by key. Verified 2026-08-15 on `ppm`:
+
+| Operation | Result |
+|---|---|
+| `paimos project list` | frozen projects **absent** |
+| `paimos issue list -p AMTWEB` | `Error: project key "AMTWEB" not found (are you on the right --instance?)` |
+| `paimos issue get AMTWEB-1` | **works** — returns the ticket |
+
+That error text is actively misleading: it blames `--instance` when the instance
+is correct and the project is merely frozen. An agent followed exactly that hint
+against `AGM`, concluded the backlog was lost, and recreated four tickets from
+reconstructed evidence — the originals were readable the whole time. **Before
+concluding anything is missing, try `issue get <KEY>`.**
 
 ## Constraints
 
@@ -25,7 +55,7 @@ If the current repo has no such declaration, ask the user which project to scope
 
 Show a **project dashboard** for the resolved default project:
 
-1. Fetch issues: `paimos issue list -p <PROJECT_KEY> --json` (or via API).
+1. Fetch issues: `paimos --instance <declared> issue list -p <PROJECT_KEY> --json` (or via API).
 2. Group by epic; for each epic show:
    - Epic title + status
    - Child-ticket counts by status (new / backlog / in-progress / qa / done /
