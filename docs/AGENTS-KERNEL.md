@@ -50,7 +50,7 @@ _Auto-loaded. Universal hard-safety + identity + router. Carries ONLY rules wher
 
 ## ROUTER — load before working in a domain
 
-`/inspr` map · `/nix` nix-darwin + HM + NixOS modules · `/ops` fleet + SSH + deploys (SYSOP) · `/secrets` agenix + 1P + env pipeline · `/iac` Terraform / Zitadel / Cloudflare · `/dev` code + tests + git workflow · `/ppm` tickets + planning · `/style` full Markus profile · `/incident` leak protocol · `/push` · `/pushall`
+`/inspr` map · `/nix` nix-darwin + HM + NixOS modules · `/ops` fleet + SSH + deploys (SYSOP) · `/secrets` agenix + 1P + env pipeline · `/iac` Terraform / Zitadel / Cloudflare · `/dev` code + tests + git workflow · `/ppm` tickets + planning · `/style` full Markus profile · `/incident` leak protocol · `/push`
 
 Budget before loading — heavy: `/style` ≈46k · `/ppm` ≈22k · `/incident` ≈20k · `/ops` ≈18k. The rest are 9–11k. nixcfg adds repo-local `/ocbots`, `/modelhelp`, `/oc-modelupdate`.
 

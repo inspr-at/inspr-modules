@@ -40,8 +40,7 @@ Kernel: scan diff + status before every commit; never amend; never destructive o
 - For big review: `git --no-pager diff --color=never`.
 - Multi-agent repos with not-yours dirt: `git stash push -- <paths>` (path-scoped), pull/push/pop. Don't `git stash` everything.
 - `/push`: commit and push current working directory repo only.
-- `/pushall`: process all doctrine-vendoring workspace repos in order (`inspr-modules` → `nixcfg` → `inspr` → `amt-com` → `ops`) — handles doctrine submodule bump propagation; **no confirmation**, just do it. OpenClaw workspaces (`oc-workspace-*`) and other personal projects are out of scope — use `/push` per repo for those.
-- On either: STOP and alert if diff or working tree shows potential secrets or unexpected files before any push.
+- On `/push`: STOP and alert if diff or working tree shows potential secrets or unexpected files before any push.
 
 ## Pattern: PR and gh CLI
 

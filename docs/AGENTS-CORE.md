@@ -747,9 +747,9 @@ This document is the authoritative source for rules every Claude agent in Markus
   *<sub>src: ~/Code/nixcfg/+agents/rules/AGENTS.md L90</sub>*
   <!-- rule_ids: AGENTS.md:L90:no-amend-unless-asked | cluster: — -->
 
-- 🔴 **HARD** | `always` | On any /push-family slash command (`/push`, `/pushall`): proceed without asking confirmation, but STOP and alert the user if the diff or working tree shows potential secrets or unexpected files before any push happens.
-  *<sub>src: ~/Code/nixcfg/+agents/commands/push.md L15 · ~/Code/nixcfg/+agents/commands/pushall.md L17 · synthesized 2026-05-14 (Phase 4 broadening)</sub>*
-  <!-- rule_ids: push.md:L15:no-confirmation-stop-on-secrets,pushall.md:L17:stop-on-secrets-in-pushall | cluster: git-safety-017 -->
+- 🔴 **HARD** | `always` | On the `/push` slash command: proceed without asking confirmation, but STOP and alert the user if the diff or working tree shows potential secrets or unexpected files before any push happens.
+  *<sub>src: ~/Code/nixcfg/+agents/commands/push.md L15 · synthesized 2026-05-14 (Phase 4 broadening); /pushall half retired 2026-08-15</sub>*
+  <!-- rule_ids: push.md:L15:no-confirmation-stop-on-secrets | cluster: git-safety-017 -->
 
 - 🟡 **STRONG** | `do` | After commits succeed, run `git pull --rebase && git push`
   *<sub>src: ~/Code/nixcfg/+agents/commands/push.md L11</sub>*
@@ -774,14 +774,6 @@ This document is the authoritative source for rules every Claude agent in Markus
 - 🟡 **STRONG** | `do` | On /push, commit and push the current working directory repo only
   *<sub>src: ~/Code/nixcfg/+agents/commands/push.md L1</sub>*
   <!-- rule_ids: push.md:L1:push-cwd-repo-only | cluster: — -->
-
-- 🟡 **STRONG** | `do` | On /pushall do not ask for confirmation — just do it
-  *<sub>src: ~/Code/nixcfg/+agents/commands/pushall.md L27</sub>*
-  <!-- rule_ids: pushall.md:L27:pushall-no-confirmation | cluster: — -->
-
-- 🟡 **STRONG** | `do` | On /pushall process all listed workspace repos in order: nixcfg, oc-workspace-percy, oc-workspace-merlin
-  *<sub>src: ~/Code/nixcfg/+agents/commands/pushall.md L1</sub>*
-  <!-- rule_ids: pushall.md:L1:pushall-process-all-repos-in-order | cluster: — -->
 
 - 🟡 **STRONG** | `do` | Use the repo existing commit message style (check git log --oneline -10)
   *<sub>src: ~/Code/nixcfg/+agents/commands/push.md L9</sub>*
