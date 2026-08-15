@@ -80,20 +80,29 @@ git worktree add -b feat/<epic>-<slug> .claude/worktrees/<slug> main
 State **explicit file ownership** in every brief — the paths this agent owns, and the paths others
 own that it must not touch. Overlap you do not name in advance becomes a merge you resolve by hand.
 
-Three sandbox facts, each learned the hard way. Plan around them rather than discovering them:
+Four environment facts, each learned the hard way. Plan around them rather than discovering them:
 
-- **A sandboxed agent in a linked worktree cannot commit.** A linked worktree's `.git` is a *file*
-  pointing into `<main-repo>/.git/worktrees/<name>/`, which lies outside the sandbox's writable root,
-  so creating `index.lock` fails. Either add that directory to the writable roots, or — simpler —
-  have the **controller commit on the agent's behalf** and say so in the commit message.
-- **A sandboxed agent cannot create a worktree either**, which breaks the usual "check out the
-  baseline to diff against" move. `git archive` of the baseline commit into a temp dir works instead.
-- **A browser will not launch inside a macOS sandbox.** Chrome aborts in `TransformProcessType` while
-  registering with LaunchServices — deterministically, even headless. So **browser-based oracles are
-  the controller's job**, or they run in a pinned Playwright container. Never assign a screenshot or
-  HTML-capture oracle to a sandboxed agent; it will crash the browser once per retry.
+- **A sandboxed agent cannot write `.git` at all** — no commit, no `git fetch`, no worktree
+  creation. This is a deliberate sandbox policy, not a worktree quirk: it bites an ordinary repo
+  whose `.git` sits inside the workspace just as hard. Symptoms are `cannot create index.lock` and
+  `cannot open '.git/FETCH_HEAD': Operation not permitted`.
+  **Fix:** grant it explicitly — `writable_roots: ["/abs/path/to/repo/.git"]`. For a *linked
+  worktree* grant the **main** repo's `.git`, because the worktree's `.git` is only a file pointing
+  into `<main-repo>/.git/worktrees/<name>/`. Without the grant, the controller must commit on the
+  agent's behalf and say so in the commit message.
+- **Without that grant, "check out the baseline to diff against" is impossible.** `git archive` of
+  the baseline commit into a temp dir works instead.
+- **A browser will not launch inside a macOS sandbox.** Chrome aborts in `TransformProcessType`
+  while registering with LaunchServices — deterministically, even headless, and it raises a crash
+  dialog on the human's screen once per retry. So **browser-based oracles are the controller's
+  job**, or they run in a pinned Playwright container.
+- **A fresh worktree has no gitignored build artefacts.** `node_modules` in particular is absent,
+  so a Playwright-based oracle run from inside a worktree dies in Node and produces nothing — which
+  reads exactly like an agent failure and is not one. **Run the oracle from the main checkout
+  against a ref**, never from inside a worktree.
 
-The general rule: **the controller owns anything requiring privileges the sandbox denies.**
+The general rule: **the controller owns anything requiring privileges or artefacts the sandbox
+lacks.** And when a verification step fails, check your own harness before blaming the agent.
 
 ## The agent brief
 
