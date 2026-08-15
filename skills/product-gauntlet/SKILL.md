@@ -104,6 +104,22 @@ Four environment facts, each learned the hard way. Plan around them rather than 
 The general rule: **the controller owns anything requiring privileges or artefacts the sandbox
 lacks.** And when a verification step fails, check your own harness before blaming the agent.
 
+**Give yourself a worktree too.** Isolating every subagent and then editing the shared checkout
+yourself is the same collision with extra steps: a `git add` picks up another task's in-flight edit
+and the commit carries changes that do not belong to it. If two things are being worked on, that is
+two worktrees, and the controller is one of the two.
+
+**Long prompts go in a file.** A multi-thousand-character art-direction or spec prompt inlined into
+a shell command will break its own quoting, and the tool may then sit silently waiting on stdin
+rather than failing — indistinguishable from slow work. Write the prompt to a file and redirect it
+in (`codex exec … - < prompt.txt`). Have the agent write the file too; then the prompt is also a
+reviewable artefact.
+
+**Verify the environment before you promise it to an agent.** Is the container runtime up? Is
+`direnv` allowed in a fresh worktree? Does the browser launch? Is that repository actually public?
+An agent discovering these is an agent burning tokens on the controller's homework, and a brief
+that asserts something false sends it confidently in the wrong direction.
+
 ## The agent brief
 
 In this order: worktree rules and the no-push rule; where to read the plan and its own ticket; the
@@ -130,6 +146,10 @@ PROGRESS: <very short status a 10-year-old would understand> | ETA <duration> | 
 
 Tail with `grep -a "^PROGRESS:\|^DONE:\|^BLOCKED:"`, filtering placeholder lines echoed from the
 brief. Treat ETA and % as **self-reported claims**, not measurements, and say so when reporting.
+
+**Never let an agent wait on a file.** An agent that hits its own tool timeout will happily write
+`until [ -f out.png ]; do sleep 5; done` and block until it times out again, producing nothing and
+looking alive the whole time. Polling belongs to the controller, which already tails the output.
 
 ### Completion protocol
 
@@ -173,6 +193,9 @@ When a ticket hits `qa`, you review it. In order:
    change a file and watch it rebuild. Reading the code is not evidence.
 4. **Constraint violations** — did it touch files it did not own, weaken a security requirement, or
    quietly widen scope?
+5. **Duplicated constants** — if a value is declared in one file and consumed in another, assert the
+   two *agree* rather than pinning the literal in both places. A test that hard-codes the same
+   number twice does not catch drift, it just fails later and blames the wrong change.
 
 Then accept in PPM with a close note recording *what you actually verified* and the exact state
 (committed on which branch, merged or not). Or bounce it back with a specific reason.
