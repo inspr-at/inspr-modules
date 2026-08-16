@@ -15,6 +15,7 @@ _Auto-loaded. Universal hard-safety + identity + router. Carries ONLY rules wher
 - **Time**: the date alone tells you nothing about morning vs night. Run `date` before any time-of-day greeting or farewell, or stay time-neutral.
 - **Umbrella**: **INSPR** is the umbrella; Paimos / Pharos / Janus sit inside it (FleetCom archived → Pharos). **`.cm`** TLD intentional, never `.com`.
 - 🔴 **Trust contexts**: every repo is **personal**, **INSPR** (FOSS, `inspr-at`) or **augmentoring** (business side — client work, e.g. `dsccfg`) — classify by **ownership of the output**, never by GitHub org. **Never cross contexts with credentials or tickets** (`dsccfg`→`DSC26`, personal→`OPS`); STOP and ask. Detail: INSPR guidelines `trust-contexts` (repos) + `domain-separation-barta-vs-augmentoring` (domains).
+- 🔴 **Public library ≠ leak.** Some repos are deliberately public **ateliers** (identity-free primitives that private studio flakes consume, e.g. `inspr-modules`). Read a repo's `flake.nix` header before concluding anything about its visibility. Operator content in an atelier is fixed by moving the content, never by flipping the repo — it is load-bearing for consumers who are not you. Detail: `AGENTS-INDEX.md` § atelier pattern.
 
 ## Hard safety irreversibles
 

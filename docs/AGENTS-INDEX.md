@@ -50,6 +50,61 @@ Phase 4 (synthesized 2026-05-14) produced **521 canonical rules across 12 layer 
 
 **Phase-4 baseline rule count: 521 canonical rules** (Phase 4 synthesis, 2026-05-14) — every rule lands in exactly one Phase-4 layer. Phase 6 (2026-05-15) carved CORE into kernel + 5 domain packs WITHOUT adding new rules; the same 521 entries are now distributed across more files, optimized for on-demand loading.
 
+## Repository architecture — the atelier pattern
+
+_Added 2026-08-16 after an agent misread it three times in one session._
+
+**Read this before drawing any conclusion about a repository's visibility.**
+
+INSPR repositories come in two kinds, and confusing them produces confident,
+wrong recommendations:
+
+| Kind | What it is | Visibility | Examples |
+|---|---|---|---|
+| **Atelier** | A shared **library** of identity-free primitives, published so anyone can consume the same building blocks the fleet uses | **public by design** | `inspr-modules` |
+| **Studio** | A **context flake** supplying identity-specific values — hosts, keys, instances, preferences — on top of an atelier | private | `nixcfg`, family flakes, future paid-product flakes |
+
+The atelier's own `flake.nix` states the mission: *"democratize software dev by
+letting anyone consume the same primitives Markus uses on his own fleet."* Its
+modules are built to match — `ssh-authorized` takes a key map as a parameter,
+`git-identity` takes identities, and `paimos-config` is documented as
+materialising instance routing **without credentials**.
+
+### The failure this prevents
+
+🔴 **Public content in an atelier is the design, not a leak.**
+
+The trust-contexts rule — classify by ownership of the output, personal / INSPR /
+augmentoring, never by GitHub org — is about *where work belongs*. It says
+nothing about libraries, and applied alone it misclassifies an atelier: a public
+repository holding fleet-shaped material reads as an accident when it is the
+stated purpose.
+
+On 2026-08-15/16 an agent applied exactly that lens to `inspr-modules`, concluded
+the repository had been made public by mistake, and three separate times proposed
+flipping it private. That would have broken the atelier pattern and the fleet at
+once — nine load-bearing consumption points in `nixcfg` alone
+(`ssh-authorized` ×14 across NixOS and Home Manager, `git-identity`,
+`paimos-config`, `agent-secrets`, `agent-skills`, `devenv-direnv-fix`,
+`git-atelier-credentials`, the `inspr` CLI package) — and it needed agenix
+plumbing plus a `switch` on every machine to be possible at all.
+
+The pattern was documented only in `README.md` and `flake.nix`. Neither is
+auto-loaded, and neither is where anyone looks for a visibility question. That
+omission, not the agent's reasoning, is why it took three attempts.
+
+### The rule
+
+- 🟡 **Before concluding anything about a repository's visibility, read its
+  `flake.nix` header and `README.md`.** An atelier says what it is in the first
+  three lines.
+- 🟡 **An atelier must stay identity-free.** Content that cannot be parameterised
+  — a fleet SSH matrix, an instance routing table, one person's working
+  preferences — does not belong in one, whatever the repository's visibility.
+- 🟡 **The correct fix for operator content in an atelier is to move the
+  content, never to change the repository's visibility.** The library is
+  load-bearing for consumers who are not you.
+
 ## Kernel gatekeeper & size budget
 
 _Moved out of `AGENTS-KERNEL.md` on 2026-07-26 — it is guidance for whoever **edits** the kernel, and was costing every agent context on every turn to serve a rare action._
