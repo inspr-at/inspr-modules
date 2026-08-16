@@ -105,6 +105,49 @@ omission, not the agent's reasoning, is why it took three attempts.
   content, never to change the repository's visibility.** The library is
   load-bearing for consumers who are not you.
 
+## Worktree placement
+
+_Added 2026-08-16 after an audit found four competing conventions and none authoritative._
+
+🟡 **Agent worktrees go in `.claude/worktrees/<slug>/` inside the repository.**
+
+That path is already gitignored in wired repos, it travels with the checkout, it
+is visible to anyone working there, and it cannot be mistaken for a sibling
+repository in a file browser.
+
+### Why the rule exists
+
+An audit of `~/Code` on 2026-08-16 found worktrees placed four different ways,
+because nothing said where they belonged:
+
+| Placement | Live | Problem |
+|---|---|---|
+| `~/Code/<repo>-worktrees/` | 0 | Convention created, never used. Five empty directories survived it. |
+| `/private/tmp/<name>.XXXX` | — | The directory dies on reboot; the registration does not. Four stale ones found, all `prunable`. |
+| `~/Code/<repo>-<ticket>/` | 3 | Works, but looks like a duplicate repository in a file browser and never gets cleaned up. |
+| `.claude/worktrees/<slug>/` | 1 | Correct. |
+
+The `-worktrees` directories were the visible symptom: five empty shells whose
+repositories registered their worktrees somewhere else entirely.
+`paimos-worktrees` was empty while paimos's actual worktree sat in
+`/private/tmp`; `amt-start-worktrees` was empty while amt-start's sat at
+`~/Code/amt-start-test-triage`.
+
+### Companion rules
+
+- 🟡 **Two agents in one checkout will collide silently.** A `git checkout` moves
+  the ground under the other; a `git add -A` sweeps up work in flight that was
+  never yours. If two things are being worked on, that is two worktrees — and the
+  coordinating agent is one of the two, not an exception to its own rule.
+- 🟡 **Announce before acting in a tree you do not own.** One message, and it has
+  prevented at least two collisions in a single day.
+- 🟡 **Return the shared checkout to its default branch when you are done.** A
+  tree left on a deleted branch costs the next session a confusing `git pull`
+  failure. Cheap for you, expensive for them.
+- 🟡 **`git worktree prune` after any run that used a temporary directory.** It
+  removes only registrations whose directory is already gone, so it cannot touch
+  live work.
+
 ## Kernel gatekeeper & size budget
 
 _Moved out of `AGENTS-KERNEL.md` on 2026-07-26 — it is guidance for whoever **edits** the kernel, and was costing every agent context on every turn to serve a rare action._
