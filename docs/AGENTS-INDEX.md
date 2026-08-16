@@ -50,6 +50,104 @@ Phase 4 (synthesized 2026-05-14) produced **521 canonical rules across 12 layer 
 
 **Phase-4 baseline rule count: 521 canonical rules** (Phase 4 synthesis, 2026-05-14) — every rule lands in exactly one Phase-4 layer. Phase 6 (2026-05-15) carved CORE into kernel + 5 domain packs WITHOUT adding new rules; the same 521 entries are now distributed across more files, optimized for on-demand loading.
 
+## Repository architecture — the atelier pattern
+
+_Added 2026-08-16 after an agent misread it three times in one session._
+
+**Read this before drawing any conclusion about a repository's visibility.**
+
+INSPR repositories come in two kinds, and confusing them produces confident,
+wrong recommendations:
+
+| Kind | What it is | Visibility | Examples |
+|---|---|---|---|
+| **Atelier** | A shared **library** of identity-free primitives, published so anyone can consume the same building blocks the fleet uses | **public by design** | `inspr-modules` |
+| **Studio** | A **context flake** supplying identity-specific values — hosts, keys, instances, preferences — on top of an atelier | private | `nixcfg`, family flakes, future paid-product flakes |
+
+The atelier's own `flake.nix` states the mission: *"democratize software dev by
+letting anyone consume the same primitives Markus uses on his own fleet."* Its
+modules are built to match — `ssh-authorized` takes a key map as a parameter,
+`git-identity` takes identities, and `paimos-config` is documented as
+materialising instance routing **without credentials**.
+
+### The failure this prevents
+
+🔴 **Public content in an atelier is the design, not a leak.**
+
+The trust-contexts rule — classify by ownership of the output, personal / INSPR /
+augmentoring, never by GitHub org — is about *where work belongs*. It says
+nothing about libraries, and applied alone it misclassifies an atelier: a public
+repository holding fleet-shaped material reads as an accident when it is the
+stated purpose.
+
+On 2026-08-15/16 an agent applied exactly that lens to `inspr-modules`, concluded
+the repository had been made public by mistake, and three separate times proposed
+flipping it private. That would have broken the atelier pattern and the fleet at
+once — nine load-bearing consumption points in `nixcfg` alone
+(`ssh-authorized` ×14 across NixOS and Home Manager, `git-identity`,
+`paimos-config`, `agent-secrets`, `agent-skills`, `devenv-direnv-fix`,
+`git-atelier-credentials`, the `inspr` CLI package) — and it needed agenix
+plumbing plus a `switch` on every machine to be possible at all.
+
+The pattern was documented only in `README.md` and `flake.nix`. Neither is
+auto-loaded, and neither is where anyone looks for a visibility question. That
+omission, not the agent's reasoning, is why it took three attempts.
+
+### The rule
+
+- 🟡 **Before concluding anything about a repository's visibility, read its
+  `flake.nix` header and `README.md`.** An atelier says what it is in the first
+  three lines.
+- 🟡 **An atelier must stay identity-free.** Content that cannot be parameterised
+  — a fleet SSH matrix, an instance routing table, one person's working
+  preferences — does not belong in one, whatever the repository's visibility.
+- 🟡 **The correct fix for operator content in an atelier is to move the
+  content, never to change the repository's visibility.** The library is
+  load-bearing for consumers who are not you.
+
+## Worktree placement
+
+_Added 2026-08-16 after an audit found four competing conventions and none authoritative._
+
+🟡 **Agent worktrees go in `.claude/worktrees/<slug>/` inside the repository.**
+
+That path is already gitignored in wired repos, it travels with the checkout, it
+is visible to anyone working there, and it cannot be mistaken for a sibling
+repository in a file browser.
+
+### Why the rule exists
+
+An audit of `~/Code` on 2026-08-16 found worktrees placed four different ways,
+because nothing said where they belonged:
+
+| Placement | Live | Problem |
+|---|---|---|
+| `~/Code/<repo>-worktrees/` | 0 | Convention created, never used. Five empty directories survived it. |
+| `/private/tmp/<name>.XXXX` | — | The directory dies on reboot; the registration does not. Four stale ones found, all `prunable`. |
+| `~/Code/<repo>-<ticket>/` | 3 | Works, but looks like a duplicate repository in a file browser and never gets cleaned up. |
+| `.claude/worktrees/<slug>/` | 1 | Correct. |
+
+The `-worktrees` directories were the visible symptom: five empty shells whose
+repositories registered their worktrees somewhere else entirely.
+`paimos-worktrees` was empty while paimos's actual worktree sat in
+`/private/tmp`; `amt-start-worktrees` was empty while amt-start's sat at
+`~/Code/amt-start-test-triage`.
+
+### Companion rules
+
+- 🟡 **Two agents in one checkout will collide silently.** A `git checkout` moves
+  the ground under the other; a `git add -A` sweeps up work in flight that was
+  never yours. If two things are being worked on, that is two worktrees — and the
+  coordinating agent is one of the two, not an exception to its own rule.
+- 🟡 **Announce before acting in a tree you do not own.** One message, and it has
+  prevented at least two collisions in a single day.
+- 🟡 **Return the shared checkout to its default branch when you are done.** A
+  tree left on a deleted branch costs the next session a confusing `git pull`
+  failure. Cheap for you, expensive for them.
+- 🟡 **`git worktree prune` after any run that used a temporary directory.** It
+  removes only registrations whose directory is already gone, so it cannot touch
+  live work.
+
 ## Kernel gatekeeper & size budget
 
 _Moved out of `AGENTS-KERNEL.md` on 2026-07-26 — it is guidance for whoever **edits** the kernel, and was costing every agent context on every turn to serve a rare action._
