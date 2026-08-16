@@ -19,7 +19,7 @@ Three tiers:
 ### Comprehensive references (also on-demand)
 
 - `AGENTS-CORE.md` — full universal-rules reference (199 rules, 64 k chars). Source for the kernel's safety subset; load if you need exhaustive citation.
-- `AGENTS-PROFILE-MARKUS.md` — Markus's full profile (153 rules, 47 k chars). Loaded by `/style`.
+- `AGENTS-PROFILE-MARKUS.md` (private) — Markus's full profile (153 rules, 47 k chars). Loaded by `/style`.
 - `AGENTS-AGENT-*.md` — per-role overlays (SYSOP, SYSOP-GB, OPENCLAW-OPS, FLEET-DECISION, PPM, PPM-READONLY, DEV). Loaded by relevant slash commands.
 
 **Pre-Phase-6 budget**: ~127 k chars auto-loaded per session in nixcfg.
@@ -31,12 +31,12 @@ Three tiers:
 | ------------------ | -------------------------------------------------------------------- | -------------------------------------------------------- |
 | `/inspr`           | This guide                                                           | Anytime you need the map                                 |
 | `/dev`             | `AGENTS-DOMAIN-DEV.md`                                               | Code, tests, refactor, git workflow depth                |
-| `/ops`             | `AGENTS-DOMAIN-OPS.md` + `AGENTS-AGENT-SYSOP.md`                     | Fleet ops, SSH between hosts, NixOS deploys              |
+| `/ops`             | `AGENTS-DOMAIN-OPS.md` (private) + `AGENTS-AGENT-SYSOP.md` (private)                     | Fleet ops, SSH between hosts, NixOS deploys              |
 | `/secrets`         | `AGENTS-DOMAIN-SECRETS.md`                                           | agenix, 1P CLI, env-file pipeline, secrets rotation      |
 | `/nix`             | `AGENTS-DOMAIN-NIX.md`                                               | nix-darwin, Home Manager, devenv, NixOS modules          |
-| `/iac`             | `AGENTS-DOMAIN-IAC.md`                                               | Terraform, Zitadel, Cloudflare — L5 declarative services |
-| `/ppm`             | `AGENTS-DOMAIN-PPM.md` + `AGENTS-AGENT-PPM.md`                       | Project planning, ticket triage, dashboards              |
-| `/style`           | `AGENTS-PROFILE-MARKUS.md`                                           | Need Markus's full style + pacing prefs in depth         |
+| `/iac`             | `AGENTS-DOMAIN-IAC.md` (private)                                               | Terraform, Zitadel, Cloudflare — L5 declarative services |
+| `/ppm`             | `AGENTS-DOMAIN-PPM.md` (private) + `AGENTS-AGENT-PPM.md` (private)                       | Project planning, ticket triage, dashboards              |
+| `/style`           | `AGENTS-PROFILE-MARKUS.md` (private)                                           | Need Markus's full style + pacing prefs in depth         |
 | `/incident`        | Incident-response section of CORE + secret-leak protocol             | Security incident, suspected secret leak                 |
 | `/push`            | Single-repo commit + push helper                                     | Wrap up a single-repo change                             |
 | `/ocbots`          | OpenClaw bots ops context                                            | OC bot deploy / admin                                    |

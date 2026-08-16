@@ -12,7 +12,7 @@ For Claude Code, the kernel auto-loads via `CLAUDE.md @-ref ./docs/AGENTS-KERNEL
 |---|---|---|
 | **KERNEL** (always-on) | `docs/AGENTS-KERNEL.md` (budget ≤12 000 bytes, enforced by `inspr check`) | auto via CLAUDE.md @-ref |
 | **DOMAIN packs** (on-demand) | `docs/AGENTS-DOMAIN-{DEV,IAC,NIX,OPS,PPM,SECRETS}.md` | via `/dev /iac /nix /ops /ppm /secrets` slash commands |
-| **PROFILE** (on-demand) | `docs/AGENTS-PROFILE-MARKUS.md` (full Markus profile) | via `/style` slash command |
+| **PROFILE** (on-demand) | `doctrine-private/docs/AGENTS-PROFILE-MARKUS.md` (full Markus profile) | via `/style` slash command |
 | **AGENT role overlays** (on-demand) | `docs/AGENTS-AGENT-{SYSOP,SYSOP-GB,OPENCLAW-OPS,FLEET-DECISION,PPM,PPM-READONLY,DEV}.md` | via role-specific slash commands |
 | **Reference** (on-demand) | `docs/AGENTS-CORE.md` (full universal-rules reference, 64k) | direct Read tool when exhaustive citation needed |
 | **PER-REPO delta** (always-on) | `<repo>/AGENTS.md` in each consuming repo | auto via CLAUDE.md @-ref |
@@ -48,7 +48,7 @@ For full kernel: see [`docs/AGENTS-KERNEL.md`](docs/AGENTS-KERNEL.md). For depth
 |---|---|
 | `docs/AGENTS-KERNEL.md` | new safety irreversibles or global protocol changes only (gatekeeper rule) |
 | `docs/AGENTS-DOMAIN-<area>.md` | domain-specific workflow / technique / pattern |
-| `docs/AGENTS-PROFILE-MARKUS.md` | Markus's personal style / pacing preferences |
+| `doctrine-private/docs/AGENTS-PROFILE-MARKUS.md` | Markus's personal style / pacing preferences |
 | `docs/AGENTS-AGENT-<ROLE>.md` | per-role overlays |
 | `<repo>/AGENTS.md` (per consuming repo) | repo-specific delta |
 

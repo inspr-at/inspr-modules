@@ -27,9 +27,9 @@ Phase 4 (synthesized 2026-05-14) produced **521 canonical rules across 12 layer 
 | AGENTS-DOMAIN-DEV.md | `/dev` | Git workflow depth, build/test gates, code style, dev tooling |
 | AGENTS-DOMAIN-SECRETS.md | `/secrets`, `/incident` | agenix pipeline, env-file pattern, 1P CLI, secret-leak protocol |
 | AGENTS-DOMAIN-NIX.md | `/nix` | nix-darwin, Home Manager, devenv, NixOS modules + activation |
-| AGENTS-DOMAIN-OPS.md | `/ops` | Fleet ops, SSH matrix, infra, tailscale, fleet-state |
-| AGENTS-DOMAIN-PPM.md | `/ppm` | Paimos CLI, ticket conventions, project landscape, API endpoints |
-| AGENTS-DOMAIN-IAC.md | `/iac` | L5 service config (Terraform for Zitadel/Cloudflare/GitHub/Headscale + inspr-services repo) |
+| AGENTS-DOMAIN-OPS.md (private) | `/ops` | Fleet ops, SSH matrix, infra, tailscale, fleet-state |
+| AGENTS-DOMAIN-PPM.md (private) | `/ppm` | Paimos CLI, ticket conventions, project landscape, API endpoints |
+| AGENTS-DOMAIN-IAC.md (private) | `/iac` | L5 service config (Terraform for Zitadel/Cloudflare/GitHub/Headscale + inspr-services repo) |
 
 ### On-demand reference / role overlays
 
@@ -148,6 +148,42 @@ repositories registered their worktrees somewhere else entirely.
   removes only registrations whose directory is already gone, so it cannot touch
   live work.
 
+## Where the operator packs went
+
+_2026-08-16. INSPR-299._
+
+This repository is a **public library flake** — see the atelier section above.
+The operator-specific doctrine packs no longer live here, because a fleet SSH
+matrix, an instance routing table and one person's working preferences have no
+identity-free form and had no business in an atelier.
+
+They are in **`inspr-at/inspr-doctrine-private`**, vendored by studio
+repositories as a second submodule at `doctrine-private/` over SSH:
+
+| Moved | Loaded by |
+|---|---|
+| `AGENTS-PROFILE-MARKUS.md` | `/style` |
+| `AGENTS-DOMAIN-PPM.md` | `/ppm` |
+| `AGENTS-DOMAIN-OPS.md` | `/ops`, `/incident` |
+| `AGENTS-DOMAIN-IAC.md` | `/iac` |
+| `AGENTS-AGENT-SYSOP{,-GB}.md` | `/ops` |
+| `AGENTS-AGENT-PPM{,-READONLY}.md` | role overlays |
+| `AGENTS-AGENT-FLEET-DECISION.md` | role overlay |
+| `AGENTS-AGENT-OPENCLAW-OPS.md` | role overlay |
+
+**The commands still work.** `/ppm`, `/ops`, `/iac`, `/style` and `/incident`
+are unchanged from a consumer's point of view — they resolve through
+`doctrine-private/commands/` instead of `doctrine/commands/`. A repository that
+vendors only the public half simply does not have them, which is the intent:
+`janus`, `paimos` and `pharos` get a baseline an outside contributor can act on.
+
+`/incident` is deliberately **split** — it loads `DOMAIN-OPS` from the private
+half and `DOMAIN-SECRETS` from this one, because the secrets pack is mostly
+generic principles.
+
+Staying here: `AGENTS-KERNEL`, `AGENTS-CORE`, `AGENTS-DOMAIN-{DEV,NIX,SECRETS}`,
+`AGENTS-AGENT-DEV`, this index, and every Nix module, package and bundled skill.
+
 ## Kernel gatekeeper & size budget
 
 _Moved out of `AGENTS-KERNEL.md` on 2026-07-26 — it is guidance for whoever **edits** the kernel, and was costing every agent context on every turn to serve a rare action._
@@ -218,7 +254,7 @@ Phase 5 shipped end-to-end. Per-step commit refs:
 
 > **SUPERSEDED by Phase 6 (2026-05-15).** The CLAUDE.md loader described below cascade-loaded CORE + PROFILE-MARKUS (~407 rules in context per session, ~127 k chars) and triggered Claude Code's >40 k performance warning. Phase 6 replaced this with a kernel-only auto-load + on-demand domain packs. Kept here for historical context only — see the Phase 6 section below for the current loader pattern.
 
-Phase-5 QA surfaced that the per-repo `CLAUDE.md` symlinks → `AGENTS.md` (thin overlay) did **not** pull upstream rules into Claude Code's session context — markdown URL pointers are static text, not auto-fetched. **Fix (now superseded)**: vendored inspr-modules as a `git submodule` at `./doctrine/` in each consuming repo, replaced each `CLAUDE.md` symlink with a real file containing `@-refs` that cascade-load the layered files (`@./doctrine/docs/AGENTS-CORE.md`, `@./doctrine/docs/AGENTS-PROFILE-MARKUS.md`, `@./AGENTS.md`). Slash commands (`/ops`, `/ocbots`, `/oc-modelupdate`) likewise updated to `@-ref` their applicable role overlay (`AGENTS-AGENT-SYSOP.md`, etc.) so role rules load on demand. Empirically verified — Claude Code's @-ref behavior is documented (5-hop transitive include, relative paths from file location).
+Phase-5 QA surfaced that the per-repo `CLAUDE.md` symlinks → `AGENTS.md` (thin overlay) did **not** pull upstream rules into Claude Code's session context — markdown URL pointers are static text, not auto-fetched. **Fix (now superseded)**: vendored inspr-modules as a `git submodule` at `./doctrine/` in each consuming repo, replaced each `CLAUDE.md` symlink with a real file containing `@-refs` that cascade-load the layered files (`@./doctrine/docs/AGENTS-CORE.md`, `@./doctrine/docs/AGENTS-PROFILE-MARKUS.md`, `@./AGENTS.md`). Slash commands (`/ops`, `/ocbots`, `/oc-modelupdate`) likewise updated to `@-ref` their applicable role overlay (`AGENTS-AGENT-SYSOP.md` (private), etc.) so role rules load on demand. Empirically verified — Claude Code's @-ref behavior is documented (5-hop transitive include, relative paths from file location).
 
 Per-repo loader commits:
 

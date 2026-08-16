@@ -5,7 +5,7 @@
 This document is the authoritative source for rules every Claude agent in Markus Barta's fleet follows, regardless of role, repo, or profile. Other layers (read top-down for full context):
 
 - **[AGENTS-CORE.md](./AGENTS-CORE.md)** — universal rules every agent follows
-- **[AGENTS-PROFILE-MARKUS.md](./AGENTS-PROFILE-MARKUS.md)** — Markus Barta's personal preferences
+- **[AGENTS-PROFILE-MARKUS.md](https://github.com/inspr-at/inspr-doctrine-private/blob/main/docs/AGENTS-PROFILE-MARKUS.md)** — Markus Barta's personal preferences
 - **AGENTS-AGENT-*.md** — per-role overlays (one per agent identity)
 - **per-repo AGENTS.md** in nixcfg/inspr/amt-com/ops — repo-specific deltas
 
