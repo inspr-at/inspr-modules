@@ -94,8 +94,17 @@ HEADSCALE_URL="${INSPR_HEADSCALE_URL:-}"      # e.g. https://headscale.example.o
 TAILNET_NAME="${INSPR_TAILNET_NAME:-}"        # e.g. headscale.example.org
 PAIMOS_URL="${INSPR_PAIMOS_URL:-}"            # e.g. https://tracker.example.org
 PAIMOS_INSTANCE="${INSPR_PAIMOS_INSTANCE:-}"  # instance alias, e.g. main
+PHAROS_URL="${INSPR_PHAROS_URL:-}"            # e.g. https://pharos.example.org
 PHAROS_HOST="${INSPR_PHAROS_HOST:-}"          # host holding pharos manifests
+GIT_IDENTITY_NAME="${INSPR_GIT_IDENTITY_NAME:-}"
+GIT_IDENTITY_EMAIL="${INSPR_GIT_IDENTITY_EMAIL:-}"
 EXAMPLE_HOST="${INSPR_EXAMPLE_HOST:-<host>}"  # shown in help text only
+
+if [[ -n "$PAIMOS_URL" && -n "$PAIMOS_INSTANCE" ]]; then
+    PAIMOS_LOGIN_HINT="paimos auth login --url \"$PAIMOS_URL\" --name \"$PAIMOS_INSTANCE\""
+else
+    PAIMOS_LOGIN_HINT="configure INSPR_PAIMOS_URL and INSPR_PAIMOS_INSTANCE in $FLEET_CONF, then run paimos auth login"
+fi
 
 # Add nix profile to PATH if missing — agent contexts (SSH, cron, MCP)
 # may not inherit the user's interactive PATH. Must precede profile detection.
@@ -320,13 +329,18 @@ check_no_legacy_gitconfig() {
 }
 
 check_git_identity_personal_default() {
+    [[ -n "$GIT_IDENTITY_NAME" && -n "$GIT_IDENTITY_EMAIL" ]] || {
+        echo "INSPR_GIT_IDENTITY_NAME and INSPR_GIT_IDENTITY_EMAIL unset — see examples/fleet.conf"
+        return 77
+    }
     local tmp
     tmp=$(mktemp -d) || return 1
     (
         cd "$tmp" && git init -q
-        local email
+        local name email
+        name=$(git config user.name 2>/dev/null)
         email=$(git config user.email 2>/dev/null)
-        [[ "$email" == "markus@barta.com" ]]
+        [[ "$name" == "$GIT_IDENTITY_NAME" && "$email" == "$GIT_IDENTITY_EMAIL" ]]
     )
     local rc=$?
     rm -rf "$tmp"
@@ -791,7 +805,7 @@ imacw / INSPR-182 pattern).
 
 At the host's keyboard, run:
 
-  paimos auth login --url "$PAIMOS_URL" --name "$PAIMOS_INSTANCE"
+  $PAIMOS_LOGIN_HINT
 
 Then verify:  paimos auth whoami
 Re-run:       inspr check
@@ -855,14 +869,14 @@ _run_all_check_sections() {
     section "Identity / auth"
     run_check any no_legacy_gitconfig "no legacy ~/.gitconfig (would silently override HM XDG config)" \
         "mv ~/.gitconfig ~/.gitconfig.legacy-\$(date +%Y%m%d) — HM XDG config will then take effect"
-    run_check any git_identity_personal_default "git default identity = Markus Barta <markus@barta.com>" \
-        "Add modules/shared/git-identity.nix to imports + inspr.git-identity.enable = true"
+    run_check any git_identity_personal_default "git default identity matches INSPR_GIT_IDENTITY_NAME/EMAIL" \
+        "Configure the expected identity in fleet.conf, then set the matching default through your git identity module"
     run_check workstation gh_auth "gh CLI authenticated (gh api user succeeds)" \
         "gh auth login (or check that GH_TOKEN.env materialized correctly)"
     run_check workstation paimos_instance_config "~/.paimos/config.yaml present, mode 0600, and free of legacy api_key" \
-        "First migrate without ambient overrides: env -u PAIMOS_URL -u PAIMOS_API_KEY -u PPM_URL -u PPMAPIKEY paimos auth whoami; retry home-manager switch; only if authentication still fails, run interactively: paimos auth login --url "$PAIMOS_URL" --name "$PAIMOS_INSTANCE""
+        "First migrate without ambient overrides: env -u PAIMOS_URL -u PAIMOS_API_KEY -u PPM_URL -u PPMAPIKEY paimos auth whoami; retry home-manager switch; only if authentication still fails, run interactively: $PAIMOS_LOGIN_HINT"
     run_check workstation paimos_auth "paimos auth whoami succeeds using instance config + keyring" \
-        "First ensure paimos_instance_config passes. Then log in interactively: paimos auth login --url "$PAIMOS_URL" --name "$PAIMOS_INSTANCE". On macOS, run at the keyboard (not over SSH — Keychain is unreliable from non-GUI sessions). See /ppm domain pack."
+        "First ensure paimos_instance_config passes. Then log in interactively: $PAIMOS_LOGIN_HINT. On macOS, run at the keyboard (not over SSH — Keychain is unreliable from non-GUI sessions). See /ppm domain pack."
 
     section "Drift"
     run_check workstation nixcfg_envrc_canonical_path "nixcfg .envrc references INSPR-164 canonical path (~/.inspr/secrets/agents)" \
@@ -1228,7 +1242,7 @@ ${BOLD}Usage:${RESET}
 ${BOLD}Flags:${RESET}
   ${CYAN}--profile=<p>${RESET}              Override auto-detected profile (workstation|server).
   ${CYAN}--pharos-register${RESET}          Register this host through Pharos /register.
-  ${CYAN}--pharos-url=<url>${RESET}         Pharos base URL. Default: \$INSPR_PHAROS_URL or http://100.64.0.4:8088.
+  ${CYAN}--pharos-url=<url>${RESET}         Pharos base URL. Default: \$INSPR_PHAROS_URL; required for registration/deployment.
   ${CYAN}--host=<h>${RESET}                 Host slug. Default: short hostname.
   ${CYAN}--role=<r>${RESET}                 Pharos role. Default: server or workstation.
   ${CYAN}--nix / --non-nix${RESET}          Override Nix host detection.
@@ -1256,7 +1270,7 @@ EOF
 cmd_onboard() {
     local profile_override=""
     local pharos_register=0
-    local pharos_url="${INSPR_PHAROS_URL:-http://100.64.0.4:8088}"
+    local pharos_url="$PHAROS_URL"
     local pharos_host="$HOSTNAME_SHORT"
     local pharos_role=""
     local pharos_is_nix=""
@@ -1355,6 +1369,10 @@ cmd_onboard() {
         exit 2
         ;;
     esac
+    if [[ $pharos_register -eq 1 || "$pharos_deploy" != "none" ]] && [[ -z "$pharos_url" ]]; then
+        echo "${RED}error:${RESET} configure INSPR_PHAROS_URL in $FLEET_CONF or pass --pharos-url" >&2
+        exit 2
+    fi
 
     VERBOSE=0
     QUIET=1 # silent during check pipeline; we'll overlay step-status
@@ -1467,7 +1485,7 @@ cmd_onboard() {
         echo "     ${DIM}\$${RESET} env -u PAIMOS_URL -u PAIMOS_API_KEY -u PPM_URL -u PPMAPIKEY paimos auth whoami"
         echo "     Retry home-manager switch. Only after the legacy-config guard clears,"
         echo "     authenticate ${YELLOW}AT THE HOST'S KEYBOARD${RESET} (not over SSH):"
-        echo "     ${DIM}\$${RESET} paimos auth login --url "$PAIMOS_URL" --name "$PAIMOS_INSTANCE""
+        echo "     ${DIM}\$${RESET} $PAIMOS_LOGIN_HINT"
     fi
 
     # 8. Nix toolchain + devenv
@@ -1534,7 +1552,7 @@ ${BOLD}Usage:${RESET}
 ${BOLD}Flags:${RESET}
   ${CYAN}--host=<h>${RESET}             Host slug to validate. Required.
   ${CYAN}--context=<c>${RESET}          HostDash URL context: lan | tailnet | both. Default: tailnet.
-  ${CYAN}--pharos-url=<url>${RESET}     Pharos base URL. Default: \$INSPR_PHAROS_URL or http://100.64.0.4:8088.
+  ${CYAN}--pharos-url=<url>${RESET}     Pharos base URL. Default: \$INSPR_PHAROS_URL; Pharos checks skip when unset.
   ${CYAN}--nixcfg-dir=<dir>${RESET}     nixcfg checkout. Default: \$INSPR_NIXCFG_DIR or ~/Code/nixcfg.
   ${CYAN}--ssh-host=<h>${RESET}         SSH target for live /etc manifest check. Default: --host value.
   ${CYAN}--skip-ssh${RESET}             Skip live /etc/hostdash-config/<host>.json check.
@@ -1558,7 +1576,7 @@ EOF
 cmd_post_deploy() {
     local host=""
     local context="tailnet"
-    local pharos_url="${INSPR_PHAROS_URL:-http://100.64.0.4:8088}"
+    local pharos_url="$PHAROS_URL"
     local nixcfg_dir="$NIXCFG_DIR"
     local ssh_host=""
     local skip_ssh=0
@@ -1622,14 +1640,16 @@ cmd_post_deploy() {
     ssh_host="${ssh_host:-$host}"
     pharos_url="${pharos_url%/}"
 
-    local tmpdir generated_json pharos_json live_manifest served_manifest artifact
+    local tmpdir generated_json pharos_json live_manifest served_manifest artifact=""
     tmpdir="$(mktemp -d)" || exit 2
     trap 'rm -rf "$tmpdir"' EXIT
     generated_json="$tmpdir/generated.json"
     pharos_json="$tmpdir/pharos.json"
     live_manifest="$tmpdir/live-hostdash.json"
     served_manifest="$tmpdir/served-hostdash.json"
-    artifact="$nixcfg_dir/hosts/${PHAROS_HOST}/docker/pharos/manifests/${host}.json"
+    if [[ -n "$PHAROS_HOST" ]]; then
+        artifact="$nixcfg_dir/hosts/${PHAROS_HOST}/docker/pharos/manifests/${host}.json"
+    fi
 
     POST_PASS=0
     POST_FAIL=0
@@ -1655,12 +1675,14 @@ cmd_post_deploy() {
         fi
     fi
 
-    if [[ -s "$generated_json" && -f "$artifact" ]]; then
+    if [[ -s "$generated_json" && -n "$artifact" && -f "$artifact" ]]; then
         if diff -u <(jq -S . "$generated_json") <(jq -S . "$artifact") >/dev/null; then
             post_pass "pharosd handoff artifact matches generated manifest"
         else
             post_fail "pharosd handoff artifact matches generated manifest" "NIX-286"
         fi
+    elif [[ -s "$generated_json" && -z "$PHAROS_HOST" ]]; then
+        post_skip "pharosd handoff artifact" "INSPR_PHAROS_HOST unset — see examples/fleet.conf"
     elif [[ -s "$generated_json" ]]; then
         post_skip "pharosd handoff artifact" "no artifact at $artifact"
     fi
@@ -1680,7 +1702,9 @@ cmd_post_deploy() {
     fi
 
     section "Pharos"
-    if curl -fsS -m 8 "$pharos_url/declared-hosts.json" >"$pharos_json" 2>/dev/null; then
+    if [[ -z "$pharos_url" ]]; then
+        post_skip "Pharos declared-hosts checks" "INSPR_PHAROS_URL unset — see examples/fleet.conf"
+    elif curl -fsS -m 8 "$pharos_url/declared-hosts.json" >"$pharos_json" 2>/dev/null; then
         post_pass "Pharos declared-hosts endpoint responds"
         post_check_json "Pharos response schema" "PHAROS-29" "$pharos_json" \
             '.schema == "inspr.pharos.declared-hosts.v1" and .manifest_schema == "inspr.hostdash.config.v1"'

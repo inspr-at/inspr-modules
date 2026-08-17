@@ -28,7 +28,11 @@ ok()   { printf "  ${grn}✓${rst} %s\n" "$1"; }
 bad()  { printf "  ${red}✗${rst} %s\n" "$1"; fail=1; }
 skip() { printf "  ${dim}∘ %s${rst}\n" "$1"; }
 
-[[ -d .git ]] || { echo "not a git repository root" >&2; exit 2; }
+repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || {
+  echo "not a git repository root" >&2
+  exit 2
+}
+[[ "$PWD" == "$repo_root" ]] || { echo "not a git repository root" >&2; exit 2; }
 
 # ── 1. @-refs resolve ────────────────────────────────────────────────────────
 # @-refs resolve from the REPO ROOT, not from the file. Verified empirically.
@@ -43,7 +47,7 @@ else
       [[ -z "$ref" ]] && continue
       n=$((n+1)); t="${ref#@./}"
       [[ -e "$t" ]] || { bad "@-ref does not resolve: $ref (in $f)"; broken=$((broken+1)); }
-    done < <(grep -o '@\./[A-Za-z0-9._/-]*' "$f" 2>/dev/null)
+    done < <(grep -oE '^[[:space:]]*@\./[A-Za-z0-9._/-]*' "$f" 2>/dev/null | sed 's/^[[:space:]]*//')
   done
   [[ $broken -eq 0 ]] && ok "$n @-ref(s) resolve"
 fi
@@ -68,8 +72,10 @@ fi
 for sm in doctrine doctrine-private; do
   [[ -e "$sm/.git" || -d "$sm" ]] || continue
   [[ -d "$sm" ]] || continue
-  pin=$(git ls-tree HEAD "$sm" 2>/dev/null | awk '{print $3}')
-  [[ -n "$pin" ]] || { skip "$sm: not a tracked submodule"; continue; }
+  entry=$(git ls-tree HEAD "$sm" 2>/dev/null)
+  mode=$(printf '%s\n' "$entry" | awk '{print $1}')
+  [[ "$mode" == "160000" ]] || { skip "$sm: not a tracked submodule"; continue; }
+  pin=$(printf '%s\n' "$entry" | awk '{print $3}')
   if ! git -C "$sm" fetch -q origin 2>/dev/null; then skip "$sm: cannot reach origin, pin not checked"; continue; fi
   behind=$(git -C "$sm" rev-list --count "$pin"..origin/HEAD 2>/dev/null || echo "?")
   if [[ "$behind" == "?" ]]; then skip "$sm: pin not comparable"
