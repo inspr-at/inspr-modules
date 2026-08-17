@@ -207,7 +207,7 @@ What to do when things go wrong:
 | **Manual edit to `~/Secrets/age/decrypted/agents/`** | Directory is 0500 → write fails OR (if you chmod'd) overwritten on next switch | Don't manually edit. The dir is activation-managed. Re-encrypt the source `.age` file via `agenix -e`. |
 | **`paimos auth whoami` fails** | The OS-keyring credential (interactive) or `PAIMOS_API_KEY` runtime input (headless) may be missing/rotated | First confirm `paimos_instance_config` passes. Then re-authenticate interactively with `paimos auth login --url INSTANCE_URL --name INSTANCE_NAME` and enter the credential at the hidden prompt, or repair the headless runtime injection without printing the value. |
 | **Paimos activation refuses an existing legacy `api_key` config** | Home Manager stops before creating or replacing `config.yaml`; the old config remains unchanged | Before any new login, run `env -u PAIMOS_URL -u PAIMOS_API_KEY -u PPM_URL -u PPMAPIKEY paimos auth whoami` once to trigger the Paimos 4.8 migration, then retry Home Manager. Use interactive `paimos auth login` only after activation no longer reports the legacy field and only if auth still fails. |
-| **`pm.barta.cm` / your Paimos instance is down** | `paimos auth whoami` fails; doctor flags `paimos_auth` ✗ | Transient — wait. Local instance routing remains available. |
+| **Your Paimos instance is down** | `paimos auth whoami` fails; doctor flags `paimos_auth` ✗ | Transient — wait. Local instance routing remains available. |
 | **Eval-time error: "hostname could not be determined"** (since v0.1.0) | nix-rebuild fails immediately | Pass `hostname` via `extraSpecialArgs` in your homeConfigurations entry, OR set `inspr.secrets.agents.hostname = "your-host"` explicitly. |
 | **Eval-time error: "defaultInstance must be a key in instances"** (since v0.1.0) | nix-rebuild fails immediately | Typo in `inspr.paimos-cli.defaultInstance`, or you set it but never declared the corresponding instance. Fix and re-eval. |
 | **First fresh host: `agent-secrets` discovery returns zero** | Activation succeeds but dir is empty | Either you forgot to set `inspr.secrets.agents.encryptedRoot`, OR your repo's secrets/agents subdir is empty / not git-tracked. (Untracked files are invisible to flake eval.) |
@@ -224,8 +224,8 @@ data, and third-party components retain their own licensing boundaries.
 
 v0.1.0 — extracted from `markus-barta/nixcfg` on 2026-05-02. Tested on:
 - macOS workstation (M5, aarch64-darwin)
-- macOS workstation (imac0, x86_64-darwin)
-- NixOS server (csb0, x86_64-linux)
+- macOS workstation (x86_64-darwin)
+- NixOS server (x86_64-linux)
 
 via the bundled `inspr` CLI (`packages.<system>.inspr` — the doctor
 evolved into it per INSPR-195; `inspr check` is the same 34-check

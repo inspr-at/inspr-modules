@@ -93,7 +93,7 @@ This document is the authoritative source for rules every Claude agent in Markus
   *<sub>src: ~/Code/fleetcom/AGENTS.md L422</sub>*
   <!-- rule_ids: AGENTS.md:L422:no-secrets-in-output-streams | cluster: — -->
 
-- 🔴 **HARD** | `always` | Before EVERY Bash command, mentally check: could stdout/stderr contain secrets? does it touch ~/.inspr/secrets/, ~/.ssh/, /run/agenix/, *.env, *.age? does it involve env/printenv/set/export/declare/direnv export/source/cat/head/tail?
+- 🔴 **HARD** | `always` | Before EVERY Bash command, mentally check: could stdout/stderr contain secrets? does it touch the agent-secrets directory, ~/.ssh/, /run/agenix/, *.env, *.age? does it involve env/printenv/set/export/declare/direnv export/source/cat/head/tail?
   *<sub>src: ~/Code/inspr/playbook.md L1042-1046 · incident: Day-11</sub>*
   <!-- rule_ids: playbook.md:L1042:pre-flight-checklist-before-bash | cluster: — -->
 
@@ -101,7 +101,7 @@ This document is the authoritative source for rules every Claude agent in Markus
   *<sub>src: ~/Code/nixcfg/+agents/rules/AGENTS.md L149</sub>*
   <!-- rule_ids: AGENTS.md:L149:preflight-could-stdout-leak | cluster: — -->
 
-- 🔴 **HARD** | `do` | Before every Bash command, check whether it touches ~/Secrets/, ~/.inspr/secrets/, ~/.ssh/<not-pub>, /run/agenix/, .env, .age or .gpg paths
+- 🔴 **HARD** | `do` | Before every Bash command, check whether it touches ~/Secrets/, the agent-secrets directory, ~/.ssh/<not-pub>, /run/agenix/, .env, .age or .gpg paths
   *<sub>src: ~/Code/nixcfg/+agents/rules/AGENTS.md L150-151</sub>*
   <!-- rule_ids: AGENTS.md:L150:preflight-touches-secret-paths | cluster: — -->
 
@@ -193,7 +193,7 @@ This document is the authoritative source for rules every Claude agent in Markus
   *<sub>src: ~/Code/nixcfg/+agents/rules/AGENTS.md L124</sub>*
   <!-- rule_ids: AGENTS.md:L124:forbid-bare-env-printenv | cluster: — -->
 
-- 🔴 **HARD** | `never` | Never run cat/less/head/tail/bat/xxd/od/hexdump/strings on .env, .age, .gpg, .enc, .key, id_*, *_rsa, *_ed25519 or any file under ~/.inspr/secrets/, ~/Secrets/, /run/agenix/, /run/secrets/
+- 🔴 **HARD** | `never` | Never run cat/less/head/tail/bat/xxd/od/hexdump/strings on .env, .age, .gpg, .enc, .key, id_*, *_rsa, *_ed25519 or any file under the agent-secrets directory, ~/Secrets/, /run/agenix/, /run/secrets/
   *<sub>src: ~/Code/nixcfg/+agents/rules/AGENTS.md L126-131</sub>*
   <!-- rule_ids: AGENTS.md:L126:forbid-cat-on-secret-files | cluster: — -->
 
@@ -310,7 +310,7 @@ This document is the authoritative source for rules every Claude agent in Markus
 
 ## Topic: secrets/access-pattern
 
-- 🔴 **HARD** | `never` | Source PPMAPIKEY.env via `set -a; source ~/.inspr/secrets/agents/PPMAPIKEY.env; set +a`; never cat or read the file
+- 🔴 **HARD** | `never` | Source an agent env-file via `set -a; source <agent-secrets-dir>/<NAME>.env; set +a`; never cat or read the file
   *<sub>src: ~/Code/nixcfg/+agents/rules/AGENTS.md L248 · incident: INSPR-164</sub>*
   <!-- rule_ids: AGENTS.md:L248:never-cat-ppmapikey-env | cluster: — -->
 
@@ -322,15 +322,9 @@ This document is the authoritative source for rules every Claude agent in Markus
   *<sub>src: ~/Code/inspr/playbook.md L432</sub>*
   <!-- rule_ids: playbook.md:L432:env-file-naming-consumer-convention | cluster: — -->
 
-- 🟡 **STRONG** | `do` | Source secret env files (e.g. source ~/.inspr/secrets/agents/PPMAPIKEY.env — INSPR-164 canonical path) then use the env var.
-  *<sub>src: ~/Code/fleetcom/AGENTS.md L423 · path migrated 2026-05-13 (INSPR-164)</sub>*
-  <!-- rule_ids: AGENTS.md:L423:source-not-print | cluster: — -->
 
-- 🟡 **STRONG** | `do` | Source ~/.inspr/secrets/agents/PPMAPIKEY.env first, then use $PPMAPIKEY for raw curl against the PPM API. (INSPR workstation policy uses interactive `paimos auth login` plus the OS keyring; approved encrypted storage may inject runtime-only headless credentials — see /ppm or AGENTS-DOMAIN-PPM.md.)
-  *<sub>src: ~/Code/fleetcom/AGENTS.md L49 · path migrated 2026-05-13 (INSPR-164) · CLI vs curl distinction clarified 2026-05-16 (INSPR-193)</sub>*
-  <!-- rule_ids: AGENTS.md:L49:source-ppm-env | cluster: — -->
 
-- 🟡 **STRONG** | `do` | Store agent secrets in ~/.inspr/secrets/agents/<NAME>.env (canonical fleet-wide, INSPR-164) so the filename is the env-var name (project convention).
+- 🟡 **STRONG** | `do` | Store agent secrets one-per-file in a dedicated agent-secrets directory, naming each file after the env var it exports, so the filename is the variable name. The concrete path is set by the private kernel.
   *<sub>src: ~/Code/fleetcom/AGENTS.md L155-157 · path migrated 2026-05-13 (INSPR-164)</sub>*
   <!-- rule_ids: AGENTS.md:L155:secrets-filename-convention | cluster: — -->
 
@@ -494,9 +488,6 @@ This document is the authoritative source for rules every Claude agent in Markus
   *<sub>src: ~/Code/inspr/playbook.md L960</sub>*
   <!-- rule_ids: playbook.md:L960:ssh-match-localuser-for-origin | cluster: — -->
 
-- 🟡 **STRONG** | `do` | imac0 exception: ssh markus@imac0.lan; user is markus, not mba
-  *<sub>src: ~/Code/nixcfg/+agents/rules/AGENTS.md L215 · ~/.claude/.../memory/feedback_agent_protocol.md L144</sub>*
-  <!-- rule_ids: AGENTS.md:L215:imac0-ssh-uses-markus,feedback_agent_protocol.md:L144:ssh-imac0-markus-user | cluster: tools-ssh-002 -->
 
 
 ## Topic: tools/trash
@@ -720,7 +711,7 @@ This document is the authoritative source for rules every Claude agent in Markus
   *<sub>src: ~/Code/inspr/playbook.md L354-357</sub>*
   <!-- rule_ids: playbook.md:L355:never-invent-identity | cluster: — -->
 
-- 🔴 **HARD** | `never` | Never invent placeholder identity values like user@example.com or markus@inspr.local; if tempted to fabricate one, stop and ask the user or fail loudly
+- 🔴 **HARD** | `never` | Never invent placeholder identity values like user@example.com or name@placeholder.local; if tempted to fabricate one, stop and ask the user or fail loudly
   *<sub>src: ~/.claude/.../memory/user_identity.md L15 · incident: first-session lesson</sub>*
   <!-- rule_ids: user_identity.md:L15:never-invent-placeholder-identity | cluster: — -->
 
@@ -915,7 +906,7 @@ This document is the authoritative source for rules every Claude agent in Markus
 
 ## Topic: infra/tailscale
 
-- 🔴 **HARD** | `never` | Tailscale --login-server must point at the service URL (e.g. hs.barta.cm), never the container host hostname (e.g. cs0.barta.cm)
+- 🔴 **HARD** | `never` | Tailscale --login-server must point at the service URL (e.g. your Headscale service URL), never the container host hostname
   *<sub>src: ~/Code/inspr/playbook.md L88-89</sub>*
   <!-- rule_ids: playbook.md:L89:tailscale-login-server-service-url | cluster: — -->
 
