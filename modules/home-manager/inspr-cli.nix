@@ -15,7 +15,10 @@
 #     tailnetName  = "headscale.example.org";
 #     paimosUrl    = "https://tracker.example.org";
 #     paimosInstance = "main";
+#     pharosUrl    = "https://pharos.example.org";
 #     pharosHost   = "manifest-host";
+#     gitIdentityName = "Someone Example";
+#     gitIdentityEmail = "someone@example.com";
 #     exampleHost  = "web1";
 #   };
 #
@@ -72,6 +75,27 @@ in
           `inspr post-deploy`; the comparison is skipped when unset.
         '';
       };
+      pharosUrl = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        example = "https://pharos.example.org";
+        description = ''
+          Pharos base url. Enables Pharos registration, beacon deployment,
+          and the Pharos checks in `inspr post-deploy`.
+        '';
+      };
+      gitIdentityName = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        example = "Someone Example";
+        description = "Expected default git author name.";
+      };
+      gitIdentityEmail = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        example = "someone@example.com";
+        description = "Expected default git author email.";
+      };
       exampleHost = lib.mkOption {
         type = lib.types.nullOr lib.types.str;
         default = null;
@@ -90,7 +114,10 @@ in
       (line "INSPR_TAILNET_NAME" f.tailnetName)
       (line "INSPR_PAIMOS_URL" f.paimosUrl)
       (line "INSPR_PAIMOS_INSTANCE" f.paimosInstance)
+      (line "INSPR_PHAROS_URL" f.pharosUrl)
       (line "INSPR_PHAROS_HOST" f.pharosHost)
+      (line "INSPR_GIT_IDENTITY_NAME" f.gitIdentityName)
+      (line "INSPR_GIT_IDENTITY_EMAIL" f.gitIdentityEmail)
       (line "INSPR_EXAMPLE_HOST" f.exampleHost)
     ]) + "\n";
   };

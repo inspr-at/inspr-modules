@@ -249,14 +249,14 @@ let
           config = {
             inspr.git.atelier.personal = {
               enable = true;
-              forge = { kind = "github"; url = "https://github.com"; owner = "markus-barta"; };
+              forge = { kind = "github"; url = "https://github.com"; owner = "example-user"; };
               credentials.userKey = {
                 privateKeyPath = "/run/agenix/m5-personal-userkey";
                 pubKey = "ssh-ed25519 AAAA…";
               };
               git = {
-                userName = "Markus Barta";
-                userEmail = "markus@barta.com";
+                userName = "Someone Example";
+                userEmail = "someone@example.com";
                 # workspacePath omitted on purpose
               };
             };
@@ -266,7 +266,7 @@ let
            && lib.any (i:
                 lib.hasInfix "hasconfig:remote.*.url:" i.condition
                 && lib.hasInfix "github.com" i.condition
-                && lib.hasInfix "markus-barta" i.condition
+                && lib.hasInfix "example-user" i.condition
               ) r.config.programs.git.includes;
     }
 

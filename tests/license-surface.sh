@@ -33,7 +33,6 @@ surfaces=(
   README.md
   CHANGELOG.md
   flake.nix
-  docs/AGENTS-DOMAIN-PPM.md
   modules/home-manager/agent-secrets.nix
   modules/home-manager/devenv-direnv-fix.nix
   modules/home-manager/git-atelier-credentials.nix
