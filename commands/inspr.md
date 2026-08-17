@@ -46,10 +46,11 @@ Three tiers:
 ## Key references
 
 - **Doctrine source**: <https://github.com/inspr-at/inspr-modules/tree/main/docs>
-- **PPM** (project tracker): <https://pm.barta.cm> — INSPR project key, `/ppm` for ops
-- **Fleet inventory**: **Pharos** — <https://pharos.barta.cm> (canonical live machine list; HostDash for the human view). Never assume static lists.
 - **Field notes / runbooks**: per-repo `docs/`
-- **Agent secrets**: `~/.inspr/secrets/agents/*.env` — load via env, **never cat / Read / display**
+
+Studio repositories also load a private kernel, which names the tracker, the
+fleet-inventory service and the agent-secrets path. Run `/ppm` or `/ops` there;
+they do not exist in a repository that vendors only the public half.
 
 ## Adding new doctrine
 

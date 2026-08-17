@@ -1,0 +1,16 @@
+name: leak-guard
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A public repository is a disclosure surface from the moment it exists.
+# This job is required and blocking, not advisory.
+jobs:
+  leak-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Refuse operator-specific content
+        run: ./scripts/leak-guard.sh

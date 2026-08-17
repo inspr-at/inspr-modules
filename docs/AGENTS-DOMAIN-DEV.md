@@ -12,7 +12,7 @@ Detailed rules for code work: git, build/test gates, style, refactor, gh CLI, ju
 
 ### Identity (kernel + extras)
 
-Kernel: `Markus Barta` / `markus@barta.com` / `markus-barta`; never invent placeholders. Extras:
+Identity comes from the private kernel; never invent placeholders. Extras:
 
 - 🟡 Identity/dev config lives **declaratively** in nixcfg. `git config --global` or any fleet-wide imperative move requires confirmation.
 - 🟡 Per-repo git config (no `--global`) on bootstrap; nixcfg is canonical for fleet-wide.
@@ -99,7 +99,7 @@ Kernel: never create new `.md` files unless explicitly requested; prefer editing
 
 ## Pattern: naming conventions
 
-- 🟡 In SSH pubkey comments and 1P entry titles, use the FULL local hostname + FULL local username (`mba@mbp0`), NOT chip codenames (`markus@m5`).
+- 🟡 In SSH pubkey comments and 1P entry titles, use the FULL local hostname + FULL local username (`user@host`), NOT chip codenames.
 - 🟡 The `.cm` TLD is **intentional**, not a typo for `.com`. Kernel rule, repeated for emphasis: do not auto-correct.
 
 ## Pattern: long-running commands
