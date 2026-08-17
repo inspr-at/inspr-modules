@@ -278,3 +278,25 @@ the only thing that catches it. That check exists because it happened.
 
 Nothing in this file is a credential. Every value is an endpoint or a name, and
 the rendered file is world-readable; authentication lives in the OS keyring.
+
+## Checking that your wiring actually resolves
+
+Vendoring the doctrine is easy to get *almost* right, and almost-right fails
+silently: a dangling `@`-ref loads nothing without complaint, and a broken
+command symlink means the command simply does not appear — you type it, get
+nothing, and assume you misremembered the name.
+
+```bash
+./doctrine/scripts/doctrine-check.sh
+```
+
+Four assertions: every `@`-ref resolves, every command is a live symlink (a
+regular file there is a copy, and copies drift), the submodule pins are not far
+behind, and any declared command list matches what is wired.
+
+Add it to CI with [`examples/doctrine-check.yml`](examples/doctrine-check.yml).
+Note `submodules: recursive` in the checkout step — without it the check has
+nothing to resolve against and will report everything as broken.
+
+`--warn` downgrades failures to advisory, for adopting it on a repo that is not
+clean yet.
