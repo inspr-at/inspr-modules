@@ -15,6 +15,7 @@ Reusable Home Manager modules + utilities from the [INSPR](https://inspr.at) ini
 | `devenv-direnv-fix` | `inspr.devenv.direnv-fix` | Declaratively materialize devenv's direnv-lib snippet (`~/.config/direnv/lib/z-devenv.sh`) with its colliding `_nix_direnv_preflight` function renamed to `_devenv_preflight`, so it stops shadowing nix-direnv's preflight when both libs are loaded. Source comes from `devenv direnvrc` at build time + `sed`-rename + sanity-grep — auto-tracks devenv version bumps. Without this, `use nix` in any `.envrc` errors with `--no-warn-dirty: command not found`. INSPR-175. |
 | `git-atelier-credentials` | `inspr.git.atelier` | Per-atelier outbound git credentials, **forge-agnostic** (works on GitHub, Forgejo, Codeberg, GitLab, Gitea, sourcehut, bare-SSH). **Strategy A** (per-repo SSH deploy keys, narrow servers) and **Strategy B** (per-host user SSH key, account-federated for workstations — the canonical answer to "this machine doesn't have permission to that service") both implemented; **Strategy C** (bot user / access token via credential helper) option-typed and throws on use — INSPR-168 follow-up. Strategy A produces per-repo SSH aliases (`<host>-<atelier>-<repo>`) with narrow URL rewrites; Strategy B produces one alias per atelier (`git-<atelier>`) with owner-prefix URL rewrites covering all repos under `forge.owner` automatically. Per-atelier commit author identity (`git.userName`, `git.userEmail`, optional `git.workspacePath`) wires `includeIf` rules so commits attribute correctly per-persona (gitdir-scoped when `workspacePath` set, else `hasconfig:remote.*.url:` match on git 2.36+). All SSH match blocks use `HostKeyAlias` so one known_hosts entry covers all aliased paths; managed `~/.ssh/known_hosts.d/inspr-git-atelier-<name>` files ship vendor-published host keys for github.com + codeberg.org (self-hosted forges supply via `forge.extraKnownHosts`). Multi-atelier per host supported; Strategy A + B coexist on the same atelier with "longest insteadOf wins" precedence. Full design + 4-tier scaling story in [`inspr/proposals/git-atelier-credentials.md`](https://github.com/inspr-at/inspr/blob/main/proposals/git-atelier-credentials.md). |
 | `git-identity` | `inspr.git-identity` | Multi-identity git config with both `gitdir:` AND `hasconfig:remote.*.url:` includeIf rules. The repo's own remote URL picks the identity automatically — no per-host directory list to maintain. |
+| `inspr-cli` | `inspr.cli` | Renders the `inspr` CLI's fleet configuration (Headscale, tracker, Pharos manifest host). Endpoints and names only — never credentials. Unset values make the dependent checks SKIP rather than FAIL, so the CLI is useful before you have configured anything. |
 | `paimos-config` | `inspr.paimos-cli` | Declaratively materializes routing only (`default_instance` + URLs). URLs may be literals or come from a routing env file. It never handles API credentials: INSPR workstations authenticate interactively into the OS keyring; headless automation injects `PAIMOS_URL` + `PAIMOS_API_KEY` into the running process from approved encrypted storage. |
 | `ssh-authorized` | `inspr.ssh.authorized` | Declarative `~/.ssh/authorized_keys` via aliased key map + trust list. Manages a marker-delimited block; lines outside the markers (Headscale deploy keys, GitHub Actions OIDC, recovery keys) are preserved across activations. Sorted output → byte-identical regardless of input order. Throws at eval time if `trust` references an undeclared alias. **Rich keys form** (since INSPR-77) supports per-key `{ status; note; }` metadata for grandfathering: `legacy` keys render with a `[legacy]` tag for fleet-wide audit, `revoked` keys keep the declaration as historical record but are not admitted (and throw if accidentally left in `trust`). |
 | `default` | (aggregate) | Imports all seven above. Consumers wanting à-la-carte should import individual modules. |
@@ -235,3 +236,45 @@ Roadmap:
 - NixOS-equivalent modules (currently HM-only — server-side `system_agenix_decrypted` is a doctor check, not yet a module here)
 - 1Password tag-export integration (Phase 2 secrets graduation)
 - Remove the ignored `paimos-config` `apiKeyEnvFile` / `apiKeyVar` compatibility options after their one-release deprecation window (INSPR-225)
+
+## Running `inspr check` on your own fleet
+
+The CLI ships with **no fleet endpoints baked in**. Roughly thirty of its checks
+are generic — nix on PATH, tailscale up, an SSH key present, git identity sane —
+and run anywhere. A handful need to know *your* infrastructure, and those report
+**SKIP** until you tell it, rather than failing at you.
+
+Two ways to tell it. Copy [`examples/fleet.conf`](examples/fleet.conf):
+
+```bash
+mkdir -p ~/.config/inspr
+cp examples/fleet.conf ~/.config/inspr/fleet.conf
+$EDITOR ~/.config/inspr/fleet.conf
+```
+
+Or, if you use Home Manager, declare it and let the module render the file:
+
+```nix
+imports = [ inputs.inspr-modules.homeManagerModules.inspr-cli ];
+
+inspr.cli = {
+  enable = true;
+  fleet = {
+    headscaleUrl   = "https://headscale.example.org";
+    tailnetName    = "headscale.example.org";
+    paimosUrl      = "https://tracker.example.org";
+    paimosInstance = "main";
+  };
+};
+```
+
+### The check worth understanding
+
+`tailscale_control_url` compares your tailnet's name against `tailnetName`. It
+looks redundant next to "is tailscale up" — it isn't. A host can be up, logged
+in, and reachable while pointed at **Tailscale SaaS instead of your own
+Headscale**, and every other check passes in that state. Comparing the name is
+the only thing that catches it. That check exists because it happened.
+
+Nothing in this file is a credential. Every value is an endpoint or a name, and
+the rendered file is world-readable; authentication lives in the OS keyring.

@@ -82,6 +82,7 @@
       homeManagerModules = {
         agent-secrets = ./modules/home-manager/agent-secrets.nix;
         agent-skills = ./modules/home-manager/agent-skills.nix;
+        inspr-cli = ./modules/home-manager/inspr-cli.nix;
         devenv-direnv-fix = ./modules/home-manager/devenv-direnv-fix.nix;
         git-atelier-credentials = ./modules/home-manager/git-atelier-credentials.nix;
         git-identity = ./modules/home-manager/git-identity.nix;

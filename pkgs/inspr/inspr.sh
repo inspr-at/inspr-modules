@@ -76,6 +76,27 @@ NIXCFG_DIR="${INSPR_NIXCFG_DIR:-$HOME/Code/nixcfg}"
 INSPR_DIR="${INSPR_DIR:-$HOME/Code/inspr}"
 SECRETS_DIR="${INSPR_AGENT_SECRETS_DIR:-$HOME/.inspr/secrets/agents}"
 
+# ── fleet ───────────────────────────────────────────────────────────────────
+# Fleet endpoints. Deliberately EMPTY by default: this is a public library, and
+# whose Headscale or tracker you run is yours to say. Checks that need one of
+# these report SKIP rather than FAIL when it is unset, so `inspr check` is
+# useful the first time you run it, on any machine.
+#
+# Set them in a config file — see examples/fleet.conf for a documented one:
+#   $INSPR_FLEET_CONF, else ${XDG_CONFIG_HOME:-~/.config}/inspr/fleet.conf
+# or export the variables directly. Home Manager users: the inspr-cli module
+# renders the file for you (inspr.cli.fleet.*).
+FLEET_CONF="${INSPR_FLEET_CONF:-${XDG_CONFIG_HOME:-$HOME/.config}/inspr/fleet.conf}"
+# shellcheck source=/dev/null
+[[ -r "$FLEET_CONF" ]] && . "$FLEET_CONF"
+
+HEADSCALE_URL="${INSPR_HEADSCALE_URL:-}"      # e.g. https://headscale.example.org
+TAILNET_NAME="${INSPR_TAILNET_NAME:-}"        # e.g. headscale.example.org
+PAIMOS_URL="${INSPR_PAIMOS_URL:-}"            # e.g. https://tracker.example.org
+PAIMOS_INSTANCE="${INSPR_PAIMOS_INSTANCE:-}"  # instance alias, e.g. main
+PHAROS_HOST="${INSPR_PHAROS_HOST:-}"          # host holding pharos manifests
+EXAMPLE_HOST="${INSPR_EXAMPLE_HOST:-<host>}"  # shown in help text only
+
 # Add nix profile to PATH if missing — agent contexts (SSH, cron, MCP)
 # may not inherit the user's interactive PATH. Must precede profile detection.
 export PATH="$HOME/.nix-profile/bin:/nix/var/nix/profiles/default/bin:$PATH"
@@ -210,15 +231,24 @@ check_tailscale_up() {
 
 check_headscale_reachable() {
     # /health is the standard Headscale healthcheck endpoint
-    curl -fsS -o /dev/null -m 5 https://hs.barta.cm/health
+    [[ -n "$HEADSCALE_URL" ]] || {
+        echo "INSPR_HEADSCALE_URL unset — see examples/fleet.conf"
+        return 77
+    }
+    curl -fsS -o /dev/null -m 5 "${HEADSCALE_URL%/}/health"
 }
 
 check_tailscale_control_url() {
+    [[ -n "$TAILNET_NAME" ]] || {
+        echo "INSPR_TAILNET_NAME unset — see examples/fleet.conf"
+        return 77
+    }
     # The single biggest gotcha of M5 onboarding day: a host can be up,
     # tailscale logged in, AND the SaaS control server reachable — but
     # pointing at the WRONG control server (Tailscale SaaS, not our
     # self-hosted Headscale). The above two checks both pass in that
-    # broken state. This check verifies the tailnet name is hs.barta.cm.
+    # broken state. This check verifies the tailnet name matches the one you
+    # declared, which is the only way to tell the two apart.
     local ts="tailscale"
     command -v tailscale >/dev/null ||
         ts="/Applications/Tailscale.app/Contents/MacOS/Tailscale"
@@ -232,7 +262,7 @@ check_tailscale_control_url() {
     }
     local tailnet
     tailnet="$("$ts" status --json 2>/dev/null | jq -r '.CurrentTailnet.Name // empty')"
-    [[ "$tailnet" == "hs.barta.cm" ]]
+    [[ "$tailnet" == "$TAILNET_NAME" ]]
 }
 
 # ── SSH ──
@@ -345,9 +375,14 @@ check_paimos_instance_config() {
     mode=$(stat -c '%a' "$f" 2>/dev/null || stat -f '%Mp%Lp' "$f" 2>/dev/null)
     [[ "$mode" == "600" || "$mode" == "0600" ]] || return 1
 
-    # Fail closed and silently: yq emits only a boolean, and its diagnostics
-    # stay suppressed so malformed YAML cannot expose configuration content.
-    command -v yq >/dev/null || return 1
+    # yq's diagnostics stay suppressed so malformed YAML cannot expose
+    # configuration content. But a MISSING yq is not a failing config — it is
+    # an unanswerable question, and reporting it as failure sends you to
+    # inspect a file that is fine. Skip, the way the tailscale/jq checks do.
+    command -v yq >/dev/null || {
+        echo "yq not on PATH — cannot verify; install yq or add it to the profile"
+        return 77
+    }
     local legacy_api_key_present
     if ! legacy_api_key_present="$(yq -r '[.. | select(tag == "!!map") | has("api_key")] | any' "$f" 2>/dev/null)"; then
         return 1
@@ -756,7 +791,7 @@ imacw / INSPR-182 pattern).
 
 At the host's keyboard, run:
 
-  paimos auth login --url https://pm.barta.cm --name ppm
+  paimos auth login --url "$PAIMOS_URL" --name "$PAIMOS_INSTANCE"
 
 Then verify:  paimos auth whoami
 Re-run:       inspr check
@@ -793,11 +828,11 @@ _run_all_check_sections() {
     run_check any tailscale_present "tailscale binary present" \
         "Install via 'brew install --cask tailscale-app' (macOS standalone) or distro pkg (Linux)"
     run_check any tailscale_up "tailscaled up + logged in" \
-        "Open Tailscale.app or 'sudo tailscale up --login-server=https://hs.barta.cm'"
-    run_check any headscale_reachable "https://hs.barta.cm/health reachable" \
-        "Verify tailnet up; check DNS for hs.barta.cm; the URL is the SERVICE not the host"
-    run_check any tailscale_control_url "tailnet name is hs.barta.cm (NOT Tailscale SaaS)" \
-        "Tailscale is on wrong control server; reset via prefs OR 'tailscale up --login-server=https://hs.barta.cm --reset'"
+        "Open Tailscale.app or 'sudo tailscale up --login-server=$HEADSCALE_URL'"
+    run_check any headscale_reachable "Headscale /health reachable" \
+        "Verify tailnet up; check DNS for the Headscale host; the URL is the SERVICE not the host"
+    run_check any tailscale_control_url "tailnet name matches INSPR_TAILNET_NAME (NOT Tailscale SaaS)" \
+        "Tailscale is on wrong control server; reset via prefs OR 'tailscale up --login-server=\"$HEADSCALE_URL\" --reset'"
 
     section "SSH"
     run_check any ssh_host_key "/etc/ssh/ssh_host_ed25519_key exists" \
@@ -825,9 +860,9 @@ _run_all_check_sections() {
     run_check workstation gh_auth "gh CLI authenticated (gh api user succeeds)" \
         "gh auth login (or check that GH_TOKEN.env materialized correctly)"
     run_check workstation paimos_instance_config "~/.paimos/config.yaml present, mode 0600, and free of legacy api_key" \
-        "First migrate without ambient overrides: env -u PAIMOS_URL -u PAIMOS_API_KEY -u PPM_URL -u PPMAPIKEY paimos auth whoami; retry home-manager switch; only if authentication still fails, run interactively: paimos auth login --url https://pm.barta.cm --name ppm"
+        "First migrate without ambient overrides: env -u PAIMOS_URL -u PAIMOS_API_KEY -u PPM_URL -u PPMAPIKEY paimos auth whoami; retry home-manager switch; only if authentication still fails, run interactively: paimos auth login --url "$PAIMOS_URL" --name "$PAIMOS_INSTANCE""
     run_check workstation paimos_auth "paimos auth whoami succeeds using instance config + keyring" \
-        "First ensure paimos_instance_config passes. Then log in interactively: paimos auth login --url https://pm.barta.cm --name ppm. On macOS, run at the keyboard (not over SSH — Keychain is unreliable from non-GUI sessions). See /ppm domain pack."
+        "First ensure paimos_instance_config passes. Then log in interactively: paimos auth login --url "$PAIMOS_URL" --name "$PAIMOS_INSTANCE". On macOS, run at the keyboard (not over SSH — Keychain is unreliable from non-GUI sessions). See /ppm domain pack."
 
     section "Drift"
     run_check workstation nixcfg_envrc_canonical_path "nixcfg .envrc references INSPR-164 canonical path (~/.inspr/secrets/agents)" \
@@ -888,7 +923,7 @@ cmd_help() {
     echo "  ${DIM}inspr check --verbose | --quiet | --list | --profile=<workstation|server>${RESET}"
     echo "  ${DIM}inspr heal --yes${RESET}     ${DIM}# auto-apply fixable items without prompting${RESET}"
     echo "  ${DIM}inspr onboard${RESET}         ${DIM}# interactive walkthrough (10 steps; optional Pharos registration)${RESET}"
-    echo "  ${DIM}inspr post-deploy --host=hsb8${RESET}"
+    echo "  ${DIM}inspr post-deploy --host=${EXAMPLE_HOST}${RESET}"
     echo ""
 }
 
@@ -1392,9 +1427,9 @@ cmd_onboard() {
     # 3. Tailscale → Headscale
     local s3
     s3=$(_step_status tailscale_present tailscale_up headscale_reachable tailscale_control_url)
-    _step_label "$s3" 3 "Tailscale joined to Headscale at hs.barta.cm"
+    _step_label "$s3" 3 "Tailscale joined to Headscale at ${TAILNET_NAME:-your control server}"
     if [[ "$s3" != "ok" ]]; then
-        echo "     ${DIM}\$${RESET} sudo tailscale up --login-server=https://hs.barta.cm"
+        echo "     ${DIM}\$${RESET} sudo tailscale up --login-server=${HEADSCALE_URL:-<headscale-url>}"
     fi
 
     # 4. Agent env-files materialized
@@ -1432,7 +1467,7 @@ cmd_onboard() {
         echo "     ${DIM}\$${RESET} env -u PAIMOS_URL -u PAIMOS_API_KEY -u PPM_URL -u PPMAPIKEY paimos auth whoami"
         echo "     Retry home-manager switch. Only after the legacy-config guard clears,"
         echo "     authenticate ${YELLOW}AT THE HOST'S KEYBOARD${RESET} (not over SSH):"
-        echo "     ${DIM}\$${RESET} paimos auth login --url https://pm.barta.cm --name ppm"
+        echo "     ${DIM}\$${RESET} paimos auth login --url "$PAIMOS_URL" --name "$PAIMOS_INSTANCE""
     fi
 
     # 8. Nix toolchain + devenv
@@ -1497,7 +1532,7 @@ ${BOLD}Usage:${RESET}
   inspr post-deploy --host=<host> [flags]
 
 ${BOLD}Flags:${RESET}
-  ${CYAN}--host=<h>${RESET}             Host slug to validate, e.g. hsb8. Required.
+  ${CYAN}--host=<h>${RESET}             Host slug to validate. Required.
   ${CYAN}--context=<c>${RESET}          HostDash URL context: lan | tailnet | both. Default: tailnet.
   ${CYAN}--pharos-url=<url>${RESET}     Pharos base URL. Default: \$INSPR_PHAROS_URL or http://100.64.0.4:8088.
   ${CYAN}--nixcfg-dir=<dir>${RESET}     nixcfg checkout. Default: \$INSPR_NIXCFG_DIR or ~/Code/nixcfg.
@@ -1507,7 +1542,8 @@ ${BOLD}Flags:${RESET}
 
 ${BOLD}What it checks:${RESET}
   - nixcfg can evaluate the generated declared manifest.
-  - csb1 pharosd handoff artifact matches the generated manifest when present.
+  - pharosd handoff artifact matches the generated manifest when present
+    (requires INSPR_PHAROS_HOST).
   - live host /etc manifest matches the generated manifest unless --skip-ssh.
   - Pharos /declared-hosts.json contains the host with separate observed runtime state.
   - HostDash responds in requested LAN/Tailscale contexts and serves the same manifest.
@@ -1593,7 +1629,7 @@ cmd_post_deploy() {
     pharos_json="$tmpdir/pharos.json"
     live_manifest="$tmpdir/live-hostdash.json"
     served_manifest="$tmpdir/served-hostdash.json"
-    artifact="$nixcfg_dir/hosts/csb1/docker/pharos/manifests/${host}.json"
+    artifact="$nixcfg_dir/hosts/${PHAROS_HOST}/docker/pharos/manifests/${host}.json"
 
     POST_PASS=0
     POST_FAIL=0
@@ -1621,12 +1657,12 @@ cmd_post_deploy() {
 
     if [[ -s "$generated_json" && -f "$artifact" ]]; then
         if diff -u <(jq -S . "$generated_json") <(jq -S . "$artifact") >/dev/null; then
-            post_pass "csb1 pharosd handoff artifact matches generated manifest"
+            post_pass "pharosd handoff artifact matches generated manifest"
         else
-            post_fail "csb1 pharosd handoff artifact matches generated manifest" "NIX-286"
+            post_fail "pharosd handoff artifact matches generated manifest" "NIX-286"
         fi
     elif [[ -s "$generated_json" ]]; then
-        post_skip "csb1 pharosd handoff artifact" "no artifact at $artifact"
+        post_skip "pharosd handoff artifact" "no artifact at $artifact"
     fi
 
     if [[ -s "$generated_json" && $skip_ssh -eq 0 ]]; then
