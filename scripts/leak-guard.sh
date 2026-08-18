@@ -56,6 +56,7 @@ scanned=0
 unreadable=0
 allowed=0
 ALLOWFILE=".leak-guard-allow"
+FIXTURE="tests/repository-location-surface.sh"
 
 # Fail closed if we are not in a git repository. Previously this printed
 # "clean (0 files scanned)" and exited 0 — a scanner that cannot see anything
@@ -79,6 +80,13 @@ while IFS= read -r f; do
   # locally: the file was still untracked when tested, so `git ls-files` did
   # not yield it — the tested state differed from the shipped state.
   [ "$f" = "$ALLOWFILE" ] && continue
+  # Same reason again: this test asserts that certain deprecated URLs are ABSENT
+  # from the shipped surfaces, so it must contain them to check for them. It is
+  # exempt structurally rather than by allowlist, because the failure mode is
+  # nasty: the day someone tightens PATTERNS, this file false-positives, and the
+  # obvious "fix" is to delete the strings — which silently disables the guard
+  # the test provides.
+  [ "$f" = "$FIXTURE" ] && continue
 
   # Binary files are scanned for matches but never rendered.
   if [ ! -r "$f" ]; then

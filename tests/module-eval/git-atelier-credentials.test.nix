@@ -115,10 +115,10 @@ let
           config = {
             inspr.git.atelier.personal = {
               enable = true;
-              forge = { kind = "github"; url = "https://github.com"; owner = "markus-barta"; };
+              forge = { kind = "github"; url = "https://github.com"; owner = "alice"; };
               credentials.userKey = {
-                privateKeyPath = "/run/agenix/m5-personal-userkey";
-                pubKey = "ssh-ed25519 AAAAFakePersonal m5-personal@markus-barta";
+                privateKeyPath = "/run/agenix/laptop-personal-userkey";
+                pubKey = "ssh-ed25519 AAAAFakePersonal laptop-personal@alice";
               };
             };
           };
@@ -127,13 +127,13 @@ let
            && (r.config.programs.ssh.settings ? "git-personal")
            && r.config.programs.ssh.settings."git-personal".hostname == "github.com"
            && r.config.programs.ssh.settings."git-personal".identityFile
-                == "/run/agenix/m5-personal-userkey"
+                == "/run/agenix/laptop-personal-userkey"
            && r.config.programs.ssh.settings."git-personal".identitiesOnly == true
-           && (r.config.programs.git.settings.url ? "git@git-personal:markus-barta/")
-           && r.config.programs.git.settings.url."git@git-personal:markus-barta/".insteadOf
+           && (r.config.programs.git.settings.url ? "git@git-personal:alice/")
+           && r.config.programs.git.settings.url."git@git-personal:alice/".insteadOf
                 == [
-                     "https://github.com/markus-barta/"
-                     "git@github.com:markus-barta/"
+                     "https://github.com/alice/"
+                     "git@github.com:alice/"
                    ];
     }
 
@@ -153,8 +153,8 @@ let
                 extraOwners = [ "acme-mba" ];
               };
               credentials.userKey = {
-                privateKeyPath = "/run/agenix/m5-acme-userkey";
-                pubKey = "ssh-ed25519 AAAAFakeUser m5-acme@acme-mba";
+                privateKeyPath = "/run/agenix/laptop-acme-userkey";
+                pubKey = "ssh-ed25519 AAAAFakeUser laptop-acme@acme-mba";
               };
               git = {
                 userName = "acme-mba";
@@ -194,8 +194,8 @@ let
               credentials.deployKeys.acmecfg = refDeployKey;
               # Strategy B: userKey for everything else under ACME
               credentials.userKey = {
-                privateKeyPath = "/run/agenix/m5-acme-userkey";
-                pubKey = "ssh-ed25519 AAAAFakeUser m5-acme@acme-mba";
+                privateKeyPath = "/run/agenix/laptop-acme-userkey";
+                pubKey = "ssh-ed25519 AAAAFakeUser laptop-acme@acme-mba";
               };
             };
           };
@@ -251,7 +251,7 @@ let
               enable = true;
               forge = { kind = "github"; url = "https://github.com"; owner = "example-user"; };
               credentials.userKey = {
-                privateKeyPath = "/run/agenix/m5-personal-userkey";
+                privateKeyPath = "/run/agenix/laptop-personal-userkey";
                 pubKey = "ssh-ed25519 AAAA…";
               };
               git = {
@@ -300,7 +300,7 @@ let
             inspr.git.atelier.acme = refAtelier;
             inspr.git.atelier.personal = {
               enable = true;
-              forge = { kind = "github"; url = "https://github.com"; owner = "markus-barta"; };
+              forge = { kind = "github"; url = "https://github.com"; owner = "alice"; };
               credentials.deployKeys.nixcfg = refDeployKey // {
                 privateKeyPath = "/run/agenix/test-personal-nixcfg-deploy";
               };
@@ -398,10 +398,10 @@ let
           config = {
             inspr.git.atelier.personal = {
               enable = true;
-              forge = { kind = "github"; url = "https://github.com"; owner = "markus-barta"; };
+              forge = { kind = "github"; url = "https://github.com"; owner = "alice"; };
               credentials.userKey = {
-                privateKeyPath = "/run/agenix/m5-personal-userkey";
-                pubKey = "ssh-ed25519 AAAAFakePersonal m5-personal@markus-barta";
+                privateKeyPath = "/run/agenix/laptop-personal-userkey";
+                pubKey = "ssh-ed25519 AAAAFakePersonal laptop-personal@alice";
               };
             };
           };

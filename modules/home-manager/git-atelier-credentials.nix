@@ -9,7 +9,7 @@
 #   inspr.secrets.agents   — per-host agent secrets via agenix
 #
 # This module fills the gap surfaced 2026-05-12 (Day-9 of the INSPR rollout)
-# when neither m5 nor msbp could push to ACME/acmecfg without
+# when neither laptop nor buildhost could push to ACME/acmecfg without
 # hand-rolled per-host wiring. Full design rationale + 4-tier scaling story
 # in the proposal doc: ~/Code/inspr/proposals/git-atelier-credentials.md.
 #
@@ -44,8 +44,8 @@
 #   user.name + user.email scoped to either a workspace path (via gitdir:
 #   includeIf) or the forge-owner remote URL pattern (via hasconfig:
 #   includeIf, git 2.36+). So commits to ACME repos can attribute to
-#   acme-mba while commits to markus-barta repos attribute to
-#   markus-barta — automatic, declarative, no per-repo `git config` toil.
+#   acme-mba while commits to alice repos attribute to
+#   alice — automatic, declarative, no per-repo `git config` toil.
 #
 # Usage — Strategy A (per-repo deploy key; servers, narrow scope):
 #
@@ -73,7 +73,7 @@
 #       extraOwners = [ "acme-mba" ]; # optional: extra accounts sharing this key
 #     };
 #     credentials.userKey = {
-#       privateKeyPath = "/run/agenix/m5-acme-userkey";
+#       privateKeyPath = "/run/agenix/laptop-acme-userkey";
 #       pubKey = "ssh-ed25519 AAA…";   # registered on acme-mba account
 #     };
 #     git = {
@@ -83,9 +83,9 @@
 #     };
 #   };
 #
-# After rebuild on m5/imac0/imacw, any `git clone git@github.com:ACME/<any>.git`
+# After rebuild on laptop/workstation/workstation2, any `git clone git@github.com:ACME/<any>.git`
 # or `git clone https://github.com/ACME/<any>.git` is transparently rewritten
-# to `git@git-acme:ACME/<any>.git`, authenticated by m5's acme userKey,
+# to `git@git-acme:ACME/<any>.git`, authenticated by laptop's acme userKey,
 # with commits in that workspace attributed to acme-mba.
 #
 # Consumer is responsible for:
@@ -601,14 +601,14 @@ in
                       the module at runtime. Recommended: include comment
                       identifying host + repo + date.
                     '';
-                    example = "ssh-ed25519 AAAAC3Nz… bp-acmecfg-deploy@msbp 2026-05-12";
+                    example = "ssh-ed25519 AAAAC3Nz… bp-acmecfg-deploy@buildhost 2026-05-12";
                   };
                 };
               });
               example = lib.literalExpression ''
                 {
                   acmecfg = {
-                    privateKeyPath = "/run/agenix/msbp-bp-acmecfg-deploy-key";
+                    privateKeyPath = "/run/agenix/buildhost-bp-acmecfg-deploy-key";
                     pubKey = "ssh-ed25519 AAAA…";
                   };
                 }
@@ -640,7 +640,7 @@ in
                       `age.secrets.<name>` (NixOS-level) with owner=<user>
                       and mode=0600. Typical value: /run/agenix/<name>.
                     '';
-                    example = "/run/agenix/m5-acme-userkey";
+                    example = "/run/agenix/laptop-acme-userkey";
                   };
                   pubKey = lib.mkOption {
                     type = lib.types.str;
@@ -651,7 +651,7 @@ in
                       identifying host + identity + date so the GH-side key
                       listing stays auditable.
                     '';
-                    example = "ssh-ed25519 AAAAC3Nz… m5-acme-userkey@acme-mba 2026-05-12";
+                    example = "ssh-ed25519 AAAAC3Nz… laptop-acme-userkey@acme-mba 2026-05-12";
                   };
                 };
               });

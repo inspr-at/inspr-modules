@@ -12,6 +12,11 @@ surfaces=(
   pkgs/secrets-audit/default.nix
 )
 
+# 🔴 The strings below are the ASSERTION, not content. This test fails if any of
+# them appears in a shipped surface. Do not "clean up" or obfuscate them to
+# satisfy a scanner — removing them does not remove a leak, it removes the check
+# that would have caught one. leak-guard exempts this file by path for exactly
+# that reason.
 deprecated_references=(
   "github:markus-barta/inspr-modules"
   "https://github.com/markus-barta/inspr"

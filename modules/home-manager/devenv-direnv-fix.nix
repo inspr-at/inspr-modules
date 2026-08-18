@@ -7,7 +7,7 @@
 # function renamed to `_devenv_preflight`, so it no longer shadows nix-direnv's
 # preflight when both libs are loaded by direnv.
 #
-# ── The bug (verified live on imac0, 2026-05-12) ────────────────────────
+# ── The bug (verified live on workstation, 2026-05-12) ────────────────────────
 # direnv loads everything in `~/.config/direnv/lib/*.sh` alphabetically:
 #   - hm-nix-direnv.sh (HM-managed, nix-direnv 3.1.1)
 #       defines `_nix_direnv_preflight` that sets `_nix_direnv_nix=$(...)`.
@@ -68,7 +68,7 @@ let
   # function names that collide with nix-direnv, write to a store path.
   #
   # Three colliding functions (verified 2026-05-12 via diff against
-  # nix-direnv 3.1.1's exported function set on imac0):
+  # nix-direnv 3.1.1's exported function set on workstation):
   #   - _nix_direnv_preflight  → renamed _devenv_preflight
   #     (the original collision; without this fix, `use nix` fails with
   #      `--no-warn-dirty: command not found` because `_nix_direnv_nix`

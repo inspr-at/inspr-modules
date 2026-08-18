@@ -18,7 +18,7 @@
 #      asserts that FAIL the build (with a clear INSPR-175 message) if
 #      the `sed` rename produced no `_devenv_preflight` markers OR left
 #      any `_nix_direnv_preflight` markers behind.
-#   2. Real HM activation on imac0 — rebuild succeeding + the file
+#   2. Real HM activation on workstation — rebuild succeeding + the file
 #      appearing at `~/.config/direnv/lib/z-devenv.sh` proves the
 #      derivation built successfully. The end-to-end test (both
 #      `use nix` and `use devenv` work) is the actual acceptance check.
