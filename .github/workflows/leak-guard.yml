@@ -6,11 +6,13 @@ on:
   pull_request:
 
 # A public repository is a disclosure surface from the moment it exists.
-# This job is required and blocking, not advisory.
+# Required status check on main. Note what that means: it blocks a MERGE.
+# It runs after a push has already reached the public repository, so it is a
+# post-push detector plus PR gate, not a pre-publication barrier.
 jobs:
   leak-guard:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - name: Refuse operator-specific content
+      - name: Detect operator-specific content
         run: ./scripts/leak-guard.sh

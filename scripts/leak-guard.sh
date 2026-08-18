@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
-# leak-guard.sh — refuse to publish operator-specific content.
+# leak-guard.sh — detect operator-specific content on the public surface.
+#
+# It DETECTS; it does not prevent publication. It runs as a required check
+# (blocks merges) and on push (after bytes are already public). It scans the
+# working tree, not the git index. See README for what that does and does not
+# guarantee.
 #
 # This repository is public. Its private counterpart holds one organisation's
 # identity, hosts, trackers and preferences. Nothing from that side may cross.

@@ -5,6 +5,12 @@ Reusable Home Manager modules + utilities from the [INSPR](https://inspr.at) ini
 > *"Where your inspirations live."* — democratize software development by giving anyone the same primitives Markus uses on his own fleet.
 
 ## What's here
+> **About `INSPR-nnn` references.** Ticket keys like these appear throughout
+> the docs and changelog. They point at the maintainer's **private** tracker —
+> you cannot open them, and they carry no information you need. They are kept
+> as provenance, not as links. Anything a consumer must know is stated in the
+> text itself; if it is not, that is a documentation bug worth an issue.
+
 
 ### Home Manager modules
 
@@ -210,7 +216,7 @@ nix build .#checks.aarch64-darwin.secrets-audit-functional --print-build-logs
 | `repository-location-surface` | Canonical INSPR organization links, clone guidance, and Pharos container default, while explicitly preserving the intentionally personal `nixcfg` location |
 | `secrets-audit-functional` | Drift detection logic (clean / declared-missing / orphan / commented-out fixtures); `--help` regression test for [INSPR-50](https://github.com/inspr-at/inspr-modules/commit/8fa4b37) (PATH-leak-in-help symptom that prompted the writeShellApplication migration) |
 | `paimos-config-functional` | Executes synthetic activations to prove legacy `api_key`, missing files, and unset/empty URL variables preserve the prior config; diagnostics resist shell interpolation; jq encoding safely preserves quoted and multiline routing URLs. Never reads a real user config or credential. |
-| `module-eval` (since INSPR-72) | 92 sub-tests across the Home Manager and NixOS modules, run via `lib.evalModules` + stub HM and NixOS harnesses (`tests/module-eval/harness.nix`). Verifies: assertions and throws fire when they should, required options stay required, deprecations warn, Paimos literal/env URL output stays nested under `instances` without credential references, rollout/failure guards precede replacement, git include counts match declarations, and SSH authorization output and guards remain deterministic. Runs entirely at flake-eval time—no activation, real HM, or network. |
+| `module-eval` (since INSPR-72) | 104 sub-tests across the Home Manager and NixOS modules, run via `lib.evalModules` + stub HM and NixOS harnesses (`tests/module-eval/harness.nix`). Verifies: assertions and throws fire when they should, required options stay required, deprecations warn, Paimos literal/env URL output stays nested under `instances` without credential references, rollout/failure guards precede replacement, git include counts match declarations, and SSH authorization output and guards remain deterministic. Runs entirely at flake-eval time—no activation, real HM, or network. |
 
 ### Local dev (without nix sandbox)
 
@@ -414,8 +420,16 @@ publication lint, not a general secret scanner.** Its `PATTERNS` name this
 project's hosts, domains and paths. Run unchanged in your repository it would
 protect this maintainer's identity better than yours.
 
-If you want the mechanism — fail-closed, whole-tree, redacted output, reviewed
-allowlist — copy the script, rewrite `PATTERNS` for what *you* must never
+What it actually is, stated where you will read it rather than in the
+changelog: a **post-push detector plus a PR check**. The workflow runs on
+`push`, i.e. after bytes have reached the public repository; it does not gate
+your local `git push`. It reads tracked paths from `git ls-files` but scans the
+**working tree**, not the index — so a staged leak covered by an unstaged local
+cleanup passes. It is a denylist, and a denylist reduces accidental disclosure;
+it is not a security boundary.
+
+If you want the mechanism — fail-closed on missing inputs, all tracked files,
+redacted output, reviewed allowlist — copy the script, rewrite `PATTERNS` for what *you* must never
 publish, keep it at `scripts/leak-guard.sh` (it excludes itself by that path),
 and add a `.leak-guard-allow` at your root. There is no flake output for it
 and no `--help`; that is a deliberate scope limit, not an oversight, and it is
