@@ -46,7 +46,7 @@ In your `flake.nix`:
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
     # Pin to a tag. Tracking `main` means every `nix flake update`
     # can change doctrine and module behaviour under you.
-    inspr-modules.url = "github:inspr-at/inspr-modules/v0.4.0";
+    inspr-modules.url = "github:inspr-at/inspr-modules/v0.4.1";
     inspr-modules.inputs.nixpkgs.follows = "nixpkgs";
   };
 
@@ -140,7 +140,7 @@ on purpose:
 {
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    inspr-modules.url = "github:inspr-at/inspr-modules/v0.4.0";
+    inspr-modules.url = "github:inspr-at/inspr-modules/v0.4.1";
     inspr-modules.inputs.nixpkgs.follows = "nixpkgs";
   };
 
@@ -170,9 +170,12 @@ on purpose:
 }
 ```
 
-This is the same shape the VM integration test boots (`tests/nixos-vm/`), so
-if it evaluates for you it has also been proven to admit and refuse keys
-correctly on a running sshd. Full option reference: the header of
+This is the same shape the VM integration test boots (`tests/nixos-vm/`), and
+that test proves the **module** admits trusted keys and refuses untrusted,
+revoked and cross-user ones on a running sshd. It does not prove *your* keys:
+the option accepts any string, so a typo in a public key evaluates fine and
+fails only at login. Check with `ssh-keygen -l -f <(echo "<key>")` before you
+commit it; build-time key validation is on the roadmap. Full option reference: the header of
 [`modules/nixos/ssh-authorized.nix`](modules/nixos/ssh-authorized.nix).
 
 ## Architecture notes — the atelier pattern
@@ -233,7 +236,9 @@ Option renames go through a **deprecation window**:
 
 **Example** (current — `inspr.secrets.agents.identityFile` → `identityFiles`):
 ```nix
-# Old (still works, emits eval warning, removed in v0.2.0):
+# Old (still works, emits eval warning; removed in the next MAJOR, i.e. v1.0.0 —
+# an earlier revision of this line said v0.2.0, which contradicted the policy
+# above and was simply wrong):
 inspr.secrets.agents.identityFile = "$HOME/.ssh/id_rsa";
 
 # New (preferred):
@@ -270,7 +275,7 @@ data, and third-party components retain their own licensing boundaries.
 
 ## Status
 
-**v0.4.0.** Extracted from a working NixOS + Home Manager fleet on 2026-05-02
+**v0.4.1.** Extracted from a working NixOS + Home Manager fleet on 2026-05-02
 and used in production since.
 
 ### Supported
@@ -285,12 +290,8 @@ and used in production since.
 
 Versioning is SemVer over tags. Pin a tag; `main` moves.
 
-via the bundled `inspr` CLI (`packages.<system>.inspr` — the doctor
-evolved into it per INSPR-195; `inspr check` is the same 34-check
-diagnosis, now shipped from this repo).
-
 Roadmap:
-- NixOS-equivalent modules (currently HM-only — server-side `system_agenix_decrypted` is a doctor check, not yet a module here)
+- NixOS counterparts for the remaining Home Manager modules — `ssh-authorized` has one and a VM test; `agent-secrets`, `paimos-config` and `git-identity` do not yet
 - 1Password tag-export integration (Phase 2 secrets graduation)
 - Remove the ignored `paimos-config` `apiKeyEnvFile` / `apiKeyVar` compatibility options after their one-release deprecation window (INSPR-225)
 
@@ -356,7 +357,7 @@ create it. From your repository root:
 ```bash
 # 1. Vendor the doctrine as a submodule at ./doctrine, pinned to a tag.
 git submodule add https://github.com/inspr-at/inspr-modules.git doctrine
-git -C doctrine checkout v0.4.0
+git -C doctrine checkout v0.4.1
 git add doctrine .gitmodules
 
 # 2. Load the kernel from your agent instruction file. @-refs resolve from the

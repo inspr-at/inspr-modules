@@ -77,6 +77,56 @@ exactly that point.
 
 ---
 
+## [0.4.1] - 2026-08-18
+
+`v0.4.0` was cut so the tag would match its documentation, and then three more
+pull requests landed on `main` before anyone re-tagged — a NixOS consumer
+walkthrough, a VM integration test, and a security-policy correction. An
+independent reviewer's top blocker was, once again, that the recommended tag
+did not contain what the default-branch manual described. This release
+contains everything on `main`, and is the last commit before the tag.
+
+### Added
+
+- `checks.<linux>.nixos-vm-ssh-authorized` — a real NixOS VM test for the SSH
+  admission module: boots server + client, proves the trusted key logs in and
+  untrusted / revoked / cross-user keys are refused, and that `force = true`
+  renders exactly the trusted list. Runs in CI on GitHub's Linux runners.
+  Verified red-then-green against a runtime-only bug that every eval-time
+  assertion misses.
+- README: a NixOS consumer example for `ssh-authorized` (previously findable
+  only in a 300-line module header); a doctrine-check adoption recipe covering
+  the submodule, the `@`-ref and the command symlinks; the guard's environment
+  knobs; a plain statement that `leak-guard` is this repository's own lint and
+  needs a fork to protect anyone else.
+
+### Fixed
+
+- `SECURITY.md` directed reporters to GitHub private vulnerability reporting,
+  which was **disabled** on the repository. It is now enabled, alongside secret
+  scanning and push protection, and the policy names the mechanisms without
+  calling any of them a guarantee.
+- The deprecation example promised removal of `identityFile` "in v0.2.0",
+  contradicting the policy two lines above it (removal in the next MAJOR) and
+  the shipped code (still present at 0.4.x, deliberately). The example now
+  matches the policy.
+- README overstated what consumer evaluation proves for `ssh-authorized`: the
+  option accepts any string, so a mistyped key evaluates fine and fails only
+  at login. Now stated, with the check to run first.
+- An orphaned sentence fragment under the support table, and a roadmap line
+  claiming the project is "currently HM-only" when it ships a NixOS module.
+
+### Known limitations (unchanged from 0.4.0, restated so nobody has to dig)
+
+- Both guard scripts are incomplete and read the worktree rather than the git
+  index; a staged leak with an unstaged local cleanup passes `leak-guard`.
+  Tracked (INSPR-300); do not treat a green result as proof.
+- Only `ssh-authorized` has a VM test. Other modules are eval-only, on stubs.
+- One maintainer; only the latest tag receives fixes; only `nixos-unstable`
+  plus matching Home Manager is claimed.
+
+---
+
 ## [Unreleased]
 
 ### Planned
