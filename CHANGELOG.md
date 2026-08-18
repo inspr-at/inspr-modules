@@ -185,6 +185,20 @@ boring and some weeks away.
 
 ---
 
+## [0.4.4] - 2026-08-18
+
+### Fixed
+
+- The README's Home Manager walkthrough imported only `git-identity` while its
+  `home.nix` block configured `inspr.paimos-cli`; pasted together they failed
+  with "The option inspr.paimos-cli does not exist". Import restored. Found by
+  an outside evaluation, under a contribution rule that says every example must
+  evaluate — the rule was documented more thoroughly than it was automated.
+  Testing the README's quickstart as an actual consumer flake is the right fix
+  and is not in this release.
+
+---
+
 ## [Unreleased]
 
 ### Planned
