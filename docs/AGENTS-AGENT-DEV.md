@@ -5,9 +5,10 @@
 This document is the authoritative source for the DEV role (development-oriented agents). Other layers (read top-down for full context):
 
 - **[AGENTS-CORE.md](./AGENTS-CORE.md)** — universal rules every agent follows
-- **[AGENTS-PROFILE-MARKUS.md](https://github.com/inspr-at/inspr-doctrine-private/blob/main/docs/AGENTS-PROFILE-MARKUS.md)** — Markus Barta's personal preferences
+- **an operator profile** — personal preferences of whoever runs the fleet. Not
+  published here; each operator supplies their own private layer.
 - **AGENTS-AGENT-*.md** — per-role overlays (one per agent identity)
-- **per-repo AGENTS.md** in nixcfg/inspr/amt-com/ops — repo-specific deltas
+- **per-repo AGENTS.md** — repo-specific deltas
 
 ---
 
