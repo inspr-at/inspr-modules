@@ -74,6 +74,11 @@ while IFS= read -r f; do
   [ "$f" = "$SELF" ] && continue
   [ "$f" = "$WORKFLOW" ] && continue
   [ "$f" = "$CHANGELOG" ] && continue   # history, not live guidance
+  # The allowlist necessarily quotes the patterns it exempts, so it matches
+  # itself. Excluded for the same reason as this script. Caught by CI, not
+  # locally: the file was still untracked when tested, so `git ls-files` did
+  # not yield it — the tested state differed from the shipped state.
+  [ "$f" = "$ALLOWFILE" ] && continue
 
   # Binary files are scanned for matches but never rendered.
   if [ ! -r "$f" ]; then
