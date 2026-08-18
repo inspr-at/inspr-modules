@@ -170,7 +170,7 @@ nix build .#secrets-audit
 ### Roadmap
 
 - ~~Module-eval tests for HM modules~~ — **shipped (INSPR-72)**, see above.
-- NixOS VM integration tests via `pkgs.testers.runNixOSTest` — heavy but the gold standard for "does activation actually work end-to-end." Filed as a follow-up.
+- ~~NixOS VM integration tests~~ — **shipped for `ssh-authorized`**: `checks.<linux-system>.nixos-vm-ssh-authorized` boots a server and a client and proves sshd admits the trusted key and refuses untrusted, revoked and cross-user keys. Linux-only (needs a KVM builder with the `nixos-test` feature); on macOS the check is simply absent. It caught a real behaviour on first run — OpenSSH's per-source auth penalties — that no eval test could see. Remaining modules are still eval-only.
 
 ## Versioning + deprecation policy
 
