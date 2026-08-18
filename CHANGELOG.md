@@ -7,6 +7,70 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.4.0] - 2026-08-18
+
+First release whose documentation describes the release. Everything below
+already existed on `main`; the problem was that `v0.3.7` — the tag the README
+told consumers to pin — shipped none of it. An independent reviewer stopped at
+exactly that point.
+
+### Added
+
+- `scripts/leak-guard.sh` — refuses operator-identifying content on the public
+  surface. Whole-repo scope, fails closed outside a git repository or on an
+  unreadable file, and never echoes matched text (a detector that prints what
+  it found reproduces the leak into CI logs). Reasoned allowlist in
+  `.leak-guard-allow`.
+- `scripts/doctrine-check.sh` — five assertions that a consuming repository's
+  doctrine wiring actually resolves. Every failure it catches is silent at
+  runtime: a dangling `@`-ref loads nothing and reports nothing.
+- `SECURITY.md` — private vulnerability reporting, response targets, and an
+  explicit invitation to report ways of defeating either guard.
+- `CONTRIBUTING.md` and `CODEOWNERS` — the repository previously had detailed
+  rules for the maintainer's own agents and none for a human stranger.
+- `homeManagerModules.inspr-cli` — renders `fleet.conf` from typed options.
+  Deliberately **not** in the `default` aggregate: it writes a config file, so
+  it is opt-in.
+- A test that compiles the NixOS module's documented example, so an example
+  that does not evaluate now fails CI.
+
+### Fixed
+
+- **`nixosModules.ssh-authorized`'s documented example did not evaluate.** It
+  trusted an SSH key alias the example never declared, so the module's own
+  guard threw. On an admission-control module.
+- The `inspr` CLI carried the maintainer's tailnet endpoint and identity as
+  built-in defaults; the git-identity check asserted one specific person's
+  email as its pass condition, so it reported *pass* for the maintainer and was
+  meaningless for everyone else. Now configurable, and skips when unset.
+- The package failed to build — ShellCheck rejected quoting introduced during
+  that parameterisation.
+- Public documentation linked into two private repositories (guaranteed 404s
+  and disclosure of private paths), described the library as one person's fleet
+  config, and documented options using that person's hostnames.
+- README claimed the wrong version, the wrong test count, the wrong number of
+  doctrine-check assertions, and that the `default` aggregate imported every
+  module.
+
+### Changed
+
+- `SECURITY.md` no longer claims the repository is "identity-free". The
+  defensible claim is narrower and now stated: no live credentials, no private
+  endpoints.
+- Module examples use generic names (`alice@laptop`) rather than the
+  maintainer's machines — one of which was decommissioned.
+
+### Known limitations
+
+- Both guard scripts are incomplete. They walk the filesystem where they should
+  read the git index, and three audit rounds each found a new false negative of
+  that shape. They catch what they catch; do not treat a green result as proof.
+- No NixOS VM integration test. Module-eval tests use stubs.
+- `leak-guard.sh` matches a hard-coded pattern set. It is usable as-is only by
+  this project; adopting it elsewhere means forking and rewriting `PATTERNS`.
+
+---
+
 ## [Unreleased]
 
 ### Planned
