@@ -165,6 +165,26 @@ contains everything on `main`, and is the last commit before the tag.
 
 ---
 
+## [0.4.3] - 2026-08-18
+
+Documentation only. Cut because the rule adopted in 0.4.1 — docs ship with the
+tag that describes them — is worth more than avoiding a fourth same-day
+version number. This is the last release of the day; the next one should be
+boring and some weeks away.
+
+### Changed
+
+- Guard language matched to mechanism. `leak-guard` "refuse to publish" and
+  "required and blocking" described a pre-publication barrier; what exists is a
+  **post-push detector plus PR gate** that scans the working tree, not the git
+  index. Now says so, next to the usage instructions rather than only here.
+- One note near the top of the README explaining that `INSPR-nnn` keys point
+  at a private tracker and carry nothing a consumer needs.
+- README test count corrected to 104 (said 92 in the release cut to make counts
+  accurate — same drift, same fix).
+
+---
+
 ## [Unreleased]
 
 ### Planned
