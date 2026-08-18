@@ -41,12 +41,19 @@ misses something are useful and welcome; that is the point of this section.
 
 Out of scope: the maintainer's own fleet, hosts and infrastructure.
 
-To be precise about what this repository does and does not claim: it contains
-**no live credentials and no private endpoints**, and `leak-guard.sh` enforces
-that on every push. It is *not* free of the maintainer's fingerprints — the
-doctrine describes one operating model, and some documentation still carries
-project vocabulary and ticket references. "No secrets" is the guarantee;
-"no trace of its origin" is not.
+To be precise about what this repository does and does not claim: it is
+**intended to contain no live credentials and no private endpoints**. Two
+things back that intent, and neither is a guarantee:
+
+- `leak-guard.sh` runs as a required check on every push. It is a small
+  pattern denylist with a reviewed allowlist. It catches what it is told to
+  look for and is known to be incomplete (INSPR-300).
+- GitHub secret scanning and push protection are enabled on the repository.
+
+It is *not* free of the maintainer's fingerprints — the doctrine describes one
+operating model, and some documentation still carries project vocabulary and
+ticket references. If you find a credential or a private endpoint anyway, that
+is a vulnerability report, and the section above is how to make it.
 
 ## Supported versions
 

@@ -130,6 +130,51 @@ For a URL managed outside Nix, set `urlEnvFile` plus `urlVar` instead of `url`.
 The file must contain only trusted routing input; credential env files are not
 supported by this module.
 
+### NixOS: `ssh-authorized`
+
+The NixOS module imports at system scope, not through Home Manager. Minimal
+`flake.nix` — every alias in `trust` must be declared in `keys`, or eval fails
+on purpose:
+
+```nix
+{
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    inspr-modules.url = "github:inspr-at/inspr-modules/v0.4.0";
+    inspr-modules.inputs.nixpkgs.follows = "nixpkgs";
+  };
+
+  outputs = { nixpkgs, inspr-modules, ... }: {
+    nixosConfigurations.your-host = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      modules = [
+        inspr-modules.nixosModules.ssh-authorized
+        ({ ... }: {
+          users.users.alice = { isNormalUser = true; };
+
+          inspr.ssh.authorized = {
+            enable = true;
+            keys = {
+              "alice@laptop" = "ssh-ed25519 AAAA...";     # your real public key
+              "alice@workstation" = "ssh-ed25519 AAAA...";
+            };
+            users.alice = {
+              trust = [ "alice@laptop" "alice@workstation" ];
+              force = true;   # the rendered list is authoritative
+            };
+          };
+        })
+      ];
+    };
+  };
+}
+```
+
+This is the same shape the VM integration test boots (`tests/nixos-vm/`), so
+if it evaluates for you it has also been proven to admit and refuse keys
+correctly on a running sshd. Full option reference: the header of
+[`modules/nixos/ssh-authorized.nix`](modules/nixos/ssh-authorized.nix).
+
 ## Architecture notes — the atelier pattern
 
 These modules emerged from the INSPR onboarding sessions documented in the (private) `inspr` umbrella repo. The design pattern is **the atelier** (formerly called "Pattern β" in older docs — same architecture, more memorable name).
@@ -303,13 +348,52 @@ silently: a dangling `@`-ref loads nothing without complaint, and a broken
 command symlink means the command simply does not appear — you type it, get
 nothing, and assume you misremembered the name.
 
+### Setting it up — the part that was missing
+
+The check assumes a specific layout, and until now nothing told you how to
+create it. From your repository root:
+
 ```bash
+# 1. Vendor the doctrine as a submodule at ./doctrine, pinned to a tag.
+git submodule add https://github.com/inspr-at/inspr-modules.git doctrine
+git -C doctrine checkout v0.4.0
+git add doctrine .gitmodules
+
+# 2. Load the kernel from your agent instruction file. @-refs resolve from the
+#    REPO ROOT, not from the file that contains them.
+printf '@./doctrine/docs/AGENTS-KERNEL.md\n' >> CLAUDE.md
+
+# 3. Optionally expose the doctrine's slash commands as symlinks.
+mkdir -p .claude/commands
+ln -s ../../doctrine/commands/dev.md .claude/commands/dev.md   # repeat per command you want
+
+# 4. Run it.
 ./doctrine/scripts/doctrine-check.sh
 ```
 
-Five assertions: every `@`-ref resolves (including inside command files), every command is a live symlink (a
-regular file there is a copy, and copies drift), the submodule pins are not far
-behind, and any declared command list matches what is wired.
+`AGENTS.md` and `AGENTS-*.md` at the root are also scanned. Anything under
+`.claude/commands/` (or `+agents/commands/`) is scanned too, including
+`@`-refs *inside* those command files.
+
+Environment knobs, all optional:
+
+| variable | default | meaning |
+|---|---|---|
+| `DOCTRINE_MAX_BEHIND` | `3` | how many commits behind canonical a pin may be before it fails |
+| `DOCTRINE_UPSTREAMS` | `inspr-modules\|inspr-doctrine-private` | which upstreams count as doctrine for the multi-path check |
+| `DOCTRINE_STRICT` | `0` | `1` makes "could not verify" (e.g. no network) exit 1 instead of reporting INCOMPLETE |
+
+The check **skips** assertions whose surface does not exist rather than
+failing them, so a green run on an empty repository proves nothing. Read the
+output; a `∘` line is a skip, not a pass.
+
+Five assertions: every `@`-ref resolves (including inside command files); every
+command is a live symlink (a regular file there is a copy, and copies drift);
+the doctrine pins are not far behind canonical; any declared command list
+matches what is wired; and where a repository consumes the same doctrine
+through more than one path (a submodule *and* a flake input), those paths agree
+bit-for-bit — a split there means agent sessions and hosts follow different
+rules.
 
 Add it to CI with [`examples/doctrine-check.yml`](examples/doctrine-check.yml).
 Note `submodules: recursive` in the checkout step — without it the check has
@@ -317,3 +401,17 @@ nothing to resolve against and will report everything as broken.
 
 `--warn` downgrades failures to advisory, for adopting it on a repo that is not
 clean yet.
+
+### About `leak-guard.sh`
+
+Also in `scripts/`, and worth being clear about: **it is this repository's own
+publication lint, not a general secret scanner.** Its `PATTERNS` name this
+project's hosts, domains and paths. Run unchanged in your repository it would
+protect this maintainer's identity better than yours.
+
+If you want the mechanism — fail-closed, whole-tree, redacted output, reviewed
+allowlist — copy the script, rewrite `PATTERNS` for what *you* must never
+publish, keep it at `scripts/leak-guard.sh` (it excludes itself by that path),
+and add a `.leak-guard-allow` at your root. There is no flake output for it
+and no `--help`; that is a deliberate scope limit, not an oversight, and it is
+why the security policy calls it an incomplete control rather than a guarantee.
