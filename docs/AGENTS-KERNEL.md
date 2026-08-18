@@ -28,7 +28,7 @@ _Auto-loaded. Universal hard-safety + identity + router. Carries ONLY rules wher
 - 🔴 Single carve-out — **release pins**: in a repo holding the deploy pin for what you just released, edit only the pin, its explanatory comment, and whatever that repo's documented vendoring step also requires (e.g. re-mirroring a doctrine block). Nothing else. Conditional on all of: **where a review path exists, use it (PR + checks — never a direct push to `main`, even where `main` is unprotected); where none exists, the owner's explicit request for that specific change is the gate — never agent initiative**; a recorded backup + rollback path; reversibility.
 - 🔴 Third-party / business-owned repos are stricter: no PR path → **STOP and ask**, never push.
 - 🔴 Clean up only your own residue. Branches you created in a foreign repo are yours to delete; anyone else's are a ticket, never `git push --delete`.
-- 🟡 Depth + the two incidents behind it: OPS guideline `cross-repo-authoring-doctrine`.
+- 🟡 Depth, and the incidents behind this rule, belong in the operator's own private ops notes; this kernel states the rule, not the war stories.
 
 ### Files & ops
 

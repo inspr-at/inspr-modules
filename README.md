@@ -44,7 +44,9 @@ In your `flake.nix`:
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     home-manager.url = "github:nix-community/home-manager";
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
-    inspr-modules.url = "github:inspr-at/inspr-modules";
+    # Pin to a tag. Tracking `main` means every `nix flake update`
+    # can change doctrine and module behaviour under you.
+    inspr-modules.url = "github:inspr-at/inspr-modules/v0.3.7";
     inspr-modules.inputs.nixpkgs.follows = "nixpkgs";
   };
 
@@ -223,10 +225,20 @@ data, and third-party components retain their own licensing boundaries.
 
 ## Status
 
-v0.1.0 — extracted from `markus-barta/nixcfg` on 2026-05-02. Tested on:
-- macOS workstation (M5, aarch64-darwin)
-- macOS workstation (x86_64-darwin)
-- NixOS server (x86_64-linux)
+**v0.3.7.** Extracted from a working NixOS + Home Manager fleet on 2026-05-02
+and used in production since.
+
+### Supported
+
+| | |
+|---|---|
+| Nix | flakes enabled (`experimental-features = nix-command flakes`) |
+| nixpkgs | `nixos-unstable` |
+| Home Manager | tracking the same nixpkgs |
+| Platforms | `aarch64-darwin`, `x86_64-darwin`, `x86_64-linux` |
+| Not tested | `aarch64-linux` |
+
+Versioning is SemVer over tags. Pin a tag; `main` moves.
 
 via the bundled `inspr` CLI (`packages.<system>.inspr` — the doctor
 evolved into it per INSPR-195; `inspr check` is the same 34-check

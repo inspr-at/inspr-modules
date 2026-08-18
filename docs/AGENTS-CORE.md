@@ -2,12 +2,13 @@
 
 *Layer: `universal` · Synthesized 2026-05-14 by INSPR-179 Phase 4 · This layer holds 199 rules. (Post-Phase-6: this file is no longer auto-loaded; it remains as exhaustive reference. Slash commands `/dev /ops /secrets /nix /ppm /style /incident` load topic-relevant domain packs on demand.)*
 
-This document is the authoritative source for rules every Claude agent in Markus Barta's fleet follows, regardless of role, repo, or profile. Other layers (read top-down for full context):
+This document is the authoritative source for rules every agent follows, regardless of role, repo, or operator profile. Other layers (read top-down for full context):
 
 - **[AGENTS-CORE.md](./AGENTS-CORE.md)** — universal rules every agent follows
-- **[AGENTS-PROFILE-MARKUS.md](https://github.com/inspr-at/inspr-doctrine-private/blob/main/docs/AGENTS-PROFILE-MARKUS.md)** — Markus Barta's personal preferences
+- **an operator profile** — personal preferences of whoever runs the fleet. Not
+  published here; each operator supplies their own private layer.
 - **AGENTS-AGENT-*.md** — per-role overlays (one per agent identity)
-- **per-repo AGENTS.md** in nixcfg/inspr/amt-com/ops — repo-specific deltas
+- **per-repo AGENTS.md** — repo-specific deltas
 
 ---
 

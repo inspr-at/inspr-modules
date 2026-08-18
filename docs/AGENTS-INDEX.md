@@ -162,11 +162,11 @@ repositories as a second submodule at `doctrine-private/` over SSH:
 
 | Moved | Loaded by |
 |---|---|
-| `AGENTS-PROFILE-MARKUS.md` | `/style` |
+| the operator profile | `/style` |
 | `AGENTS-DOMAIN-PPM.md` | `/ppm` |
 | `AGENTS-DOMAIN-OPS.md` | `/ops`, `/incident` |
 | `AGENTS-DOMAIN-IAC.md` | `/iac` |
-| `AGENTS-AGENT-SYSOP{,-GB}.md` | `/ops` |
+| `AGENTS-AGENT-SYSOP*.md` | `/ops` |
 | `AGENTS-AGENT-PPM{,-READONLY}.md` | role overlays |
 | `AGENTS-AGENT-FLEET-DECISION.md` | role overlay |
 | `AGENTS-AGENT-OPENCLAW-OPS.md` | role overlay |

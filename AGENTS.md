@@ -43,7 +43,7 @@ Index: [`docs/AGENTS-INDEX.md`](docs/AGENTS-INDEX.md) tracks all layer files + P
 - 🔴 Never create new `.md` files unless explicitly asked; prefer editing an existing in-scope doc. **Durable knowledge → a PPM Knowledge entry** (architecture, rationale, positioning, playbooks, field notes, how-tos) when PPM writes are authorized (`/ppm` for mechanics), otherwise report the intended entry and ask. Stays local: `README`, `AGENTS.md` / `CLAUDE.md` + doctrine packs, `RUNBOOK.md`, `CHANGELOG.md`, `RESUMING-*`, `LICENSE`, code comments.
 
 <!-- KERNEL-MIRROR-END -->
-<!-- KERNEL-MIRROR-OF: sha256:8ee911e883734fd343a1f0e240251f3e74260c830ece6fb5bd93f9035c0e850a — attestation that the mirror block above reflects this exact kernel revision. Update via: sha256sum docs/AGENTS-KERNEL.md (enforced by the kernel-mirror-stamp flake check, INSPR-278). -->
+<!-- KERNEL-MIRROR-OF: sha256:05e79cfe9323a97067a69939758c230b17b50ef231f58fa4d4a56fb5a89ce71d — attestation that the mirror block above reflects this exact kernel revision. Update via: sha256sum docs/AGENTS-KERNEL.md (enforced by the kernel-mirror-stamp flake check, INSPR-278). -->
 
 ## Editing rules
 
