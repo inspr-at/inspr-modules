@@ -18,7 +18,7 @@ Reusable Home Manager modules + utilities from the [INSPR](https://inspr.at) ini
 | `inspr-cli` | `inspr.cli` | Renders the `inspr` CLI's fleet configuration (Headscale, tracker, Pharos, expected git identity). Endpoints and identity metadata only — never credentials. Unset values make the dependent checks SKIP rather than FAIL, so the CLI is useful before you have configured anything. |
 | `paimos-config` | `inspr.paimos-cli` | Declaratively materializes routing only (`default_instance` + URLs). URLs may be literals or come from a routing env file. It never handles API credentials: INSPR workstations authenticate interactively into the OS keyring; headless automation injects `PAIMOS_URL` + `PAIMOS_API_KEY` into the running process from approved encrypted storage. |
 | `ssh-authorized` | `inspr.ssh.authorized` | Declarative `~/.ssh/authorized_keys` via aliased key map + trust list. Manages a marker-delimited block; lines outside the markers (Headscale deploy keys, GitHub Actions OIDC, recovery keys) are preserved across activations. Sorted output → byte-identical regardless of input order. Throws at eval time if `trust` references an undeclared alias. **Rich keys form** (since INSPR-77) supports per-key `{ status; note; }` metadata for grandfathering: `legacy` keys render with a `[legacy]` tag for fleet-wide audit, `revoked` keys keep the declaration as historical record but are not admitted (and throw if accidentally left in `trust`). |
-| `default` | (aggregate) | Imports all seven above. Consumers wanting à-la-carte should import individual modules. |
+| `default` | (aggregate) | Imports seven of the eight above — **`inspr-cli` is excluded on purpose**, because it writes a `fleet.conf` and should be an explicit opt-in rather than something an aggregate turns on for you. Import it by name if you want it. Consumers wanting à-la-carte should import individual modules. |
 
 ### NixOS modules
 
@@ -158,7 +158,7 @@ nix build .#checks.aarch64-darwin.secrets-audit-functional --print-build-logs
 | `repository-location-surface` | Canonical INSPR organization links, clone guidance, and Pharos container default, while explicitly preserving the intentionally personal `nixcfg` location |
 | `secrets-audit-functional` | Drift detection logic (clean / declared-missing / orphan / commented-out fixtures); `--help` regression test for [INSPR-50](https://github.com/inspr-at/inspr-modules/commit/8fa4b37) (PATH-leak-in-help symptom that prompted the writeShellApplication migration) |
 | `paimos-config-functional` | Executes synthetic activations to prove legacy `api_key`, missing files, and unset/empty URL variables preserve the prior config; diagnostics resist shell interpolation; jq encoding safely preserves quoted and multiline routing URLs. Never reads a real user config or credential. |
-| `module-eval` (since INSPR-72) | 73 sub-tests across the Home Manager and NixOS modules, run via `lib.evalModules` + stub HM and NixOS harnesses (`tests/module-eval/harness.nix`). Verifies: assertions and throws fire when they should, required options stay required, deprecations warn, Paimos literal/env URL output stays nested under `instances` without credential references, rollout/failure guards precede replacement, git include counts match declarations, and SSH authorization output and guards remain deterministic. Runs entirely at flake-eval time—no activation, real HM, or network. |
+| `module-eval` (since INSPR-72) | 92 sub-tests across the Home Manager and NixOS modules, run via `lib.evalModules` + stub HM and NixOS harnesses (`tests/module-eval/harness.nix`). Verifies: assertions and throws fire when they should, required options stay required, deprecations warn, Paimos literal/env URL output stays nested under `instances` without credential references, rollout/failure guards precede replacement, git include counts match declarations, and SSH authorization output and guards remain deterministic. Runs entirely at flake-eval time—no activation, real HM, or network. |
 
 ### Local dev (without nix sandbox)
 
@@ -307,7 +307,7 @@ nothing, and assume you misremembered the name.
 ./doctrine/scripts/doctrine-check.sh
 ```
 
-Four assertions: every `@`-ref resolves, every command is a live symlink (a
+Five assertions: every `@`-ref resolves (including inside command files), every command is a live symlink (a
 regular file there is a copy, and copies drift), the submodule pins are not far
 behind, and any declared command list matches what is wired.
 

@@ -59,7 +59,7 @@
 #
 #     # Rich form — for grandfathering / audit
 #     "shared-rsa-pre-2026" = {
-#       key    = "ssh-rsa AAAA... markus";
+#       key    = "ssh-rsa AAAA... shared";
 #       status = "legacy";
 #       note   = "shared RSA pre-2026; retire after per-host ed25519 rollout";
 #     };
@@ -262,7 +262,7 @@ in
 
           # Rich form — for grandfathering / audit
           "shared-rsa-pre-2026" = {
-            key    = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQ... markus";
+            key    = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQ... shared";
             status = "legacy";
             note   = "shared RSA pre-2026; retire after per-host ed25519 rollout (Q3 2026)";
           };
