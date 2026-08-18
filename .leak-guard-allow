@@ -1,0 +1,25 @@
+# leak-guard allowlist — one entry per line: <path>|<pattern-substring>|<reason>
+#
+# Every entry is a REVIEWED decision, not a silent exclusion. An entry that says
+# "tracked" is debt with a ticket, not an acceptance. The guard prints the count
+# of allowlisted matches on every run so this file cannot quietly grow.
+
+# --- legitimate: the documented interface of the module itself ---
+modules/home-manager/agent-secrets.nix|inspr/secrets|The module exists to manage this path; it cannot be documented without naming it. A path is not a credential.
+pkgs/inspr/inspr.sh|inspr/secrets|Same: the CLI's documented secret location. Value never printed.
+
+# --- false positive: obviously synthetic test fixture ---
+tests/paimos-config-functional.nix|api[_-]?key|Fixture value is the literal string "synthetic-regression-marker" against legacy.example.invalid (a reserved TLD). Not a credential.
+
+# --- TRACKED DEBT: operator identity in public examples (INSPR-305) ---
+# These are `example = lib.literalExpression` snippets and comments, not key
+# material. They are still wrong for an identity-free atelier — a public library
+# should illustrate its options with generic names. Being fixed, not accepted.
+modules/nixos/ssh-authorized.nix|markus@|TRACKED INSPR-305 — doc examples should use generic names
+modules/nixos/ssh-authorized.nix|imac0|TRACKED INSPR-305 — doc examples should use generic names
+modules/nixos/ssh-authorized.nix|hsb[0-9]|TRACKED INSPR-305 — example option value names a real host
+modules/home-manager/ssh-authorized.nix|markus@|TRACKED INSPR-305 — doc examples should use generic names
+modules/home-manager/ssh-authorized.nix|imac0|TRACKED INSPR-305 — doc examples should use generic names
+modules/home-manager/devenv-direnv-fix.nix|imac0|TRACKED INSPR-305 — comment names a decommissioned host
+modules/home-manager/git-atelier-credentials.nix|imac0|TRACKED INSPR-305 — comment names a decommissioned host
+tests/module-eval/devenv-direnv-fix.test.nix|imac0|TRACKED INSPR-305 — test fixture mirrors the module comment
