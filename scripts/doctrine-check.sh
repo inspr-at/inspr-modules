@@ -20,6 +20,12 @@
 # Exit 0 clean, 1 on any failure. --warn downgrades to advisory.
 set -uo pipefail
 
+# Portability: this script must run under macOS's system bash (3.2.57), not just
+# a modern nix bash. An earlier revision used `declare -A`, which 3.2 rejects —
+# the script then aborted mid-assertion and still exited 0, i.e. a doctrine
+# split passed clean. Keep this file free of Bash-4-only constructs
+# (associative arrays, `${var^^}`, `readarray`).
+
 WARN=0; [[ "${1:-}" == "--warn" ]] && WARN=1
 # Commit distance measures AGE, not compatibility: one breaking commit matters
 # more than ten documentation commits. It is a weak proxy kept because it is
@@ -35,10 +41,13 @@ DOCTRINE_UPSTREAMS="${DOCTRINE_UPSTREAMS:-inspr-modules|inspr-doctrine-private}"
 is_doctrine_upstream() { printf '%s' "$1" | grep -qiE "($DOCTRINE_UPSTREAMS)"; }
 
 red=$'\033[0;31m'; grn=$'\033[0;32m'; yel=$'\033[1;33m'; dim=$'\033[2m'; rst=$'\033[0m'
-fail=0
+fail=0; unchecked=0
 ok()   { printf "  ${grn}✓${rst} %s\n" "$1"; }
 bad()  { printf "  ${red}✗${rst} %s\n" "$1"; fail=1; }
 skip() { printf "  ${dim}∘ %s${rst}\n" "$1"; }
+# Distinct from skip(): the assertion was APPLICABLE but could not be evaluated.
+# Reporting that as "clean" is how a stale pin passes with no network.
+uncheck() { printf "  ${yel}?${rst} %s\n" "$1"; unchecked=$((unchecked+1)); }
 
 repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || {
   echo "not a git repository root" >&2; exit 2; }
@@ -55,7 +64,7 @@ loaders=()
 for f in CLAUDE.md AGENTS.md AGENTS-*.md; do [[ -f "$f" ]] && loaders+=("$f"); done
 # Commands can carry @-refs too, and a dangling one there is just as silent.
 cdir=""
-for d in .claude/commands +agents/commands; do [[ -e "$d" ]] && cdir="$d" && break; done
+for d in .claude/commands +agents/commands; do [[ -e "$d" || -L "$d" ]] && cdir="$d" && break; done
 [[ -n "$cdir" ]] && while IFS= read -r c; do loaders+=("$c"); done \
   < <(find -L "$cdir" -maxdepth 1 -name '*.md' 2>/dev/null)
 
@@ -107,7 +116,15 @@ for sm in doctrine doctrine-private; do
   [[ -e "$sm" ]] || continue
   # The atelier self-symlinks `doctrine -> .` so its own @-refs resolve; that is
   # a 120000 blob, not a 160000 gitlink, and is not a pin at all.
-  if [[ -L "$sm" ]]; then skip "$sm: self-symlink -> $(readlink "$sm"), not a pin"; continue; fi
+  if [[ -L "$sm" ]]; then
+    tgt=$(readlink "$sm")
+    if [[ "$tgt" == "." || "$(cd "$sm" 2>/dev/null && pwd -P)" == "$repo_root" ]]; then
+      skip "$sm: self-symlink -> $tgt, not a pin"
+    else
+      bad "$sm is a symlink to '$tgt', not a tracked submodule — its revision is unverifiable"
+    fi
+    continue
+  fi
   entry=$(git ls-files --stage "$sm" 2>/dev/null)
   mode=$(printf '%s\n' "$entry" | awk '{print $1}')
   [[ "$mode" == "160000" ]] || { skip "$sm: not a tracked submodule"; continue; }
@@ -117,9 +134,9 @@ for sm in doctrine doctrine-private; do
   if is_doctrine_upstream "$up"; then
     PATHS_UPSTREAM+=("$up"); PATHS_REV+=("$pin"); PATHS_LABEL+=("submodule $sm")
   fi
-  if ! git -C "$sm" fetch -q origin 2>/dev/null; then skip "$sm: cannot reach origin, pin not checked"; continue; fi
+  if ! git -C "$sm" fetch -q origin 2>/dev/null; then uncheck "$sm: cannot reach origin — freshness NOT verified"; continue; fi
   behind=$(git -C "$sm" rev-list --count "$pin"..origin/HEAD 2>/dev/null || echo "?")
-  if [[ "$behind" == "?" ]]; then skip "$sm: pin not comparable"
+  if [[ "$behind" == "?" ]]; then uncheck "$sm: pin not comparable — freshness NOT verified"
   elif [[ "$behind" -gt "$MAX_BEHIND" ]]; then bad "$sm pin is $behind commits behind (max $MAX_BEHIND) — run: git submodule update --remote $sm"
   else ok "$sm pin current ($behind behind)"; fi
 done
@@ -169,25 +186,27 @@ fi
 if [[ ${#PATHS_UPSTREAM[@]} -lt 2 ]]; then
   skip "single doctrine consumption path — nothing to cross-check"
 else
-  declare -A seen=(); split=0
-  for i in "${!PATHS_UPSTREAM[@]}"; do
+  split=0; seen_u=""; 
+  for i in $(seq 0 $(( ${#PATHS_UPSTREAM[@]} - 1 ))); do
     u="${PATHS_UPSTREAM[$i]}"
-    if [[ -n "${seen[$u]:-}" ]]; then
-      pr="${seen[$u]%%|*}"; pl="${seen[$u]#*|}"
-      if [[ "$pr" != "${PATHS_REV[$i]}" ]]; then
-        bad "consumption paths DISAGREE for $u:"
-        printf "      %-22s %s\n" "$pl" "${pr:0:12}"
-        printf "      %-22s %s\n" "${PATHS_LABEL[$i]}" "${PATHS_REV[$i]:0:12}"
-        split=1
-      fi
-    else
-      seen[$u]="${PATHS_REV[$i]}|${PATHS_LABEL[$i]}"
+    prev_i=-1
+    for j in $(seq 0 $(( i - 1 ))); do
+      [[ "${PATHS_UPSTREAM[$j]}" == "$u" ]] && { prev_i=$j; break; }
+    done
+    if [[ $prev_i -ge 0 && "${PATHS_REV[$prev_i]}" != "${PATHS_REV[$i]}" ]]; then
+      bad "consumption paths DISAGREE for $u:"
+      printf "      %-22s %s\n" "${PATHS_LABEL[$prev_i]}" "${PATHS_REV[$prev_i]:0:12}"
+      printf "      %-22s %s\n" "${PATHS_LABEL[$i]}" "${PATHS_REV[$i]:0:12}"
+      split=1
     fi
   done
   [[ $split -eq 0 ]] && ok "${#PATHS_UPSTREAM[@]} consumption path(s), all agreeing per upstream"
 fi
 
 echo
-if [[ $fail -eq 0 ]]; then echo "${grn}doctrine-check: clean${rst}"; exit 0
+if [[ $fail -eq 0 && $unchecked -eq 0 ]]; then echo "${grn}doctrine-check: clean${rst}"; exit 0
+elif [[ $fail -eq 0 ]]; then
+  echo "${yel}doctrine-check: INCOMPLETE${rst} — $unchecked assertion(s) could not be verified"
+  [[ "${DOCTRINE_STRICT:-0}" == "1" ]] && exit 1 || exit 0
 elif [[ $WARN -eq 1 ]]; then echo "${yel}doctrine-check: issues above (advisory)${rst}"; exit 0
 else echo "${red}doctrine-check: FAILED${rst} — every issue above is invisible at runtime"; exit 1; fi
