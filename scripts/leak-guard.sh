@@ -37,31 +37,78 @@ PATTERNS=(
   'pm\.barta'         'paimos\.agm'       'hs\.barta'
 )
 
+# Substring matching, deliberately not regex: an earlier version escaped the
+# pattern into grep and produced "stray \\ before /" warnings with silently
+# failing matches.
+is_allowed() {
+  local file="$1" pat="$2" rp rs
+  [ -f "$ALLOWFILE" ] || return 1
+  while IFS='|' read -r rp rs _; do
+    case "$rp" in ''|'#'*) continue;; esac
+    [ "$rp" = "$file" ] || continue
+    case "$pat" in *"$rs"*) return 0;; esac
+  done < "$ALLOWFILE"
+  return 1
+}
+
 fail=0
+scanned=0
+unreadable=0
+allowed=0
+ALLOWFILE=".leak-guard-allow"
+
+# Fail closed if we are not in a git repository. Previously this printed
+# "clean (0 files scanned)" and exited 0 — a scanner that cannot see anything
+# must never report success.
+git rev-parse --is-inside-work-tree >/dev/null 2>&1 || {
+  echo "leak-guard: not inside a git repository — cannot scan, refusing to report clean" >&2
+  exit 2
+}
+
+# SCOPE: every tracked file. This was previously limited to
+# docs/ commands/ AGENTS.md README.md CONTRIBUTING.md while the success message
+# printed the count of ALL tracked files — "clean (82 files scanned)" having
+# scanned about twelve. That overstatement is how the operator tailnet address
+# and identity survived in pkgs/inspr/inspr.sh until INSPR-301.
 while IFS= read -r f; do
   [ "$f" = "$SELF" ] && continue
   [ "$f" = "$WORKFLOW" ] && continue
   [ "$f" = "$CHANGELOG" ] && continue   # history, not live guidance
+
+  # Binary files are scanned for matches but never rendered.
+  if [ ! -r "$f" ]; then
+    echo "UNREADABLE  $f — cannot scan; failing closed"
+    unreadable=1; fail=1; continue
+  fi
+  scanned=$((scanned+1))
+
   for p in "${PATTERNS[@]}"; do
-    if grep -nEi -- "$p" "$f" >/dev/null 2>&1; then
-      echo "LEAK  $f  matches /$p/"
-      grep -nEi -- "$p" "$f" | head -3 | sed 's/^/        /'
+    # -a treats binary as text so a match is still detected; output is the
+    # LINE NUMBER only.
+    # `|| true`: grep exits 1 on no-match, and under `set -euo pipefail` that
+    # aborts the whole script — it exited 1 with NO output at all, which in CI
+    # is indistinguishable from a scanner that found something.
+    lines=$(grep -naEi -- "$p" "$f" 2>/dev/null | cut -d: -f1 | head -5 | tr '\n' ' ' || true)
+    if [ -n "$lines" ]; then
+      # Allowlisted? Every entry carries a reason and is counted, so exclusions
+      # stay visible rather than silently shrinking the scan.
+      if is_allowed "$f" "$p"; then allowed=$((allowed+1)); continue; fi
+      # 🔴 The matched TEXT is deliberately not printed. A leak detector that
+      # echoes what it found reproduces the leak into CI logs, terminal
+      # scrollback and anywhere those are shipped — and a single long line
+      # previously produced ~200 KB of output.
+      echo "LEAK  $f  line(s) $lines  match /$p/"
       fail=1
     fi
   done
-done < <(git ls-files -- 'docs/*' 'commands/*' 'AGENTS.md' 'README.md' 'CONTRIBUTING.md')
-
-# SCOPE: the doctrine surface only — what an agent auto-loads and what a reader
-# lands on. Deliberately NOT yet covering pkgs/ modules/ tests/: the `inspr`
-# CLI and several modules legitimately name fleet paths and hosts, and whether
-# operator tooling belongs in a public atelier at all is a design decision, not
-# a find-and-replace. 20 hits remain there. Tracked as INSPR-299 slice 4b;
-# widen this glob when that is decided.
+done < <(git ls-files)
 
 if [ "$fail" -ne 0 ]; then
   echo
+  [ "$unreadable" -ne 0 ] && echo "One or more files could not be read. Fix access before trusting this result."
   echo "Refusing to publish. Move the content to the private doctrine repository,"
   echo "or generalise it so it names no operator, host, tracker or project."
+  echo "Matched text is intentionally not shown — open the file at the line above."
   exit 1
 fi
-echo "leak-guard: clean ($(git ls-files | wc -l | tr -d ' ') files scanned)"
+echo "leak-guard: clean ($scanned files scanned, $allowed allowlisted match(es) — see $ALLOWFILE)"
