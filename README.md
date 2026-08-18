@@ -61,7 +61,7 @@ In your `flake.nix`:
       pkgs = import nixpkgs { system = "x86_64-linux"; };
       modules = [
         inspr-modules.homeManagerModules.git-identity
-        # add other modules by name; `paimos-config` is shown further down
+        inspr-modules.homeManagerModules.paimos-config   # needed: home.nix below sets inspr.paimos-cli
         ./your-home.nix   # your existing config — must set home.username,
                           # home.homeDirectory and home.stateVersion, as any
                           # Home Manager configuration does
