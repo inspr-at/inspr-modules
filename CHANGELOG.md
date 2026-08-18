@@ -127,6 +127,44 @@ contains everything on `main`, and is the last commit before the tag.
 
 ---
 
+## [0.4.2] - 2026-08-18
+
+### Fixed
+
+- **`homeManagerModules.default` did not parse in v0.4.0 or v0.4.1.** A
+  comment edit left a stray `imports = [` outside the module function. The
+  advertised aggregate was unimportable in two consecutive releases and no
+  check noticed, because nothing imported the flake's exports through the
+  framework they are exported for. An outside reviewer found it by parsing
+  every `.nix` file by hand.
+- The Home Manager consumer example imported `paimos-config` in a
+  `git-identity` walkthrough and did not say that `./your-home.nix` must supply
+  the ordinary Home Manager baseline (`home.username`, `homeDirectory`,
+  `stateVersion`); a reader copying it hit a missing-option error.
+- The NixOS example called itself a "Minimal `flake.nix`" but cannot build a
+  system (no filesystem, bootloader or `system.stateVersion`). Relabelled as a
+  module-integration example, with what it needs around it stated.
+
+### Added
+
+- `tests/module-eval/exports-importable.test.nix` — imports **every** module in
+  the flake's real `homeManagerModules` and `nixosModules` attrsets with default
+  configuration. Driven by the export attrsets themselves, so it cannot drift
+  from what is advertised. Verified red: reinstating the v0.4.1 file fails the
+  suite with the exact syntax error. 104 eval tests, was 92.
+- The stub Home Manager harness now declares `xdg`. It did not, so
+  `homeManagerModules.inspr-cli` — which sets `xdg.configFile` — could not be
+  imported in tests despite working under real Home Manager. Found by the new
+  export test on its first run.
+
+### Known limitations (unchanged)
+
+- Both guard scripts read the worktree, not the git index (INSPR-300).
+- Only `ssh-authorized` has a VM test; other modules are eval-only, on stubs.
+- One maintainer; latest tag only; `nixos-unstable` + matching HM only.
+
+---
+
 ## [Unreleased]
 
 ### Planned
