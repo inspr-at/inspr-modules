@@ -89,7 +89,7 @@ let
   # activation script and become filenames under decryptedDir, so restrict
   # them to a conservative alphabet before any rendering. Env-identifier
   # chars plus `-` and `.` — dashes are in real use for materialized SSH
-  # key names (e.g. `m5-personal-userkey.env`); everything shell-dangerous
+  # key names (e.g. `laptop-personal-userkey.env`); everything shell-dangerous
   # (spaces, quotes, `$`, backticks, backslashes, newlines) is rejected.
   invalidNames =
     builtins.filter (n: builtins.match "[A-Za-z0-9_][A-Za-z0-9_.-]*" n == null) discoveredNames;

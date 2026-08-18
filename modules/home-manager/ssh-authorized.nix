@@ -11,11 +11,11 @@
 #   inspr.ssh.authorized = {
 #     enable = true;
 #     keys = {
-#       "markus@m5"    = "ssh-ed25519 AAAAC3...m5";
-#       "markus@imac0" = "ssh-ed25519 AAAAC3...imac0";
-#       "deploy@gpc0"  = "ssh-ed25519 AAAAC3...gpc0";
+#       "alice@laptop"    = "ssh-ed25519 AAAAC3...laptop";
+#       "alice@workstation" = "ssh-ed25519 AAAAC3...workstation";
+#       "deploy@buildhost"  = "ssh-ed25519 AAAAC3...buildhost";
 #     };
-#     trust = [ "markus@m5" "markus@imac0" ];   # admit these; deploy@gpc0 stays out
+#     trust = [ "alice@laptop" "alice@workstation" ];   # admit these; deploy@buildhost stays out
 #   };
 #
 # Co-existence guarantee
@@ -245,7 +245,7 @@ in
         Both forms are accepted in the same map.
 
         Aliases are arbitrary identifiers — common conventions are
-        `<user>@<host>` (e.g. `"markus@m5"`) or `<purpose>` (e.g.
+        `<user>@<host>` (e.g. `"alice@laptop"`) or `<purpose>` (e.g.
         `"deploy-bot"`). They show up as `# alias: <name>` comments in
         the rendered authorized_keys for audit traceability.
 
@@ -257,8 +257,8 @@ in
       example = lib.literalExpression ''
         {
           # Simple form
-          "markus@m5"    = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA... markus@m5";
-          "markus@imac0" = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA... markus@imac0";
+          "alice@laptop"    = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA... alice@laptop";
+          "alice@workstation" = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA... alice@workstation";
 
           # Rich form — for grandfathering / audit
           "shared-rsa-pre-2026" = {
@@ -284,7 +284,7 @@ in
         Order does not matter — the trust list is sorted before
         rendering so equivalent inputs produce byte-identical output.
       '';
-      example = lib.literalExpression ''[ "markus@m5" "markus@imac0" ]'';
+      example = lib.literalExpression ''[ "alice@laptop" "alice@workstation" ]'';
     };
 
     markerBegin = lib.mkOption {

@@ -25,8 +25,8 @@
 #   inspr.ssh.authorized = {
 #     enable = true;
 #     keys = {
-#       "markus@m5"    = "ssh-ed25519 AAAAC3...m5";
-#       "markus@imac0" = "ssh-ed25519 AAAAC3...imac0";
+#       "alice@laptop"    = "ssh-ed25519 AAAAC3...laptop";
+#       "alice@workstation" = "ssh-ed25519 AAAAC3...workstation";
 #       "shared-rsa-pre-2026" = {
 #         key    = "ssh-rsa AAAA... markus";
 #         status = "legacy";
@@ -34,7 +34,7 @@
 #       };
 #     };
 #     users.mba = {
-#       trust = [ "markus@m5" "markus@imac0" "shared-rsa-pre-2026" ];
+#       trust = [ "alice@laptop" "alice@workstation" "shared-rsa-pre-2026" ];
 #       force = true;                       # drop hokage-injected keys
 #       extraKeys = [
 #         "ssh-ed25519 AAAA... container-deploy"   # one-off, not in keyring
@@ -178,7 +178,7 @@ let
           Order does not matter — sorted before rendering so equivalent
           inputs produce byte-identical output.
         '';
-        example = lib.literalExpression ''[ "markus@m5" "markus@imac0" ]'';
+        example = lib.literalExpression ''[ "alice@laptop" "alice@workstation" ]'';
       };
 
       force = lib.mkOption {
@@ -213,7 +213,7 @@ let
           workflow apply.
         '';
         example = lib.literalExpression ''
-          [ "ssh-ed25519 AAAA... container-deploy@hsb1 (node-red flow)" ]
+          [ "ssh-ed25519 AAAA... container-deploy@host1 (node-red flow)" ]
         '';
       };
     };
@@ -298,7 +298,7 @@ in
       example = lib.literalExpression ''
         {
           mba = {
-            trust = [ "markus@m5" "shared-rsa-pre-2026" ];
+            trust = [ "alice@laptop" "shared-rsa-pre-2026" ];
             force = true;
           };
           gb = {
