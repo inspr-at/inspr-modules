@@ -13,10 +13,14 @@
 #
 # Add a new suite by adding it to the `testFiles` list below.
 # ─────────────────────────────────────────────────────────────────────────
-{ pkgs, lib }:
+{ pkgs, lib, homeManagerModules ? { }, nixosModules ? { } }:
 
 let
-  harness = import ./harness.nix { inherit lib pkgs; };
+  harness = import ./harness.nix { inherit lib pkgs; } // {
+    # Exposed on the harness so no test signature changes; only
+    # exports-importable.test.nix reads them.
+    inherit homeManagerModules nixosModules;
+  };
 
   testFiles = [
     ./agent-secrets.test.nix
@@ -27,6 +31,7 @@ let
     ./paimos-config.test.nix
     ./ssh-authorized.test.nix
     ./nixos-ssh-authorized.test.nix
+    ./exports-importable.test.nix
   ];
 
   results = map (f: import f { inherit harness lib; }) testFiles;
