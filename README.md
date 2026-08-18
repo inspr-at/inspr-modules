@@ -52,7 +52,7 @@ In your `flake.nix`:
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
     # Pin to a tag. Tracking `main` means every `nix flake update`
     # can change doctrine and module behaviour under you.
-    inspr-modules.url = "github:inspr-at/inspr-modules/v0.4.3";
+    inspr-modules.url = "github:inspr-at/inspr-modules/v0.4.4";
     inspr-modules.inputs.nixpkgs.follows = "nixpkgs";
   };
 
@@ -150,7 +150,7 @@ eval fails on purpose:
 {
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    inspr-modules.url = "github:inspr-at/inspr-modules/v0.4.3";
+    inspr-modules.url = "github:inspr-at/inspr-modules/v0.4.4";
     inspr-modules.inputs.nixpkgs.follows = "nixpkgs";
   };
 
@@ -285,7 +285,7 @@ data, and third-party components retain their own licensing boundaries.
 
 ## Status
 
-**v0.4.3.** Extracted from a working NixOS + Home Manager fleet on 2026-05-02
+**v0.4.4.** Extracted from a working NixOS + Home Manager fleet on 2026-05-02
 and used in production since.
 
 ### Supported
@@ -367,7 +367,7 @@ create it. From your repository root:
 ```bash
 # 1. Vendor the doctrine as a submodule at ./doctrine, pinned to a tag.
 git submodule add https://github.com/inspr-at/inspr-modules.git doctrine
-git -C doctrine checkout v0.4.3
+git -C doctrine checkout v0.4.4
 git add doctrine .gitmodules
 
 # 2. Load the kernel from your agent instruction file. @-refs resolve from the
