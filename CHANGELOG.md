@@ -33,6 +33,12 @@ exactly that point.
   it is opt-in.
 - A test that compiles the NixOS module's documented example, so an example
   that does not evaluate now fails CI.
+- `checks.<linux>.nixos-vm-ssh-authorized` — a real NixOS VM test for the SSH
+  admission module: boots server + client, proves the trusted key logs in and
+  untrusted / revoked / cross-user keys are refused, and that `force = true`
+  renders exactly the trusted list. Verified red-then-green: a runtime-only
+  bug (every user silently receiving another user's keys) passes every
+  eval-time assertion and is caught only here.
 
 ### Fixed
 
@@ -65,7 +71,7 @@ exactly that point.
 - Both guard scripts are incomplete. They walk the filesystem where they should
   read the git index, and three audit rounds each found a new false negative of
   that shape. They catch what they catch; do not treat a green result as proof.
-- No NixOS VM integration test. Module-eval tests use stubs.
+- Only `ssh-authorized` has a NixOS VM integration test. The other modules are eval-only, against stub harnesses.
 - `leak-guard.sh` matches a hard-coded pattern set. It is usable as-is only by
   this project; adopting it elsewhere means forking and rewriting `PATTERNS`.
 

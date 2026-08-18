@@ -274,6 +274,20 @@
             # report always lands in the build log, $out persists it on
             # success, and any failed sub-test exits non-zero — an
             # ordinary failed check, not a flake-eval error.
+          }
+          # ── NixOS VM integration test (Linux only) ───────────────────────
+          # Boots a server + client and proves sshd ADMITS trusted keys and
+          # REJECTS untrusted/revoked ones. Needs a KVM builder with the
+          # `nixos-test` system feature. On macOS the attribute does not
+          # exist, so `nix flake check` there is unaffected. See
+          # tests/nixos-vm/ssh-authorized.nix for what it proves and why.
+          // pkgs.lib.optionalAttrs pkgs.stdenv.isLinux {
+            nixos-vm-ssh-authorized = import ./tests/nixos-vm/ssh-authorized.nix {
+              inherit pkgs;
+              sshAuthorizedModule = ./modules/nixos/ssh-authorized.nix;
+            };
+          }
+          // {
             module-eval = pkgs.runCommand "module-eval-tests"
               {
                 report = moduleEvalResults.report;
