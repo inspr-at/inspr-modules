@@ -37,6 +37,54 @@ let
     r.config.users.users.${uname}.openssh.authorizedKeys.keys or [ ];
 
   tests = [
+    # ── The DOCUMENTED example must evaluate ───────────────────────────────
+    # An outside reviewer copied the example from this module's own header and
+    # it threw: `users.gb.trust = [ "gerhard-rsa" ]` referenced an alias never
+    # declared in `keys`. The module's undeclared-alias guard was right; the
+    # example was wrong — and this is an SSH admission module, so its first
+    # copy-paste path has to work.
+    #
+    # This is a transcription of that header example. If the example changes,
+    # change this with it. An example nobody executes is a claim, not
+    # documentation.
+    {
+      name = "the example in this module's header evaluates";
+      assertion =
+        let
+          r = evalNixosModule {
+            module = sshAuthorized;
+            config = {
+              inspr.ssh.authorized = {
+                enable = true;
+                keys = {
+                  "alice@laptop" = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA0000000000000000000000000000000000000000000 alice@laptop";
+                  "alice@workstation" = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA1111111111111111111111111111111111111111111 alice@workstation";
+                  "bob@laptop" = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA2222222222222222222222222222222222222222222 bob@laptop";
+                  "shared-rsa-pre-2026" = {
+                    key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAAB0000000000000000000000000000000 shared";
+                    status = "legacy";
+                    note = "shared RSA pre-2026; retire after ed25519 rollout";
+                  };
+                };
+                users.alice = {
+                  trust = [ "alice@laptop" "alice@workstation" "shared-rsa-pre-2026" ];
+                  force = true;
+                  extraKeys = [
+                    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA3333333333333333333333333333333333333333333 container-deploy"
+                  ];
+                };
+                users.bob = {
+                  trust = [ "bob@laptop" ];
+                };
+              };
+            };
+          };
+        in
+        r.success
+        && lib.length (keysFor r "alice") == 4
+        && lib.length (keysFor r "bob") == 1;
+    }
+
     # ── Disabled-module shape ────────────────────────────────────────────
     {
       name = "disabled module evaluates cleanly with no users.users entries";

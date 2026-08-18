@@ -39,8 +39,14 @@ Particularly wanted:
 Both guards are known to be incomplete — see INSPR-300. Reports that a guard
 misses something are useful and welcome; that is the point of this section.
 
-Out of scope: the operator's own fleet, hosts and infrastructure. This
-repository is identity-free by design and describes no live system.
+Out of scope: the maintainer's own fleet, hosts and infrastructure.
+
+To be precise about what this repository does and does not claim: it contains
+**no live credentials and no private endpoints**, and `leak-guard.sh` enforces
+that on every push. It is *not* free of the maintainer's fingerprints — the
+doctrine describes one operating model, and some documentation still carries
+project vocabulary and ticket references. "No secrets" is the guarantee;
+"no trace of its origin" is not.
 
 ## Supported versions
 

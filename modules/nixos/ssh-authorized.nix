@@ -27,21 +27,22 @@
 #     keys = {
 #       "alice@laptop"    = "ssh-ed25519 AAAAC3...laptop";
 #       "alice@workstation" = "ssh-ed25519 AAAAC3...workstation";
+#       "bob@laptop"        = "ssh-ed25519 AAAAC3...bob";
 #       "shared-rsa-pre-2026" = {
-#         key    = "ssh-rsa AAAA... markus";
+#         key    = "ssh-rsa AAAA... shared";
 #         status = "legacy";
 #         note   = "shared RSA pre-2026; retire after ed25519 rollout";
 #       };
 #     };
-#     users.mba = {
+#     users.alice = {
 #       trust = [ "alice@laptop" "alice@workstation" "shared-rsa-pre-2026" ];
-#       force = true;                       # drop hokage-injected keys
+#       force = true;                       # replace any injected keys entirely
 #       extraKeys = [
 #         "ssh-ed25519 AAAA... container-deploy"   # one-off, not in keyring
 #       ];
 #     };
-#     users.gb = {                          # multi-user supported
-#       trust = [ "gerhard-rsa" ];
+#     users.bob = {                          # multi-user supported
+#       trust = [ "bob@laptop" ];
 #     };
 #   };
 #
@@ -297,12 +298,12 @@ in
       '';
       example = lib.literalExpression ''
         {
-          mba = {
+          alice = {
             trust = [ "alice@laptop" "shared-rsa-pre-2026" ];
             force = true;
           };
-          gb = {
-            trust = [ "gerhard-rsa" ];
+          bob = {
+            trust = [ "bob@laptop" ];
           };
         }
       '';
