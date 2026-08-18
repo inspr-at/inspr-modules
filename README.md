@@ -46,7 +46,7 @@ In your `flake.nix`:
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
     # Pin to a tag. Tracking `main` means every `nix flake update`
     # can change doctrine and module behaviour under you.
-    inspr-modules.url = "github:inspr-at/inspr-modules/v0.3.7";
+    inspr-modules.url = "github:inspr-at/inspr-modules/v0.4.0";
     inspr-modules.inputs.nixpkgs.follows = "nixpkgs";
   };
 
@@ -225,7 +225,7 @@ data, and third-party components retain their own licensing boundaries.
 
 ## Status
 
-**v0.3.7.** Extracted from a working NixOS + Home Manager fleet on 2026-05-02
+**v0.4.0.** Extracted from a working NixOS + Home Manager fleet on 2026-05-02
 and used in production since.
 
 ### Supported
