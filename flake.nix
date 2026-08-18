@@ -134,6 +134,10 @@
             moduleEvalResults = import ./tests/module-eval {
               inherit pkgs;
               inherit (pkgs) lib;
+              # The suite imports EVERY exported module through the harness.
+              # Driven by the real export attrsets, not a hand-kept list —
+              # a hand-kept list is how "default imports all seven" drifted.
+              inherit (self) homeManagerModules nixosModules;
             };
           in
           {

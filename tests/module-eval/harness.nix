@@ -102,6 +102,13 @@ let
         type    = lib.types.attrsOf lib.types.unspecified;
         default = { };
       };
+      # `xdg` — real Home Manager declares it; this stub did not, so any module
+      # touching `xdg.configFile` failed to even IMPORT here while working under
+      # real HM. Found by exports-importable.test.nix on `inspr-cli`.
+      xdg = lib.mkOption {
+        type    = lib.types.attrsOf lib.types.unspecified;
+        default = { };
+      };
       warnings = lib.mkOption {
         type    = lib.types.listOf lib.types.str;
         default = [ ];

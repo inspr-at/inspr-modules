@@ -55,8 +55,10 @@ In your `flake.nix`:
       pkgs = import nixpkgs { system = "x86_64-linux"; };
       modules = [
         inspr-modules.homeManagerModules.git-identity
-        inspr-modules.homeManagerModules.paimos-config
-        ./your-home.nix
+        # add other modules by name; `paimos-config` is shown further down
+        ./your-home.nix   # your existing config — must set home.username,
+                          # home.homeDirectory and home.stateVersion, as any
+                          # Home Manager configuration does
       ];
     };
   };
@@ -132,9 +134,11 @@ supported by this module.
 
 ### NixOS: `ssh-authorized`
 
-The NixOS module imports at system scope, not through Home Manager. Minimal
-`flake.nix` — every alias in `trust` must be declared in `keys`, or eval fails
-on purpose:
+The NixOS module imports at system scope, not through Home Manager. A
+module-integration example — **not** a bootable system on its own; add it to a
+configuration that already has a filesystem, bootloader and
+`system.stateVersion`. Every alias in `trust` must be declared in `keys`, or
+eval fails on purpose:
 
 ```nix
 {
