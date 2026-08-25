@@ -690,9 +690,10 @@ This document is the authoritative source for rules every agent follows, regardl
   *<sub>src: ~/Code/fleetcom/AGENTS.md L41</sub>*
   <!-- rule_ids: AGENTS.md:L41:ppm-status-updates | cluster: — -->
 
-- 🟡 **STRONG** | `do` | When PPM writes are explicitly authorized and work is done, update the ticket status and stop the timer.
+- 🔴 **HARD** | `never` | Never start a tracker time entry. Agents do not time-track; stop only an entry you started yourself, and leave anyone else's alone — a running entry usually means another live session.
+- 🟡 **STRONG** | `do` | When tracker writes are explicitly authorized and work is done, update the ticket status.
   *<sub>src: ~/Code/fleetcom/.claude/commands/dev.md L22 · ~/Code/nixcfg/+agents/commands/ops.md L8</sub>*
-  <!-- rule_ids: dev.md:L22:ppm-on-done,ops.md:L8:update-ppm-and-stop-timers | cluster: workflow-ppm-002 -->
+  <!-- rule_ids: dev.md:L22:ppm-on-done,ops.md:L10:never-start-timer | cluster: workflow-ppm-002 -->
 
 
 ## Topic: pacing/long-running
