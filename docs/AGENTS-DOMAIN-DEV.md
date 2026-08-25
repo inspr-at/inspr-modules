@@ -62,6 +62,13 @@ Kernel: scan diff + status before every commit; never amend; never destructive o
 - 🔴 **Clarity over speed.** Uncertain? Ask first — one question beats three bugs.
 - 🟡 Verify post-action (`git status`, `ls -la`, decrypt-test); verification is part of the operation. Verify outputs **structurally** (size, content sniff), not just by exit code.
 - 🟡 Fix root cause, not band-aid. Honor existing patterns. On conflicts, call them out and pick the safer path. When unsure, read more code; if still stuck, ask with a short option list.
+- 🟡 **Match the evidence to the shape of the claim.** Each claim shape has a minimum evidence bar, and weaker evidence supports only a weaker claim:
+  - **Identity** ("X is Y") — an observed stable identifier: bundle/package id, image digest, repo remote, service unit. A nickname, a product name, or a plausible match is not an identification. If unresolved, ask.
+  - **Capability, impossibility, mechanism** ("it cannot", "it only does") — shipped implementation or a runtime probe. Documentation proves documented behaviour; it cannot prove absence, and vendor docs lag what shipped. If the artifact is on disk, read it before declaring what it cannot do.
+  - **Exhaustive or counted** ("all", "none", "N places") — declare the search roots and the query set, then account for every match. A path list you assembled earlier is not a search. State the unit being counted and keep it constant.
+  - **Completion** ("done") — acceptance criteria and the open-children/blocker graph. An existing artifact proves activity, not completion.
+  - **Environment-dependent verdicts** — record the sandbox/privilege context and confirm in the target context before generalising. A negative from a restricted context is a fact about that context.
+  When the bar is not met, say so and label the result an inference. Do not reach for "cannot", "only", "all", "none", or "complete".
 - 🟡 Vendor advice = useful signal, not authoritative. Re-derive against own axes (portability, rotation, scope).
 - 🟡 "Smaller=safer vs bigger=right": verify bigger option is feasible TODAY; defer for brittleness, not size.
 - 🟡 Probe actual endpoint behavior before designing idempotency strategy on unfamiliar APIs.
