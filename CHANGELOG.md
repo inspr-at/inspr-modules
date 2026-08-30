@@ -201,6 +201,10 @@ boring and some weeks away.
 
 ## [Unreleased]
 
+### Changed
+
+- `skills/product-gauntlet`: speed-first rewrite. One QA gate per slice (not per ticket), controller preflight, event reports instead of polling, cheaper default models, one headless Chromium at slice-end. Quality bar unchanged.
+
 ### Planned
 
 - **NixOS VM integration tests** — `pkgs.testers.runNixOSTest` for end-to-end activation testing. Heavy but the gold standard.
