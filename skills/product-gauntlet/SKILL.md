@@ -1,282 +1,148 @@
 ---
 name: product-gauntlet
-description: "Orchestrate a fleet of Codex and Claude subagents to deliver product work end-to-end: decompose into PPM epics and tickets, route each task to the right model and reasoning effort, isolate agents in git worktrees, collect progress on a fixed interval, QA on parity as the controller, and hand the human a compare page for taste acceptance. Runs from either harness — invoke as /product-gauntlet in Claude Code or $product-gauntlet in Codex. Use when asked to run a multi-agent build, orchestrate delivery of a phase or epic, or run a gauntlet loop on UX or creative work."
+description: "Fast multi-agent delivery: decompose, route, isolate in worktrees, ship a slice, QA once at the end. Controller orchestrates; subagents implement. Invoke as /product-gauntlet (Claude) or $product-gauntlet (Codex). Use for a multi-agent build, epic/phase delivery, or gauntlet loop. Speed is the default; quality is a slice gate, not a per-ticket loop."
 ---
 
 # Product Gauntlet
 
-You are the **controller and orchestrator**. You do not implement — you decompose, route, watch,
-QA and report. Subagents implement.
+You are the **controller**. You do not implement. You decompose, route, watch, and run **one QA gate per slice**. Subagents implement.
 
-This skill is harness-neutral. Whichever harness you are running in is "the controller"; the other
-one is just another kind of subagent you can spawn.
+Harness-neutral: whichever harness you are in is the controller; the other is a spawnable subagent.
 
-## The contract with the human
+**Main goal: wall-clock speed.** Quality was not the problem. Do not spend 30 minutes of full-suite QA after every ticket. Batch QA at slice end. Keep the quality bar; move it later.
 
-1. Everything to do is tracked in PPM — epics, tickets, tasks, screenshots.
-2. The human gets a status report on a fixed interval (default: every 10 minutes). No silent stretches.
-3. You QA finished work yourself on **parity**. The human accepts on **taste**.
-4. Roughly daily, you and the human recap and tune this workflow.
+## Contract with the human
+
+1. Everything lives in PPM (epics, tickets, evidence). Controller writes PPM; workers do not.
+2. Report on **events** (`DONE`, `BLOCKED`, quiet >15 min, slice gate). Do not poll every 10 minutes unless the human named a cadence. If they named one (hourly, etc.), keep it with no misses.
+3. You certify **parity and correctness at slice end**. The human accepts **taste**.
+4. Recap when the slice lands, not as a daily ritual that stalls work.
+
+## Speed rules (non-negotiable)
+
+1. **Preflight once, then spawn.** Submodule init, sandbox `.git` grant, `node_modules`/direnv/artefacts, Claude `--permission-mode auto` for non-interactive, Codex `workspace-write` plus `.git` writable. An agent discovering the environment is wasted time.
+2. **One QA gate per slice**, not per ticket. A slice is a mergeable train (one epic cut, or one ownership surface). Per ticket: focused tests the worker already ran + `DONE`. Controller does **not** re-run full backend/serial/race after each ticket.
+3. **Dirty-tree review is advisory.** Accept only a signed commit. Do not wait on in-flight file reads.
+4. **Workers never flip PPM, never merge, never bump VERSION, never deploy.** Brief carries the full ticket contract. Controller does attributed PPM after the slice gate (or a mid-slice status comment if the human asked).
+5. **Stop a doomed agent immediately.** Sandbox cannot do it → you do it. Do not let it thrash.
+6. **Never wait on a file.** Polling loops belong to the controller.
+7. **No critic loop where an oracle exists.** Byte-diff / test / OpenAPI beats a taste round.
+8. **Early restart** if a new invariant changes schema or architecture. Cheaper than retrofitting a running worker.
+9. **Parallel by ownership.** One writer per path set. Shared shell/sidebar/schema gets its own ticket. Named integration pass at the end, not merge-and-hope.
+10. **Browser is controller-owned**, one headless Chromium (or pinned Playwright container). Never native Firefox/Playwright on the human desktop. Kill unused browser MCP helpers. Visual proof is part of the **slice gate**, not every ticket.
+11. **Long prompts live in a file.** `codex exec … - < brief.txt`. Never inline a novel on the shell line.
 
 ## Harness bindings
 
-Everything below is written against these four primitives. Bind them once, at the start of the run,
-to whichever harness you are in.
-
-| Primitive | Claude Code as controller | Codex as controller |
+| Primitive | Claude as controller | Codex as controller |
 |---|---|---|
-| Spawn a **Codex** subagent | `codex exec …` as a background Bash task | `codex exec …` as a background shell job |
-| Spawn a **Claude** subagent | `Agent` tool (in-process), or `claude -p` as a background task | `claude -p "<prompt>" --model <m>` as a background shell job |
-| Read progress | tail the task's output file | tail the job's redirected stdout |
-| Schedule the report | `/loop <interval> <poll prompt>` (creates a recurring job) | no built-in scheduler — see below |
+| Spawn Codex | `codex exec …` background | `codex exec …` background |
+| Spawn Claude | `claude -p` background (prefer process over in-process) | `claude -p --model <m>` background |
+| Progress | tail the output file | tail redirected stdout |
+| Report | event-driven; optional heartbeat file if the human named a cadence | same |
 
-Useful flags: `codex exec -m <model> -c model_reasoning_effort=<level> -s workspace-write -i <image>…`
-and `-o <file>` for a clean final message. `claude -p --model <m> --output-format stream-json` for
-structured streaming, `--append-system-prompt` to inject the brief's standing rules.
+Useful: `codex exec -m <model> -c model_reasoning_effort=<level> -s workspace-write -i <image> -o <file>` and prompt via stdin. `claude -p --permission-mode auto --output-format stream-json`.
 
-**Prefer spawning subagents as processes over in-process tools.** A process writes to stdout you can
-tail for free. An in-process subagent returns only a final result, so interim status costs an
-interrupting round-trip. Reserve in-process Claude subagents for judgement, review and synthesis.
+Prefer **processes**. In-process subagents only for judgement/review/synthesis.
 
-**Scheduling without a scheduler**: if the harness has none, either report at every natural turn
-boundary, or detach a heartbeat that appends a timestamped marker to a file you check
-(`while :; do sleep 600; date >> .gauntlet/tick; done &`). Do not promise an interval you cannot keep.
+## Setup (before any spawn)
 
-## Setup, before spawning anything
+1. Read repo instructions + relevant PPM Knowledge. Measure; do not guess.
+2. Check who else is in the repo. Do not steal their threads.
+3. PPM: one epic, tickets with AC **before** a worker sees them. `--parent`, `--agent-name` / `--session-id`.
+4. Cross-repo work is a blocked ticket on the owning tracker. Do not author into a foreign repo.
+5. Preflight the environment (the speed rule). Then spawn.
 
-1. **Read the ground truth.** Repo instructions (`AGENTS.md`/`CLAUDE.md`), the relevant PPM Knowledge
-   entries, and enough code to state the *measured* situation rather than a guessed one. Numbers beat
-   adjectives: "1,148 occurrences across two packages" is worth more than "widely used".
-2. **Check for other agents in the repo.** If someone else is mid-flight, find out what they own
-   before you touch it.
-3. **Build the PPM structure**: one epic, then one ticket per unit of work, each with real acceptance
-   criteria written *before* an agent sees it. Use `--parent` to hang tickets off the epic, and
-   `--agent-name`/`--session-id` so every write is attributable.
-4. **Mark cross-repo work as its own blocked ticket.** Work that must land in another repository is
-   not yours to author — file it, link it, route it through that repo's review path.
-5. **Verify the environment before promising it to an agent.** Is the container runtime up? Is
-   `direnv` allowed in a fresh worktree? Does the browser launch? An agent that discovers this is an
-   agent burning tokens on your homework.
+## Routing (speed first)
 
-## Routing: which agent gets which job
-
-| Task shape | Route to |
+| Task shape | Route |
 |---|---|
-| Simple, mechanical, well-specified | Codex `terra` at high effort, or a Claude `sonnet` subagent |
-| Backend engineering, infra, build systems | Codex `sol` at high effort |
-| Architecture, algorithms, security | Codex `sol` at high effort, then a **Claude Opus QA gate** |
-| Creative, UX, visual direction | Start on **Claude Opus**, hand to Codex for imagegen + implementation, hand back to Opus |
+| Mechanical, well-specified, fixtures, docs, inventory | Cheapest capable: Codex default/high, or Claude Sonnet. Not Sol xhigh. |
+| Backend / tests / one-surface implementation | Codex high. Focused tests only until slice gate. |
+| Architecture, schema, security, concurrency | Codex sol/high (xhigh only if the seam is actually hard), **one** other-family review at slice gate |
+| UX copy / visual taste | Claude for taste; Codex implements. One critic pass at slice gate if no oracle. |
+| Review | Other family from the builder. Review the signed SHA. Do not rewrite unless AC fails. |
 
-Record the routing and its rationale on the ticket, so the daily recap has something to judge.
+Cursor cloud (Composer / included Grok) is valid for isolated UI when that pool is the cheap one. Do not spend Cursor Other Models (Sol/Opus/Fable) on mechanical tickets.
 
-## Isolation, and the sandbox realities that bite
+Record routing on the ticket in one line.
 
-Give every agent its own git worktree on its own branch:
+## Isolation
+
+Every agent: own worktree, own branch, **named path ownership**.
 
 ```
 git worktree add -b feat/<epic>-<slug> .claude/worktrees/<slug> main
+git submodule update --init --recursive   # unconditional, controller, before brief
 ```
 
-State **explicit file ownership** in every brief — the paths this agent owns, and the paths others
-own that it must not touch. Overlap you do not name in advance becomes a merge you resolve by hand.
+Controller also gets a worktree. Shared checkout stays on the default branch.
 
-**Split shared surfaces out of per-unit work.** When converting one route, page or module at a time,
-anything shared by all of them — a shell, a sidebar, a stylesheet — cannot be changed inside a single
-unit's ticket without either duplicating it or silently changing every other unit at once. Give the
-shared surface its own ticket, ideally one that changes presentation without touching markup, so it
-lands everywhere at once and stays reviewable on its own.
+Sandbox facts (plan around them):
 
-Four environment facts, each learned the hard way. Plan around them rather than discovering them:
+- Sandbox cannot write `.git` unless granted (`writable_roots` includes the **main** repo `.git` for linked worktrees). Else controller commits.
+- macOS sandbox will not launch a browser; crash dialogs on the human desktop are a failed isolation boundary.
+- Fresh worktree has no gitignored artefacts. Oracles run from the **main checkout against a ref**, never from inside a worker tree.
 
-- **A sandboxed agent cannot write `.git` at all** — no commit, no `git fetch`, no worktree
-  creation. This is a deliberate sandbox policy, not a worktree quirk: it bites an ordinary repo
-  whose `.git` sits inside the workspace just as hard. Symptoms are `cannot create index.lock` and
-  `cannot open '.git/FETCH_HEAD': Operation not permitted`.
-  **Fix:** grant it explicitly — `writable_roots: ["/abs/path/to/repo/.git"]`. For a *linked
-  worktree* grant the **main** repo's `.git`, because the worktree's `.git` is only a file pointing
-  into `<main-repo>/.git/worktrees/<name>/`. Without the grant, the controller must commit on the
-  agent's behalf and say so in the commit message.
-- **Without that grant, "check out the baseline to diff against" is impossible.** `git archive` of
-  the baseline commit into a temp dir works instead.
-- **A browser will not launch inside a macOS sandbox.** Chrome aborts in `TransformProcessType`
-  while registering with LaunchServices — deterministically, even headless, and it raises a crash
-  dialog on the human's screen once per retry. So **browser-based oracles are the controller's
-  job**, or they run in a pinned Playwright container.
-- **A fresh worktree has no gitignored build artefacts.** `node_modules` in particular is absent,
-  so a Playwright-based oracle run from inside a worktree dies in Node and produces nothing — which
-  reads exactly like an agent failure and is not one. **Run the oracle from the main checkout
-  against a ref**, never from inside a worktree.
+## Agent brief (file, this order)
 
-The general rule: **the controller owns anything requiring privileges or artefacts the sandbox
-lacks.** And when a verification step fails, check your own harness before blaming the agent.
+Worktree + no-push; where to read plan + ticket; the task; the correctness/security *point*; environment (what is / is not there); ownership; progress protocol; completion protocol.
 
-**Give yourself a worktree too.** Isolating every subagent and then editing the shared checkout
-yourself is the same collision with extra steps: a `git add` picks up another task's in-flight edit
-and the commit carries changes that do not belong to it. If two things are being worked on, that is
-two worktrees, and the controller is one of the two.
+- Exact command that proves “no existing behaviour changed” where that is the point.
+- `If you cannot satisfy a security requirement, print BLOCKED: and stop.`
+- Forbid: push, `main`, VERSION, changelog, secrets, PPM writes, full-suite loops. Focused tests only.
 
-That rule holds across *sessions*, not just across agents. Another agent working on the human's
-behalf can be operating in the same checkout, and a peer that finishes its work may leave the tree
-on its own branch. Discovering that by running `git checkout main` would yank the tree out from
-under a live session mid-operation. **Convention worth agreeing explicitly with any peer: whoever
-is not the repo's active owner works in a worktree, and the shared checkout stays on the default
-branch.** Announce before touching a repo you do not own, and say what you are working in.
+### Progress
 
-**Long prompts go in a file.** A multi-thousand-character art-direction or spec prompt inlined into
-a shell command will break its own quoting, and the tool may then sit silently waiting on stdin
-rather than failing — indistinguishable from slow work. Write the prompt to a file and redirect it
-in (`codex exec … - < prompt.txt`). Have the agent write the file too; then the prompt is also a
-reviewable artefact.
-
-**Verify the environment before you promise it to an agent.** Is the container runtime up? Is
-`direnv` allowed in a fresh worktree? Does the browser launch? Is that repository actually public?
-An agent discovering these is an agent burning tokens on the controller's homework, and a brief
-that asserts something false sends it confidently in the wrong direction.
-
-## The agent brief
-
-In this order: worktree rules and the no-push rule; where to read the plan and its own ticket; the
-task; the correctness or security requirements that are the *point* of the ticket; the environment
-(what is and is not available); hard constraints and file ownership; the progress protocol; the
-completion protocol.
-
-Two rules that save the most pain:
-
-- **"Change no existing behaviour"** plus the exact command that proves it. Name the oracle.
-- **"If you cannot satisfy a security requirement, print `BLOCKED:` and stop."** Agents route around
-  requirements they cannot meet unless you forbid it.
-
-Also forbid: pushing, touching `main`, bumping version files, editing the changelog, and printing
-secret values. Release mechanics belong to the controller.
-
-### Progress protocol
-
-Require this line at start and every few minutes:
+At start and on real changes only:
 
 ```
-PROGRESS: <very short status a 10-year-old would understand> | ETA <duration> | <n>%
+PROGRESS: <ELI10> | ETA <duration> | <n>%
 ```
 
-Tail with `grep -a "^PROGRESS:\|^DONE:\|^BLOCKED:"`, filtering placeholder lines echoed from the
-brief. Treat ETA and % as **self-reported claims**, not measurements, and say so when reporting.
+ETA/% are self-reported claims. Tail `^PROGRESS:|^DONE:|^BLOCKED:`.
 
-**Never let an agent wait on a file.** An agent that hits its own tool timeout will happily write
-`until [ -f out.png ]; do sleep 5; done` and block until it times out again, producing nothing and
-looking alive the whole time. Polling belongs to the controller, which already tails the output.
+### Completion
 
-### Completion protocol
-
-The agent runs the build and tests, commits if it can, flips its PPM ticket to `qa`, and prints:
+Worker runs **focused** tests, commits if it can, prints:
 
 ```
 DONE: <ticket keys>
-SUMMARY: <what changed, what a reviewer must check>
-RISKS: <what it was unsure about>
+SUMMARY: <what changed, what slice-gate must check>
+RISKS: <unsure>
 ```
 
-`BLOCKED:` uses the same block. A blocked agent that reports precisely *why* is doing its job — that
-is how the three sandbox facts above were found.
+Do **not** require the worker to run the full serial backend, broad race, or visual matrix.
 
-## The interval report
+## Slice gate (the actual QA)
 
-Report exactly this shape, and keep it very short:
+When the train is feature-complete (or a named midpoint the human asked for), **once**:
 
-```
-Overall — TL;DR-ELI10: <one sentence> · ETA <x> · <n>% done
+1. Integrate on the controller worktree (parent-order if stacked).
+2. Parity: nothing silently dropped.
+3. Oracle: full tests / race / security / the phase’s exact check — **you** run this once.
+4. Each AC, with evidence. Reading code is not evidence.
+5. Ownership + constraint audit.
+6. One other-family review of the **exact SHA**.
+7. Visual/a11y only if the slice has a UI surface, still controller-owned, still once.
+8. Then PPM → `qa` (and later `done` / `accepted` after live proof). Bounce with a specific reason, not a new 30-minute ritual per nit.
 
-- Agent "<id>" (<model>, <tickets>) — <TL;DR-ELI10> · ETA <x> · <n>%
-- ...
+Be willing to disconfirm. Measure, then drop a false suspicion.
 
-Accepted: <ELI7 one-liner per newly accepted item — "what new thing you can look at">
-```
+You cannot certify taste. Never self-accept elegance.
 
-Anything gone quiet, exited, or `BLOCKED:` goes in the report immediately. Never fabricate progress
-for an agent you have not actually polled.
+## UX compare (slice gate only)
 
-**Stop an agent that cannot succeed.** If the remaining work needs something its sandbox forbids,
-kill it and take that step yourself — do not let it thrash. Its finished work is still good.
+One HTML compare page, old vs new, labelled with PPM IDs. Human says `ID xyz accepted`. Attach screenshots to the ticket.
 
-## QA — yours
+## Creative gauntlet (only if no oracle)
 
-When a ticket hits `qa`, you review it. In order:
+Named, fetchable bar. Fresh blind critic. Binary verdict. Stop when it wins or the human stops it. Prefer the human’s mockups as the bar.
 
-1. **Parity** — does it do everything the previous version did, or better? Nothing silently dropped.
-2. **The oracle** — tests green, plus whatever exact check the phase defined, *run by you*.
-3. **Acceptance criteria** — each one, individually. If an AC says the loop rebuilds on file change,
-   change a file and watch it rebuild. Reading the code is not evidence.
-4. **Constraint violations** — did it touch files it did not own, weaken a security requirement, or
-   quietly widen scope?
-5. **Duplicated constants** — if a value is declared in one file and consumed in another, assert the
-   two *agree* rather than pinning the literal in both places. A test that hard-codes the same
-   number twice does not catch drift, it just fails later and blames the wrong change.
+## Failure class
 
-**Know what a checkout can hand you.** Harness configuration — command files, skills, hooks — is
-generally a property of the *working tree*, not of the merged branch. Files arriving from an
-unreviewed branch can become invocable in every session sharing that checkout, with no review gate
-between "an agent wrote it" and "anyone can run it". This is invisible while such files are only
-documentation, which is exactly when the missing gate goes unremarked. `direnv` solves the same
-problem for `.envrc` with per-path explicit consent; treat an unfamiliar checkout with the same
-suspicion.
+The expensive bug is **an artefact that asserts something false**. Prefer declared-vs-actual checks. A claim in a brief is an artefact: verify the environment before asserting it.
 
-Then accept in PPM with a close note recording *what you actually verified* and the exact state
-(committed on which branch, merged or not). Or bounce it back with a specific reason.
+## Recap
 
-Be willing to disconfirm your own suspicions: measure before reporting a problem, and drop the
-finding if the measurement clears it.
-
-**The boundary that matters:** you can certify parity and correctness. You cannot certify taste.
-Never self-accept "is this elegant" — that is the human's call, and silently taking it produces
-twenty screens they did not want.
-
-## UX acceptance: the compare page
-
-For visual work, build one HTML compare page: old screenshot beside new, each pair labelled with its
-**PPM ID**. The human accepts by saying "ID xyz accepted".
-
-Attach screenshots to the ticket (`paimos attach <issue-ref> <file>`) so it carries its own evidence.
-Mind the size ceiling if publishing as a hosted page — images must be inlined, so downscale to
-display width and use WebP, or split across several pages.
-
-## The gauntlet loop, for creative work
-
-Builder-plus-blind-critic rounds:
-
-- **The bar must be named, fetchable and comparable** — a specific artifact the critic can open and
-  place side by side, not a category. A vague bar makes the critic invent a comparison and approve
-  everything.
-- **The critic spawns fresh**, with no builder history and no labels on the two artifacts. It picks
-  the better one.
-- **Binary verdict, no fixed round count.** Scores drift upward every round. Loop until the work wins,
-  or the human stops it.
-- Prefer the human's own approved mockups as the bar over a third party's product.
-
-**Never run a gauntlet where an exact oracle exists.** If a byte-identical diff or a parity test can
-answer the question, use it — a critic's judgement is strictly worse than a check that is either
-empty or not.
-
-## The failure class worth building checks against
-
-The most expensive defects share one shape: **an artefact asserts something false, and no layer
-contradicts it.** Nothing errors, tests pass, health is green, and the only thing that fails is
-whoever believed the assertion. Real examples, all found only by using the thing:
-
-- help text describing a private repository as public, so the first real deploy failed for want of
-  credentials nobody knew were needed
-- a container network flagged `internal: true`, which silently disables host port publishing — the
-  binding is accepted, never established, and the container still reports **healthy**
-- a value pinned independently in two files, which drifted, after which the test blamed the wrong
-  change
-
-None is catchable by linting one file, because the bug is not *in* an artefact — it is in the gap
-between two artefacts. Only something comparing them can see it. So prefer checks of the form
-**declared versus actual**: derive the value from its source of truth and assert the consumer
-matches, rather than asserting either against a literal.
-
-Corollary for briefs: a claim in a brief is an artefact too. Verify the environment before asserting
-it to an agent, or you will send it confidently in the wrong direction.
-
-## Daily recap
-
-Roughly once a day, review with the human: which routings produced good work and which did not, where
-ETAs were wrong, which briefs needed clarification mid-flight, what the environment broke on, and what
-should change. Fold the answers back into this skill.
+When the slice lands: which routings were fast, where ETAs lied, what the environment broke, what to change in this skill. Fold speed lessons back in. Do not grow this file with per-product novels; keep it short.
