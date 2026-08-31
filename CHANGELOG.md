@@ -205,6 +205,13 @@ boring and some weeks away.
 
 - **Ticket-first work authorization and session attribution (INSPR-321).** Every AI worker now binds material work to one canonical PPM or PMA ticket before changing state and records the actual builder, reviewer, or operator session UUID in a value-free `I work on this` marker. The rule is always-on in the public kernel, detailed in the full doctrine reference, mirrored for non-Claude harnesses, and built into product-gauntlet dispatch.
 
+### Fixed
+
+- `homeManagerModules.inspr-cli` now shell-escapes every nonempty `fleet.conf`
+  value before the Bash CLI sources it. Quotes, command substitutions,
+  backticks, backslashes, spaces, newlines, and dollar expansions remain
+  literal data; null and empty options still emit no assignment. [INSPR-304]
+
 ### Changed
 
 - **Calendar versions are the gradual estate default (INSPR-320).** The

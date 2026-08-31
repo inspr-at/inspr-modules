@@ -278,6 +278,13 @@
               inherit pkgs;
             };
 
+            # Sources the rendered fleet.conf with Bash, matching the CLI's
+            # execution path. Shell-active values must survive literally and
+            # null/empty configuration must remain assignment-free.
+            inspr-cli-functional = import ./tests/inspr-cli-functional.nix {
+              inherit pkgs;
+            };
+
             # Kernel-mirror freshness gate (INSPR-278). Editing the kernel
             # without re-mirroring AGENTS.md burned us in INSPR-269 (the 🔴
             # trust-contexts rule was invisible to non-Claude harnesses for
