@@ -207,6 +207,15 @@ boring and some weeks away.
 
 ### Changed
 
+- **Calendar versions are the gradual estate default (INSPR-320).** The
+  normative versioning doctrine defines `YY.MM.DD[.hh.mm.ss]` as an explicit
+  UTC release coordinate with Gregorian validation, deterministic same-day
+  collision handling, immutable artifacts, and scheme-aware mixed-era
+  ordering. Adoption remains per repository: current and in-flight releases
+  keep their existing scheme, history is never retagged, and each migration
+  needs a value-free inventory plus executable producer, consumer, update,
+  deployment, and rollback evidence. `inspr-modules` itself remains on SemVer
+  until a separate owner-approved migration passes.
 - `skills/product-gauntlet`: speed-first rewrite. One QA gate per slice (not per ticket), controller preflight, event reports instead of polling, cheaper default models, one headless Chromium at slice-end. Quality bar unchanged.
 
 ### Planned
