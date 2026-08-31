@@ -6,7 +6,7 @@ TL;DR map of available slash commands and what each loads. Run `/inspr` anytime 
 
 Markus Barta's umbrella initiative — broader than Paimos. Mission: _"inspiration is the only limit."_
 
-All agent doctrine for `~/Code/{nixcfg,inspr,amt-com,ops,inspr-modules}` is published from the **`inspr-modules`** repo and vendored as `./doctrine/` git submodule in each consuming repo. Per-repo deltas live in `<repo>/AGENTS.md`.
+All agent doctrine for `~/Code/{nixcfg,inspr,agm-com,ops,inspr-modules}` is published from the **`inspr-modules`** repo and vendored as `./doctrine/` git submodule in each consuming repo. Per-repo deltas live in `<repo>/AGENTS.md`.
 
 ## Doctrine architecture (post-Phase-6, 2026-05-15)
 
@@ -14,7 +14,7 @@ Three tiers:
 
 1. **KERNEL** (`AGENTS-KERNEL.md`, currently ~5.5 k; budget ≤12 000 bytes, `wc -c`, enforced by `inspr check`) — auto-loaded by `CLAUDE.md @-ref` in every session. Carries hard-safety irreversibles + identity + slash-command router. ALWAYS in context.
 2. **DOMAIN PACKS** (`AGENTS-DOMAIN-*.md`, ~5–10 k each) — loaded **on demand** when you run a slash command. Each pack contains depth, technique, and workflow guidance for one area (secrets, nix, dev, ops, ppm).
-3. **PER-REPO DELTA** (`<repo>/AGENTS.md`) — auto-loaded alongside kernel via `CLAUDE.md @-ref`. Carries repo-specific rules unique to nixcfg / inspr / amt-com / ops.
+3. **PER-REPO DELTA** (`<repo>/AGENTS.md`) — auto-loaded alongside kernel via `CLAUDE.md @-ref`. Carries repo-specific rules unique to nixcfg / inspr / agm-com / ops.
 
 ### Comprehensive references (also on-demand)
 
@@ -74,4 +74,4 @@ git commit doctrine -m "doctrine: bump to <short-sha>"
 
 ## How `/inspr` itself stays in sync
 
-`/inspr.md` lives canonically in `inspr-modules/commands/inspr.md` and is symlinked into each consuming repo's `+agents/commands/` (nixcfg) or `.claude/commands/` (inspr, amt-com, ops) directory through the `./doctrine/` submodule. Edit it once upstream, bump the submodule, every repo gets the update.
+`/inspr.md` lives canonically in `inspr-modules/commands/inspr.md` and is symlinked into each consuming repo's `+agents/commands/` (nixcfg) or `.claude/commands/` (inspr, agm-com, ops) directory through the `./doctrine/` submodule. Edit it once upstream, bump the submodule, every repo gets the update.
