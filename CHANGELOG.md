@@ -201,6 +201,13 @@ boring and some weeks away.
 
 ## [Unreleased]
 
+### Fixed
+
+- `homeManagerModules.inspr-cli` now shell-escapes every nonempty `fleet.conf`
+  value before the Bash CLI sources it. Quotes, command substitutions,
+  backticks, backslashes, spaces, newlines, and dollar expansions remain
+  literal data; null and empty options still emit no assignment. [INSPR-304]
+
 ### Changed
 
 - `skills/product-gauntlet`: speed-first rewrite. One QA gate per slice (not per ticket), controller preflight, event reports instead of polling, cheaper default models, one headless Chromium at slice-end. Quality bar unchanged.

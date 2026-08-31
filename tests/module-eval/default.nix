@@ -28,6 +28,7 @@ let
     ./devenv-direnv-fix.test.nix
     ./git-atelier-credentials.test.nix
     ./git-identity.test.nix
+    ./inspr-cli.test.nix
     ./paimos-config.test.nix
     ./ssh-authorized.test.nix
     ./nixos-ssh-authorized.test.nix
