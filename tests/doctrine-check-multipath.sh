@@ -172,11 +172,51 @@ run_check "$repo" --multipath-only
 expect_status "relative submodule URL" 1
 expect_output "relative submodule URL" "consumption paths DISAGREE for inspr-at/inspr-modules"
 
+# Git resolves a relative submodule URL against the current branch's tracking
+# remote. `origin` is only the fallback when no tracking remote is configured.
+repo=$(new_repo tracking-default-remote)
+git -C "$repo" symbolic-ref HEAD refs/heads/main
+git -C "$repo" remote add origin https://gitlab.com/inspr-at/consumer.git
+git -C "$repo" remote add upstream https://github.com/inspr-at/consumer.git
+git -C "$repo" config branch.main.remote upstream
+git -C "$repo" config branch.main.merge refs/heads/main
+add_gitlink "$repo" doctrine ../inspr-modules.git "$REV_A"
+write_lock "$repo" inspr-modules inspr-at inspr-modules "$REV_B"
+run_check "$repo" --multipath-only
+expect_status "tracking default remote" 1
+expect_output "tracking default remote" "consumption paths DISAGREE for inspr-at/inspr-modules"
+
 repo=$(new_repo relative-without-origin)
 add_gitlink "$repo" doctrine ../inspr-modules.git "$REV_A"
 run_check "$repo" --multipath-only
 expect_status "relative URL without origin" 1
-expect_output "relative URL without origin" "relative URL but remote.origin.url has 0 value(s)"
+expect_output "relative URL without origin" "relative URL but no usable default Git remote exists"
+
+# Git URL rewriting is repository-local identity resolution and does not need
+# network access. It applies to both submodule URLs and locked.type=git URLs.
+repo=$(new_repo submodule-insteadof)
+git -C "$repo" config url.git@github.com:.insteadOf git@git-personal:
+add_gitlink "$repo" doctrine git@git-personal:inspr-at/inspr-modules.git "$REV_A"
+write_lock "$repo" inspr-modules inspr-at inspr-modules "$REV_B"
+run_check "$repo" --multipath-only
+expect_status "submodule insteadOf" 1
+expect_output "submodule insteadOf" "consumption paths DISAGREE for inspr-at/inspr-modules"
+
+repo=$(new_repo flake-git-insteadof)
+git -C "$repo" config url.git@github.com:.insteadOf git@git-personal:
+add_gitlink "$repo" doctrine https://github.com/inspr-at/inspr-modules.git "$REV_A"
+write_git_lock "$repo" doctrine-git git@git-personal:inspr-at/inspr-modules.git "$REV_B"
+run_check "$repo" --multipath-only
+expect_status "flake git insteadOf" 1
+expect_output "flake git insteadOf" "consumption paths DISAGREE for inspr-at/inspr-modules"
+
+repo=$(new_repo ambiguous-effective-url)
+git -C "$repo" remote add doctrine-source https://github.com/inspr-at/inspr-modules.git
+git -C "$repo" config --add remote.doctrine-source.url https://gitlab.com/inspr-at/inspr-modules.git
+add_gitlink "$repo" doctrine doctrine-source "$REV_A"
+run_check "$repo" --multipath-only
+expect_status "ambiguous effective Git URL" 1
+expect_output "ambiguous effective Git URL" "does not resolve to exactly one effective Git URL"
 
 # `.gitmodules` section names are caller-selected; path, not section spelling,
 # binds the indexed gitlink to its URL.
@@ -247,6 +287,42 @@ printf '%s\n' \
 run_check "$repo" --multipath-only
 expect_status "opaque relevant input edge" 1
 expect_output "opaque relevant input edge" "doctrine-relevant flake node is malformed"
+
+# A follows path is itself an input reference. Relevance in any component must
+# make an unresolvable path fail even when the outer alias is neutral.
+repo=$(new_repo relevant-follows-component)
+printf '%s\n' \
+  '{"nodes":{"root":{"inputs":{"policy":["opaque","inspr-modules"]}}},"root":"root","version":7}' \
+  > "$repo/flake.lock"
+run_check "$repo" --multipath-only
+expect_status "relevant follows component" 1
+expect_output "relevant follows component" "doctrine-relevant flake node is malformed"
+
+# `original` identifies the requested upstream even when the locked node ID and
+# locked fields do not. Null or cross-upstream locks must not disappear.
+repo=$(new_repo original-relevant-null-lock)
+printf '%s\n' \
+  '{"nodes":{"opaque":{"original":{"type":"github","owner":"inspr-at","repo":"inspr-modules"},"locked":null}},"root":"opaque","version":7}' \
+  > "$repo/flake.lock"
+run_check "$repo" --multipath-only
+expect_status "original relevant null lock" 1
+expect_output "original relevant null lock" "doctrine-relevant flake node is malformed"
+
+repo=$(new_repo original-locked-inconsistent)
+printf '%s\n' \
+  "{\"nodes\":{\"opaque\":{\"original\":{\"type\":\"github\",\"owner\":\"inspr-at\",\"repo\":\"inspr-modules\"},\"locked\":{\"type\":\"github\",\"owner\":\"example\",\"repo\":\"other\",\"rev\":\"$REV_A\"}}},\"root\":\"opaque\",\"version\":7}" \
+  > "$repo/flake.lock"
+run_check "$repo" --multipath-only
+expect_status "original and locked inconsistent" 1
+expect_output "original and locked inconsistent" "original and locked doctrine identities disagree"
+
+repo=$(new_repo unrelated-original-null-lock)
+printf '%s\n' \
+  '{"nodes":{"opaque":{"original":{"type":"github","owner":"example","repo":"other"},"locked":null}},"root":"opaque","version":7}' \
+  > "$repo/flake.lock"
+run_check "$repo" --multipath-only
+expect_status "unrelated original null lock" 0
+expect_output "unrelated original null lock" "single doctrine consumption path"
 
 # An invalid configured relevance regex is a configuration error, not a clean
 # repository. It must be diagnosed before any path filtering occurs.

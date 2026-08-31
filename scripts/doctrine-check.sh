@@ -147,6 +147,59 @@ raise SystemExit(1)
 PY
 }
 
+# Resolve url.*.insteadOf and named-remote aliases exactly as Git would, but do
+# not contact the remote. The command must emit exactly one non-empty URL.
+resolve_effective_git_url() {
+  local raw rows count remote_name named_remote
+  raw="$1"
+  named_remote=0
+  while IFS= read -r remote_name; do
+    if [[ "$remote_name" == "$raw" ]]; then
+      named_remote=1
+      break
+    fi
+  done < <(git remote 2>/dev/null || true)
+
+  if [[ "$named_remote" -eq 1 ]]; then
+    if ! rows=$(git remote get-url --all "$raw" 2>/dev/null); then
+      return 1
+    fi
+  elif ! rows=$(git ls-remote --get-url "$raw" 2>/dev/null); then
+    return 1
+  fi
+  count=$(printf '%s\n' "$rows" | awk 'NF { count++ } END { print count + 0 }')
+  [[ "$count" -eq 1 ]] || return 1
+  printf '%s' "$rows"
+}
+
+# Git's default remote for relative submodule URLs is the current branch's
+# tracking remote. `origin` is only the fallback when no tracking remote is
+# configured. A local `.` remote has no forge identity for this comparison.
+resolve_default_remote_url() {
+  local branch remote row remote_count url url_count
+  branch=$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)
+  remote=""
+  remote_count=0
+  if [[ -n "$branch" ]]; then
+    while IFS= read -r -d '' row; do
+      remote="$row"
+      remote_count=$((remote_count+1))
+    done < <(git config -z --get-all "branch.$branch.remote" 2>/dev/null || true)
+    [[ "$remote_count" -le 1 ]] || return 1
+  fi
+  [[ -n "$remote" ]] || remote="origin"
+  [[ "$remote" != "." ]] || return 1
+
+  url=""
+  url_count=0
+  while IFS= read -r -d '' row; do
+    url="$row"
+    url_count=$((url_count+1))
+  done < <(git config -z --get-all "remote.$remote.url" 2>/dev/null || true)
+  [[ "$url_count" -eq 1 ]] || return 1
+  printf '%s' "$url"
+}
+
 red=$'\033[0;31m'; grn=$'\033[0;32m'; yel=$'\033[1;33m'; dim=$'\033[2m'; rst=$'\033[0m'
 fail=0; unchecked=0
 ok()   { printf "  ${grn}✓${rst} %s\n" "$1"; }
@@ -170,8 +223,8 @@ run_multipath_only() {
   declare -a focused_upstream=() focused_rev=() focused_label=()
   local sm entry row_count mode stage symlink_target pin url up
   local row key path_value matched_section match_count
-  local url_count origin_url origin_count resolved_url
-  local flake_rows record iname iurl irev
+  local url_count default_remote_url resolved_url effective_url
+  local flake_rows record iname iurl irev original_kind original_url original_up
   local i j prev_i split
 
   for sm in doctrine doctrine-private; do
@@ -237,23 +290,22 @@ run_multipath_only() {
 
     case "$url" in
       ../*|./*)
-        origin_url=""
-        origin_count=0
-        while IFS= read -r -d '' row; do
-          origin_url="$row"
-          origin_count=$((origin_count+1))
-        done < <(git config -z --get-all remote.origin.url 2>/dev/null || true)
-        if [[ "$origin_count" -ne 1 ]]; then
-          bad "$sm uses a relative URL but remote.origin.url has $origin_count value(s); expected exactly one"
+        if ! default_remote_url=$(resolve_default_remote_url); then
+          bad "$sm uses a relative URL but no usable default Git remote exists"
           continue
         fi
-        if ! resolved_url=$(resolve_relative_git_url "$url" "$origin_url"); then
-          bad "$sm relative .gitmodules URL cannot be resolved against remote.origin.url"
+        if ! resolved_url=$(resolve_relative_git_url "$url" "$default_remote_url"); then
+          bad "$sm relative .gitmodules URL cannot be resolved against the default Git remote"
           continue
         fi
         url="$resolved_url"
         ;;
     esac
+    if ! effective_url=$(resolve_effective_git_url "$url"); then
+      bad "$sm .gitmodules URL does not resolve to exactly one effective Git URL"
+      continue
+    fi
+    url="$effective_url"
     if ! up=$(normalize_upstream_identity "$url"); then
       bad "$sm .gitmodules URL cannot be normalized to one upstream identity"
       continue
@@ -338,7 +390,8 @@ for node in nodes.values():
     if not isinstance(inputs, dict):
         continue
     for input_name, target in inputs.items():
-        if not relevant(input_name):
+        follows_relevant = isinstance(target, list) and any(relevant(part) for part in target)
+        if not relevant(input_name) and not follows_relevant:
             continue
         try:
             if isinstance(target, str):
@@ -357,13 +410,24 @@ for _ in range(edge_errors):
     emit_error()
 
 for name, node in nodes.items():
+    original = node.get("original") if isinstance(node, dict) else None
+    original_owner = text(original.get("owner")) if isinstance(original, dict) else ""
+    original_repo = text(original.get("repo")) if isinstance(original, dict) else ""
+    original_url = text(original.get("url")) if isinstance(original, dict) else ""
+    original_mentions_doctrine = relevant(
+        original_owner,
+        original_repo,
+        original_url,
+        f"{original_owner}/{original_repo}",
+    )
+
     if not isinstance(node, dict):
         if name in relevant_ids or relevant(name):
             emit_error()
         continue
     locked = node.get("locked")
     if not isinstance(locked, dict):
-        if name in relevant_ids or relevant(name):
+        if name in relevant_ids or relevant(name) or original_mentions_doctrine:
             emit_error()
         continue
 
@@ -372,7 +436,11 @@ for name, node in nodes.items():
     repo = text(locked.get("repo"))
     url = text(locked.get("url"))
     rev = text(locked.get("rev"))
-    is_relevant = name in relevant_ids or relevant(name, owner, repo, url, f"{owner}/{repo}")
+    is_relevant = (
+        name in relevant_ids
+        or relevant(name, owner, repo, url, f"{owner}/{repo}")
+        or original_mentions_doctrine
+    )
     if not is_relevant:
         continue
 
@@ -382,33 +450,89 @@ for name, node in nodes.items():
             emit_error()
             continue
         raw_identity = f"{owner}/{repo}"
+        record_kind = "path-github"
     elif kind == "git":
         if not url or not rev:
             emit_error()
             continue
         raw_identity = url
+        record_kind = "path-git"
     else:
         emit_error()
         continue
 
-    if any(char in raw_identity for char in "\0|\t\r\n") or any(char in rev for char in "\0|\t\r\n"):
+    original_kind = ""
+    original_identity = ""
+    if original_mentions_doctrine:
+        if not isinstance(original, dict):
+            emit_error()
+            continue
+        if original.get("type") == "github" and original_owner and original_repo:
+            original_kind = "github"
+            original_identity = f"{original_owner}/{original_repo}"
+        elif original.get("type") == "git" and original_url:
+            original_kind = "git"
+            original_identity = original_url
+        else:
+            emit_error()
+            continue
+
+    unsafe = "\0|\t\r\n"
+    if (
+        any(char in raw_identity for char in unsafe)
+        or any(char in rev for char in unsafe)
+        or any(char in original_identity for char in unsafe)
+    ):
         emit_error()
         continue
-    print(f"path|{safe_name}|{raw_identity}|{rev}")
+    print(
+        f"{record_kind}|{safe_name}|{raw_identity}|{rev}|"
+        f"{original_kind}|{original_identity}"
+    )
 PY
     ) || {
       bad "flake.lock cannot be parsed — doctrine consumption paths are unverifiable"
       flake_rows=""
     }
-    while IFS='|' read -r record iname iurl irev; do
+    while IFS='|' read -r record iname iurl irev original_kind original_url; do
       [[ -z "$record" ]] && continue
       if [[ "$record" == "error" ]]; then
         bad "doctrine-relevant flake node is malformed — identity type/url/rev must be complete"
         continue
       fi
-      if [[ "$record" != "path" ]] || ! up=$(normalize_upstream_identity "$iurl"); then
+      if [[ "$record" == "path-git" ]]; then
+        if ! effective_url=$(resolve_effective_git_url "$iurl"); then
+          bad "doctrine-relevant flake Git URL does not resolve to exactly one effective URL"
+          continue
+        fi
+        iurl="$effective_url"
+      elif [[ "$record" != "path-github" ]]; then
+        bad "doctrine-relevant flake node has an unsupported discovery record"
+        continue
+      fi
+      if ! up=$(normalize_upstream_identity "$iurl"); then
         bad "doctrine-relevant flake node cannot be normalized to one upstream identity"
         continue
+      fi
+      if [[ -n "$original_kind" ]]; then
+        if [[ "$original_kind" == "git" ]]; then
+          if ! effective_url=$(resolve_effective_git_url "$original_url"); then
+            bad "doctrine-relevant original Git URL does not resolve to exactly one effective URL"
+            continue
+          fi
+          original_url="$effective_url"
+        elif [[ "$original_kind" != "github" ]]; then
+          bad "doctrine-relevant original metadata has an unsupported identity type"
+          continue
+        fi
+        if ! original_up=$(normalize_upstream_identity "$original_url"); then
+          bad "doctrine-relevant original metadata cannot be normalized"
+          continue
+        fi
+        if [[ "$original_up" != "$up" ]]; then
+          bad "original and locked doctrine identities disagree"
+          continue
+        fi
       fi
       if ! is_doctrine_upstream "$up"; then
         bad "doctrine-relevant flake node resolves outside the configured doctrine upstreams"
