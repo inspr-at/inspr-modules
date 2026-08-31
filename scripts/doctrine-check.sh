@@ -436,6 +436,30 @@ def resolve_input_path(parts, trail=()):
             raise ValueError
     return current
 
+def node_mentions_doctrine(node_id):
+    node = nodes.get(node_id)
+    if not isinstance(node, dict):
+        return relevant(node_id)
+    locked = node.get("locked")
+    original = node.get("original")
+    locked_owner = text(locked.get("owner")) if isinstance(locked, dict) else ""
+    locked_repo = text(locked.get("repo")) if isinstance(locked, dict) else ""
+    locked_url = text(locked.get("url")) if isinstance(locked, dict) else ""
+    original_owner = text(original.get("owner")) if isinstance(original, dict) else ""
+    original_repo = text(original.get("repo")) if isinstance(original, dict) else ""
+    original_url = text(original.get("url")) if isinstance(original, dict) else ""
+    return relevant(
+        node_id,
+        locked_owner,
+        locked_repo,
+        locked_url,
+        f"{locked_owner}/{locked_repo}",
+        original_owner,
+        original_repo,
+        original_url,
+        f"{original_owner}/{original_repo}",
+    )
+
 relevant_ids = set()
 relevant_edges = {}
 edge_errors = 0
@@ -456,8 +480,15 @@ for source_id, node in nodes.items():
                 raise ValueError
             if target_id not in nodes:
                 raise ValueError
-            relevant_ids.add(target_id)
             relevant_edges.setdefault(source_id, set()).add(target_id)
+            # A follows path can legitimately traverse a doctrine node and
+            # terminate at an ordinary dependency (for example
+            # inspr-modules/nixpkgs). The intermediate path component makes
+            # the edge worth validating, but only the terminal node's own
+            # identity—or a directly doctrine-named input—makes that target a
+            # doctrine consumption path.
+            if relevant(input_name) or node_mentions_doctrine(target_id):
+                relevant_ids.add(target_id)
         except ValueError:
             edge_errors += 1
 

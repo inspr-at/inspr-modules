@@ -21,6 +21,25 @@ fail() {
   failed=$((failed+1))
 }
 
+# Nix checks run with a current Bash even on macOS, so executing the fixture
+# there cannot by itself enforce the public Bash 3.2 compatibility promise.
+# Keep a small fail-closed syntax surface for constructs introduced after 3.2;
+# the full suite still executes under the host /bin/bash during local macOS QA.
+bash32_syntax_compatible() {
+  local path="$1"
+  ! grep -Ev '^[[:space:]]*#' "$path" | grep -Eq \
+    '(^|[[:space:];])(declare[[:space:]]+-A|readarray|mapfile|coproc)([[:space:];]|$)|&>>|\$\{[^}]*\^\^|\$\{[^}]*,,|\$\{[^}]*@[A-Za-z]\}|\[\[[[:space:]]+-v[[:space:]]|(^|[[:space:];])wait[[:space:]]+-n([[:space:];]|$)'
+}
+
+if ! bash32_syntax_compatible "$CHECK"; then
+  fail "doctrine-check uses syntax newer than macOS Bash 3.2"
+fi
+bash4_probe="$TMP_ROOT/bash4-only.sh"
+printf '%s\n' 'declare -A bash4_only=([x]=1)' > "$bash4_probe"
+if bash32_syntax_compatible "$bash4_probe"; then
+  fail "Bash 3.2 syntax guard did not reject an associative array"
+fi
+
 new_repo() {
   local name="$1" path="$TMP_ROOT/$1"
   mkdir -p "$path"
@@ -410,6 +429,17 @@ printf '%s\n' \
 run_check "$repo" --multipath-only
 expect_status "valid nested follow" 0
 expect_output "valid nested follow" "single doctrine consumption path"
+
+# A follows path may traverse a doctrine node and terminate at an ordinary
+# dependency. Only the terminal node's own identity decides whether it is a
+# doctrine consumption path; the intermediate name must not taint nixpkgs.
+repo=$(new_repo valid-follow-through-doctrine)
+printf '%s\n' \
+  "{\"nodes\":{\"root\":{\"inputs\":{\"inspr-modules\":\"inspr-modules\",\"inspr-doctrine-private\":\"inspr-doctrine-private\"}},\"inspr-modules\":{\"inputs\":{\"nixpkgs\":\"nixpkgs_2\"},\"locked\":{\"type\":\"github\",\"owner\":\"inspr-at\",\"repo\":\"inspr-modules\",\"rev\":\"$REV_A\"}},\"inspr-doctrine-private\":{\"inputs\":{\"nixpkgs\":[\"inspr-modules\",\"nixpkgs\"]},\"locked\":{\"type\":\"github\",\"owner\":\"inspr-at\",\"repo\":\"inspr-doctrine-private\",\"rev\":\"$REV_A\"}},\"nixpkgs_2\":{\"locked\":{\"type\":\"github\",\"owner\":\"NixOS\",\"repo\":\"nixpkgs\",\"rev\":\"$REV_B\"}}},\"root\":\"root\",\"version\":7}" \
+  > "$repo/flake.lock"
+run_check "$repo" --multipath-only
+expect_status "valid follow through doctrine" 0
+expect_output "valid follow through doctrine" "2 consumption path(s), all agreeing per upstream"
 
 # An invalid configured relevance regex is a configuration error, not a clean
 # repository. It must be diagnosed before any path filtering occurs.
