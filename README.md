@@ -235,6 +235,12 @@ nix build .#secrets-audit
 
 Semantic versioning: **MAJOR.MINOR.PATCH** per [semver.org](https://semver.org/).
 
+This repository remains on that legacy scheme until an owner-approved
+repository migration is completed. The estate-wide gradual default and its
+mixed-era requirements are defined in the normative
+[Versioning Doctrine](docs/AGENTS-VERSIONING.md); publishing that doctrine does
+not itself migrate this or any consuming repository.
+
 - **PATCH** — bugfixes, doc improvements, no API surface changes
 - **MINOR** — new options, new modules, deprecations (still backward-compatible)
 - **MAJOR** — breaking changes (removals, semantic changes, renames without aliases)
