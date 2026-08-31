@@ -201,6 +201,10 @@ boring and some weeks away.
 
 ## [Unreleased]
 
+### Added
+
+- **Ticket-first work authorization and session attribution (INSPR-321).** Every AI worker now binds material work to one canonical PPM or PMA ticket before changing state and records the actual builder, reviewer, or operator session UUID in a value-free `I work on this` marker. The rule is always-on in the public kernel, detailed in the full doctrine reference, mirrored for non-Claude harnesses, and built into product-gauntlet dispatch.
+
 ### Changed
 
 - `skills/product-gauntlet`: speed-first rewrite. One QA gate per slice (not per ticket), controller preflight, event reports instead of polling, cheaper default models, one headless Chromium at slice-end. Quality bar unchanged.

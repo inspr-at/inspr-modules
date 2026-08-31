@@ -236,6 +236,22 @@
                   touch $out
                 '';
 
+            # Ticket-first work attribution is an always-on global protocol
+            # (INSPR-321), not an optional product-gauntlet convention. Keep
+            # the kernel, non-Claude mirror, full reference and dispatcher in
+            # lockstep and reject the retired opt-in wording.
+            work-attribution-doctrine = pkgs.runCommand "work-attribution-doctrine"
+              {
+                nativeBuildInputs = [
+                  pkgs.bash
+                  pkgs.gnugrep
+                ];
+              }
+              ''
+                bash ${./tests/work-attribution-doctrine.sh} ${self}
+                touch $out
+              '';
+
             # inspr --help must tell the truth (INSPR-258): every dispatch
             # command appears and no stale NOT-YET-IMPLEMENTED claims remain.
             inspr-help-surface =
