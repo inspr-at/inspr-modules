@@ -56,62 +56,111 @@ MAX_BEHIND="${DOCTRINE_MAX_BEHIND:-3}"
 DOCTRINE_UPSTREAMS="${DOCTRINE_UPSTREAMS:-inspr-modules|inspr-doctrine-private}"
 is_doctrine_upstream() { printf '%s' "$1" | grep -qiE "($DOCTRINE_UPSTREAMS)"; }
 
-# Canonical comparison identity for Git remotes. Known github.com transport
-# forms and flake `github` owner/repo pairs resolve to lower-case `owner/repo`.
-# Every other host remains part of the identity (`host/owner/repo`): matching
-# path text on GitLab or an SSH alias does not prove it is the GitHub upstream.
+# Canonicalize only the GitHub identity forms whose equivalence is known.
+# Git repository paths on every other authority may be case-sensitive, and
+# SSH user/port or transport may select a different repository namespace.
+canonical_github_identity() {
+  local path lower owner repo
+  path="$1"
+  lower=$(printf '%s' "$path" | tr '[:upper:]' '[:lower:]')
+  lower="${lower#/}"
+  lower="${lower%/}"
+  lower="${lower%.git}"
+  case "$lower" in
+    */*/*|""|*'?'*|*'#'*|*'|'*|*$'\t'*|*$'\n'*) return 1 ;;
+  esac
+  owner="${lower%%/*}"
+  repo="${lower#*/}"
+  [[ -n "$owner" && -n "$repo" && "$owner" != "$repo" ]] || return 1
+  [[ "$owner" != "." && "$owner" != ".." && "$repo" != "." && "$repo" != ".." ]] || return 1
+  case "$owner$repo" in *[!a-z0-9._-]*) return 1 ;; esac
+  printf '%s/%s' "$owner" "$repo"
+}
+
 normalize_upstream_identity() {
-  local raw kind lower rest authority host path owner repo
+  local raw kind lower scheme rest authority path user hostport host port
+  local scheme_lower host_lower rendered_authority
   raw="$1"
   kind="$2"
   lower=$(printf '%s' "$raw" | tr '[:upper:]' '[:lower:]')
   if [[ "$kind" == "github" ]]; then
-    path="$lower"
-    host="github.com"
-  elif [[ "$kind" != "git" ]]; then
-    return 1
-  else
+    canonical_github_identity "$raw"
+    return
+  fi
+  [[ "$kind" == "git" ]] || return 1
+
   case "$lower" in
+    github:*)
+      canonical_github_identity "${raw#*:}"
+      return
+      ;;
     https://*/*|http://*/*|git://*/*|ssh://*/*|git+ssh://*/*)
-      rest="${lower#*://}"
+      scheme="${raw%%://*}"
+      scheme_lower=$(printf '%s' "$scheme" | tr '[:upper:]' '[:lower:]')
+      rest="${raw#*://}"
       authority="${rest%%/*}"
-      [[ "$authority" != "$rest" ]] || return 1
+      [[ -n "$authority" && "$authority" != "$rest" ]] || return 1
       path="${rest#*/}"
-      host="${authority##*@}"
-      host=$(printf '%s' "$host" | sed -E 's/:[0-9]+$//')
       ;;
     github.com:*|*@*:*)
-      authority="${lower%%:*}"
-      path="${lower#*:}"
-      host="${authority##*@}"
-      ;;
-    github:*)
-      path="${lower#github:}"
-      host="github.com"
+      authority="${raw%%:*}"
+      path="${raw#*:}"
+      user=""
+      host="$authority"
+      if [[ "$authority" == *@* ]]; then
+        user="${authority%@*}"
+        host="${authority##*@}"
+      fi
+      [[ -n "$host" && -n "$path" ]] || return 1
+      case "$user" in *[!A-Za-z0-9._-]*) return 1 ;; esac
+      host_lower=$(printf '%s' "$host" | tr '[:upper:]' '[:lower:]')
+      case "$host_lower" in *[!a-z0-9._-]*) return 1 ;; esac
+      if [[ "$host_lower" == "github.com" && ( -z "$user" || "$user" == "git" ) ]]; then
+        canonical_github_identity "$path"
+        return
+      fi
+      rendered_authority="$host_lower"
+      [[ -z "$user" ]] || rendered_authority="$user@$rendered_authority"
+      case "$path" in ""|*'?'*|*'#'*|*'|'*|*$'\t'*|*$'\r'*|*$'\n'*) return 1 ;; esac
+      printf 'git-scp:%s:%s' "$rendered_authority" "$path"
+      return
       ;;
     *)
       return 1
       ;;
   esac
-  fi
 
-  path="${path#/}"
-  path="${path%/}"
-  path="${path%.git}"
-  case "$path" in
-    */*/*|""|*'?'*|*'#'*|*'|'*|*$'\t'*|*$'\n'*) return 1 ;;
-  esac
-  owner="${path%%/*}"
-  repo="${path#*/}"
-  [[ -n "$owner" && -n "$repo" && "$owner" != "$repo" ]] || return 1
-  [[ "$owner" != "." && "$owner" != ".." && "$repo" != "." && "$repo" != ".." ]] || return 1
-  case "$owner$repo" in *[!a-z0-9._-]*) return 1 ;; esac
-  if [[ "$host" == "github.com" ]]; then
-    printf '%s/%s' "$owner" "$repo"
-    return
+  case "$path" in ""|*'?'*|*'#'*|*'|'*|*$'\t'*|*$'\r'*|*$'\n'*) return 1 ;; esac
+  user=""
+  hostport="$authority"
+  if [[ "$authority" == *@* ]]; then
+    user="${authority%@*}"
+    hostport="${authority##*@}"
   fi
-  case "$host" in *[!a-z0-9._:-]*) return 1 ;; esac
-  printf '%s/%s/%s' "$host" "$owner" "$repo"
+  case "$user" in *[!A-Za-z0-9._-]*) return 1 ;; esac
+  host="$hostport"
+  port=""
+  if [[ "$hostport" == *:* ]]; then
+    host="${hostport%:*}"
+    port="${hostport##*:}"
+    [[ -n "$port" ]] || return 1
+    case "$port" in *[!0-9]*) return 1 ;; esac
+  fi
+  [[ -n "$host" ]] || return 1
+  host_lower=$(printf '%s' "$host" | tr '[:upper:]' '[:lower:]')
+  case "$host_lower" in *[!a-z0-9._-]*) return 1 ;; esac
+  if [[ "$host_lower" == "github.com" && -z "$port" ]]; then
+    case "$scheme_lower:$user" in
+      https:|http:|git:|ssh:git|git+ssh:git)
+        canonical_github_identity "$path"
+        return
+        ;;
+    esac
+  fi
+  rendered_authority="$host_lower"
+  [[ -z "$port" ]] || rendered_authority="$rendered_authority:$port"
+  [[ -z "$user" ]] || rendered_authority="$user@$rendered_authority"
+  printf 'git-url:%s://%s/%s' "$scheme_lower" "$rendered_authority" "$path"
 }
 
 # Git treats a relative submodule URL as relative to the superproject remote

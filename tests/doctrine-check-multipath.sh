@@ -163,6 +163,29 @@ run_check "$repo" --multipath-only
 expect_status "distinct Git host" 0
 expect_output "distinct Git host" "2 consumption path(s), all agreeing per upstream"
 
+# Outside the proven GitHub forms, transport authority and path spelling remain
+# identity-significant. Collapsing any of these pairs creates a false split.
+repo=$(new_repo distinct-ssh-ports)
+add_gitlink "$repo" doctrine ssh://git@example.com:2222/inspr-at/inspr-modules.git "$REV_A"
+write_git_lock "$repo" doctrine-port ssh://git@example.com:3333/inspr-at/inspr-modules.git "$REV_B"
+run_check "$repo" --multipath-only
+expect_status "distinct SSH ports" 0
+expect_output "distinct SSH ports" "2 consumption path(s), all agreeing per upstream"
+
+repo=$(new_repo distinct-ssh-users)
+add_gitlink "$repo" doctrine ssh://alice@example.com/inspr-at/inspr-modules.git "$REV_A"
+write_git_lock "$repo" doctrine-user ssh://bob@example.com/inspr-at/inspr-modules.git "$REV_B"
+run_check "$repo" --multipath-only
+expect_status "distinct SSH users" 0
+expect_output "distinct SSH users" "2 consumption path(s), all agreeing per upstream"
+
+repo=$(new_repo distinct-path-case)
+add_gitlink "$repo" doctrine ssh://git@example.com/INSPR-AT/inspr-modules.git "$REV_A"
+write_git_lock "$repo" doctrine-case ssh://git@example.com/inspr-at/inspr-modules.git "$REV_B"
+run_check "$repo" --multipath-only
+expect_status "distinct path case" 0
+expect_output "distinct path case" "2 consumption path(s), all agreeing per upstream"
+
 # Git resolves ../ submodule URLs relative to the superproject's remote URL.
 repo=$(new_repo relative-submodule-url)
 git -C "$repo" remote add origin https://github.com/inspr-at/consumer.git
