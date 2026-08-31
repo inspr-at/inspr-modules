@@ -121,6 +121,12 @@
         checks =
           let
             secretsAuditPkg = pkgs.callPackage ./pkgs/secrets-audit { };
+            workerDoctrineBundle = import ./lib/worker-doctrine-bundle.nix {
+              inherit pkgs;
+              skillSource = ./skills/inspr-worker-doctrine/SKILL.md;
+              attributionSource = ./AGENTS.md;
+              versioningSource = ./docs/AGENTS-VERSIONING.md;
+            };
 
             # Module-eval suite results (INSPR-267). Evaluation is lazy —
             # nothing forces until the module-eval check derivation is
@@ -188,6 +194,32 @@
               }
               ''
                 bash ${./tests/calendar-version-doctrine.sh} ${self}
+                touch $out
+              '';
+
+            # Home Manager installs a harness-readable worker-doctrine bundle
+            # whose references are byte-identical to the canonical attribution
+            # mirror and calendar-version policy (INSPR-322). Exercise both the
+            # positive bundle and deliberate mirror drift.
+            worker-doctrine-surface = pkgs.runCommand "worker-doctrine-surface"
+              {
+                nativeBuildInputs = [
+                  pkgs.bash
+                  pkgs.coreutils
+                  pkgs.gnugrep
+                ];
+              }
+              ''
+                bash ${./tests/worker-doctrine-surface.sh} ${self} ${workerDoctrineBundle}
+
+                cp -R ${workerDoctrineBundle} ./drifted
+                chmod -R u+w ./drifted
+                printf '\nfixture drift\n' >> ./drifted/references/AGENTS.md
+                if bash ${./tests/worker-doctrine-surface.sh} ${self} ./drifted; then
+                  echo "worker-doctrine drift fixture unexpectedly passed" >&2
+                  exit 1
+                fi
+
                 touch $out
               '';
 

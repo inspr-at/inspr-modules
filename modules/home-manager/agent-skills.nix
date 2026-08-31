@@ -36,11 +36,19 @@
 #     };
 #   };
 #
+# When enabled, the module also installs the reserved
+# `inspr-worker-doctrine` skill into every configured harness by default. Its
+# bundle carries the canonical worker-attribution mirror and calendar-version
+# doctrine from this exact inspr-modules revision. The managed path never uses
+# `force`; an existing user-owned path therefore blocks activation rather than
+# being replaced silently.
+#
 # SPDX-License-Identifier: AGPL-3.0-only
 #
 {
   config,
   lib,
+  pkgs,
   ...
 }:
 
@@ -49,16 +57,53 @@ let
 
   bundledRoot = ../../skills;
 
+  workerDoctrineName = "inspr-worker-doctrine";
+  workerDoctrineSource = import ../../lib/worker-doctrine-bundle.nix {
+    inherit pkgs;
+    skillSource = ../../skills/inspr-worker-doctrine/SKILL.md;
+    attributionSource = ../../AGENTS.md;
+    versioningSource = ../../docs/AGENTS-VERSIONING.md;
+  };
+  # Home Manager accepts an immutable store path here. Keep the option value
+  # shallow: the module-eval harness deep-sequences home.file and should not
+  # recursively traverse the package-set metadata carried by a derivation.
+  workerDoctrineSourcePath = "${workerDoctrineSource}";
+
   # Harness names a skill actually targets: its own subset when given,
   # otherwise every declared harness.
-  targetsOf = skill:
-    if skill.harnesses == null then lib.attrNames cfg.harnesses else skill.harnesses;
+  targetsOf = skill: if skill.harnesses == null then lib.attrNames cfg.harnesses else skill.harnesses;
 
   # Assertions do not short-circuit evaluation. Render only targets that
   # name a declared harness so assertion messages surface instead of a
   # missing-attribute error from the home.file mapping.
-  declaredTargetsOf = skill:
-    lib.filter (h: lib.hasAttr h cfg.harnesses) (targetsOf skill);
+  declaredTargetsOf = skill: lib.filter (h: lib.hasAttr h cfg.harnesses) (targetsOf skill);
+
+  workerDoctrineTargets =
+    if cfg.workerDoctrine.harnesses == null then
+      lib.attrNames cfg.harnesses
+    else
+      cfg.workerDoctrine.harnesses;
+
+  declaredWorkerDoctrineTargets = lib.filter (h: lib.hasAttr h cfg.harnesses) workerDoctrineTargets;
+
+  skillEntries = lib.concatLists (
+    lib.mapAttrsToList (
+      skillName: skill:
+      map (h: {
+        name = "${cfg.harnesses.${h}}/${skillName}";
+        value.source = skill.source;
+      }) (declaredTargetsOf skill)
+    ) cfg.skills
+  );
+
+  workerDoctrineEntries =
+    lib.optionals (cfg.workerDoctrine.enable && !(lib.hasAttr workerDoctrineName cfg.skills))
+      (
+        map (h: {
+          name = "${cfg.harnesses.${h}}/${workerDoctrineName}";
+          value.source = workerDoctrineSourcePath;
+        }) declaredWorkerDoctrineTargets
+      );
 in
 {
   options.inspr.agent-skills = {
@@ -85,6 +130,32 @@ in
       '';
     };
 
+    workerDoctrine = {
+      enable = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = ''
+          Install the reserved inspr-worker-doctrine skill. The bundle includes
+          the canonical worker-attribution mirror and calendar-version doctrine
+          from the same immutable inspr-modules revision. Disable only when an
+          equivalent managed worker-doctrine surface is supplied separately.
+        '';
+      };
+
+      harnesses = lib.mkOption {
+        type = lib.types.nullOr (lib.types.listOf lib.types.str);
+        default = null;
+        description = ''
+          Harness names that receive inspr-worker-doctrine. null means every
+          declared harness, matching the default behavior of bundled skills.
+        '';
+        example = [
+          "claude"
+          "codex"
+        ];
+      };
+    };
+
     skills = lib.mkOption {
       description = ''
         Skills to install, keyed by skill name (the directory name harnesses
@@ -100,7 +171,7 @@ in
               source = lib.mkOption {
                 type = lib.types.path;
                 default = bundledRoot + "/${name}";
-                defaultText = lib.literalExpression ''inspr-modules' bundled skills/<name>'';
+                defaultText = lib.literalExpression "inspr-modules' bundled skills/<name>";
                 description = ''
                   Directory containing the skill (SKILL.md at its root).
                   Default is the bundled copy of the same name; external
@@ -161,18 +232,26 @@ in
         harness(es): ${toString (lib.subtractLists (declaredTargetsOf skill) (targetsOf skill))}.
         Declared harnesses: ${toString (lib.attrNames cfg.harnesses)}.
       '';
-    }) cfg.skills;
+    }) cfg.skills
+    ++ lib.optional cfg.workerDoctrine.enable {
+      assertion = workerDoctrineTargets == declaredWorkerDoctrineTargets;
+      message = ''
+        inspr.agent-skills.workerDoctrine.harnesses references undeclared
+        harness(es): ${toString (lib.subtractLists declaredWorkerDoctrineTargets workerDoctrineTargets)}.
+        Declared harnesses: ${toString (lib.attrNames cfg.harnesses)}.
+      '';
+    }
+    ++ lib.optional cfg.workerDoctrine.enable {
+      assertion = !(lib.hasAttr workerDoctrineName cfg.skills);
+      message = ''
+        inspr.agent-skills.skills.${workerDoctrineName} is reserved for the
+        canonical managed worker-doctrine bundle. Configure
+        inspr.agent-skills.workerDoctrine instead; no user entry was replaced.
+      '';
+    };
 
-    home.file = lib.listToAttrs (
-      lib.concatLists (
-        lib.mapAttrsToList (
-          skillName: skill:
-          map (h: {
-            name = "${cfg.harnesses.${h}}/${skillName}";
-            value.source = skill.source;
-          }) (declaredTargetsOf skill)
-        ) cfg.skills
-      )
-    );
+    # No `force` is set. Home Manager refuses an unmanaged filesystem
+    # collision instead of replacing a user-owned skill directory.
+    home.file = lib.listToAttrs (skillEntries ++ workerDoctrineEntries);
   };
 }
