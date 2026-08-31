@@ -18,7 +18,7 @@ Phase 4 (synthesized 2026-05-14) produced **521 canonical rules across 12 layer 
 | File | Scope tag | Loaded as | Description |
 |---|---|---|---|
 | **AGENTS-KERNEL.md** | `kernel` | `@./doctrine/docs/AGENTS-KERNEL.md` in every CLAUDE.md | **NEW (Phase 6)** — universal hard-safety + identity + slash-command router. Budget ≤12 000 bytes (`wc -c`; enforced by `inspr check`) — see § "The budget is 12 000 BYTES" below. The ONLY auto-loaded doctrine post-Phase-6. |
-| **`<repo>/AGENTS.md`** | `repo:*` | `@./AGENTS.md` in every CLAUDE.md | Per-repo delta (nixcfg / inspr / amt-com / ops). |
+| **`<repo>/AGENTS.md`** | `repo:*` | `@./AGENTS.md` in every CLAUDE.md | Per-repo delta (nixcfg / inspr / agm-com / ops). |
 
 ### On-demand domain packs (loaded by slash commands, Phase 6 NEW)
 
