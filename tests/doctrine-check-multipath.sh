@@ -7,6 +7,7 @@ CHECK="$SOURCE_ROOT/scripts/doctrine-check.sh"
 BASH_UNDER_TEST="${DOCTRINE_TEST_BASH:-/bin/bash}"
 REV_A="1111111111111111111111111111111111111111"
 REV_B="2222222222222222222222222222222222222222"
+REV_C="3333333333333333333333333333333333333333"
 TMP_ROOT=$(mktemp -d "${TMPDIR:-/tmp}/doctrine-check-multipath.XXXXXX")
 TMP_ROOT=$(cd "$TMP_ROOT" && pwd -P)
 trap 'chmod -R u+w "$TMP_ROOT" 2>/dev/null || true; rm -rf "$TMP_ROOT"' EXIT
@@ -111,6 +112,44 @@ expect_output "same-upstream mismatch" "flake input ahead => hosts run capabilit
 reject_output "same-upstream mismatch" "@-ref does not resolve"
 reject_output "same-upstream mismatch" "command is a COPY"
 reject_output "same-upstream mismatch" "cannot reach origin"
+
+# An unresolved gitlink merge has stages 1/2/3 and no authoritative stage 0.
+# Silently treating it as absent would leave the flake input as a vacuous
+# single path exactly while a doctrine-pin merge is unresolved.
+repo=$(new_repo unmerged-index)
+add_gitlink "$repo" doctrine https://github.com/inspr-at/inspr-modules.git "$REV_A"
+git -C "$repo" update-index --force-remove doctrine
+printf '160000 %s 1\tdoctrine\n160000 %s 2\tdoctrine\n160000 %s 3\tdoctrine\n' \
+  "$REV_A" "$REV_B" "$REV_C" | git -C "$repo" update-index --index-info
+write_lock "$repo" inspr-modules inspr-at inspr-modules "$REV_B"
+run_check "$repo" --multipath-only
+expect_status "unresolved gitlink index" 1
+expect_output "unresolved gitlink index" "doctrine index has 3 row(s)"
+expect_output "unresolved gitlink index" "exactly one stage-0 gitlink"
+
+# No named path is a valid single-path repository. A named regular file is not
+# absence: it is a malformed consumer path and must fail closed. The atelier's
+# canonical `doctrine -> .` index symlink remains an explicit non-pin case.
+repo=$(new_repo flake-only)
+write_lock "$repo" inspr-modules inspr-at inspr-modules "$REV_A"
+run_check "$repo" --multipath-only
+expect_status "flake-only single path" 0
+expect_output "flake-only single path" "single doctrine consumption path"
+
+repo=$(new_repo malformed-named-path)
+printf 'not a gitlink\n' > "$repo/doctrine"
+git -C "$repo" add doctrine
+run_check "$repo" --multipath-only
+expect_status "malformed named path" 1
+expect_output "malformed named path" "doctrine index has mode 100644 at stage 0"
+expect_output "malformed named path" "exactly one stage-0 gitlink"
+
+repo=$(new_repo atelier-self-link)
+ln -s . "$repo/doctrine"
+git -C "$repo" add doctrine
+run_check "$repo" --multipath-only
+expect_status "atelier self-symlink" 0
+expect_output "atelier self-symlink" "indexed self-symlink -> ., not a pin"
 
 # Consumer CI may initialize only public doctrine to obtain this checker. An
 # absent doctrine-private checkout must not hide a private gitlink/flake split.

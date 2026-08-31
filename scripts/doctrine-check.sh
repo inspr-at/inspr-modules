@@ -77,13 +77,33 @@ repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || {
 # byte-for-byte in its prior checkout-sensitive form for existing callers.
 run_multipath_only() {
   declare -a focused_upstream=() focused_rev=() focused_label=()
-  local sm entry mode pin url up flake_rows iname iurl irev
+  local sm entry row_count mode stage symlink_target pin url up
+  local flake_rows iname iurl irev
   local i j prev_i split
 
   for sm in doctrine doctrine-private; do
     entry=$(git ls-files --stage -- "$sm" 2>/dev/null)
+    [[ -z "$entry" ]] && continue
+
+    row_count=$(printf '%s\n' "$entry" | awk 'NF { count++ } END { print count + 0 }')
+    if [[ "$row_count" -ne 1 ]]; then
+      bad "$sm index has $row_count row(s); expected exactly one stage-0 gitlink — resolve the index conflict"
+      continue
+    fi
+
     mode=$(printf '%s\n' "$entry" | awk '{print $1}')
-    [[ "$mode" == "160000" ]] || continue
+    stage=$(printf '%s\n' "$entry" | awk '{print $3}')
+    if [[ "$stage" == "0" && "$mode" == "120000" ]]; then
+      symlink_target=$(git show ":$sm" 2>/dev/null)
+      if [[ "$symlink_target" == "." ]]; then
+        skip "$sm: indexed self-symlink -> ., not a pin"
+        continue
+      fi
+    fi
+    if [[ "$stage" != "0" || "$mode" != "160000" ]]; then
+      bad "$sm index has mode $mode at stage $stage; expected exactly one stage-0 gitlink"
+      continue
+    fi
 
     pin=$(printf '%s\n' "$entry" | awk '{print $2}')
     url=$(git config -f .gitmodules --get "submodule.$sm.url" 2>/dev/null)
