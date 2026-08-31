@@ -173,6 +173,24 @@
                 touch $out
               '';
 
+            # The estate versioning policy is normative and linked from the
+            # doctrine index. Keep its calendar grammar, real-date validation,
+            # normalized ordering, gradual transition contract, and README
+            # boundary executable (INSPR-320).
+            calendar-version-doctrine = pkgs.runCommand "calendar-version-doctrine"
+              {
+                nativeBuildInputs = [
+                  pkgs.bash
+                  pkgs.coreutils
+                  pkgs.gnugrep
+                  pkgs.python3
+                ];
+              }
+              ''
+                bash ${./tests/calendar-version-doctrine.sh} ${self}
+                touch $out
+              '';
+
             # Functional tests for the secrets-audit binary. Runs each
             # fixture (clean / declared-missing / orphan / with-comments)
             # through the binary and asserts exit codes + output content.
