@@ -210,9 +210,10 @@ boring and some weeks away.
 - **Calendar versions are the gradual estate default (INSPR-320).** The
   normative versioning doctrine defines `YY.MM.DD[.hh.mm.ss]` as an explicit
   UTC release coordinate with Gregorian validation, deterministic same-day
-  collision handling, immutable artifacts, and scheme-aware mixed-era
-  ordering. Adoption remains per repository: current and in-flight releases
-  keep their existing scheme, history is never retagged, and each migration
+  collision handling, immutable enumerated artifact sets, per-coordinate
+  digests, and scheme-aware mixed-era ordering. Adoption remains per
+  repository: current and in-flight releases keep their existing scheme,
+  history is never retagged, and each migration
   needs a value-free inventory plus executable producer, consumer, update,
   deployment, and rollback evidence. `inspr-modules` itself remains on SemVer
   until a separate owner-approved migration passes.

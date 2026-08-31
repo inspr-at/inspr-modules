@@ -98,17 +98,28 @@ after full calendar validation; invalid input has no ordering.
 
 A reserved or published version is immutable:
 
-- The same version MUST NOT identify different bytes, source trees, manifests,
-  dependency locks, or image digests in the same release channel.
-- A reproducible rebuild of the identical release MAY retain the version only
-  when the repository's reproducibility policy proves artifact identity.
-  Otherwise it receives a new, later coordinate.
+- One version identifies one immutable, enumerated artifact set through a
+  release-set manifest. The manifest records the source-tree and dependency-lock
+  provenance and, for every output, a unique artifact coordinate (including
+  applicable package/format, platform, architecture, and variant dimensions)
+  plus its digest. Different coordinates in one multi-platform or multi-variant
+  release MAY and normally do have different bytes and digests.
+- Immutability applies per artifact coordinate: a published
+  `(release channel, version, artifact coordinate)` MUST keep the same bytes and
+  digest. The release-set manifest itself is immutable; outputs MUST NOT be
+  added, removed, replaced, or relabelled under an existing version. A changed
+  artifact or set receives a new, later coordinate.
+- A reproducible rebuild of one artifact coordinate MAY retain the version only
+  when the repository's reproducibility policy proves identity with that
+  coordinate's published bytes and digest. Otherwise it receives a new, later
+  version and a new release-set manifest.
 - Mutable aliases such as `latest` MAY point at an immutable artifact, but are
   never versions and never constitute release evidence.
-- Rollback deploys a previously published immutable artifact by exact version
-  and digest, records a new deployment event, and leaves release ordering
-  untouched. A rollback fix is a new release with a later coordinate; versions
-  are never decremented, reused, or force-moved.
+- Rollback deploys a previously published artifact by exact version, artifact
+  coordinate, and digest from the immutable release-set manifest, records a new
+  deployment event, and leaves release ordering untouched. A rollback fix is a
+  new release with a later coordinate; versions are never decremented, reused,
+  or force-moved.
 
 ## Mixed-era contract
 

@@ -24,6 +24,10 @@ for required in \
   'All fields are based on **UTC**' \
   'Work already in flight MUST finish under the scheme in force' \
   'MUST NOT be renamed, rewritten, retagged' \
+  'immutable, enumerated artifact set' \
+  'Immutability applies per artifact coordinate' \
+  'outputs MUST NOT be' \
+  'exact version, artifact' \
   'release_sequence' \
   'last_legacy_version' \
   'first_calendar_version' \
@@ -33,6 +37,10 @@ for required in \
 do
   grep -Fq "$required" "$policy" || fail "missing normative surface: $required"
 done
+
+if grep -Fq 'same version MUST NOT identify different bytes' "$policy"; then
+  fail "over-broad byte identity would forbid multi-platform release sets"
+fi
 
 python3 - <<'PY'
 import datetime
