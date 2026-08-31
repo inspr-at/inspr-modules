@@ -13,7 +13,7 @@ Harness-neutral: whichever harness you are in is the controller; the other is a 
 
 ## Contract with the human
 
-1. Everything lives in PPM (epics, tickets, evidence). Controller writes PPM; workers do not.
+1. Everything lives in the product's designated tracker (PPM or PMA, never both): epics, tickets, worker attribution, and evidence. Controller writes the tracker; workers do not.
 2. Report on **events** (`DONE`, `BLOCKED`, quiet >15 min, slice gate). Do not poll every 10 minutes unless the human named a cadence. If they named one (hourly, etc.), keep it with no misses.
 3. You certify **parity and correctness at slice end**. The human accepts **taste**.
 4. Recap when the slice lands, not as a daily ritual that stalls work.
@@ -49,9 +49,10 @@ Prefer **processes**. In-process subagents only for judgement/review/synthesis.
 
 1. Read repo instructions + relevant PPM Knowledge. Measure; do not guess.
 2. Check who else is in the repo. Do not steal their threads.
-3. PPM: one epic, tickets with AC **before** a worker sees them. `--parent`, `--agent-name` / `--session-id`.
-4. Cross-repo work is a blocked ticket on the owning tracker. Do not author into a foreign repo.
-5. Preflight the environment (the speed rule). Then spawn.
+3. Tracker: one epic, tickets with AC **before** a worker sees them. Reuse existing tickets; never duplicate work across PPM/PMA. `--parent`, `--agent-name` / `--session-id`.
+4. Before dispatch, write `I work on this — session: <session-name> (<session-UUID>); role: builder; started: <ISO-8601>` on each worker's ticket. Preserve prior markers; add reviewer/operator markers when those roles begin.
+5. Cross-repo work is a blocked ticket on the owning tracker. Do not author into a foreign repo.
+6. Preflight the environment (the speed rule). Then spawn.
 
 ## Routing (speed first)
 
@@ -65,7 +66,7 @@ Prefer **processes**. In-process subagents only for judgement/review/synthesis.
 
 Cursor cloud (Composer / included Grok) is valid for isolated UI when that pool is the cheap one. Do not spend Cursor Other Models (Sol/Opus/Fable) on mechanical tickets.
 
-Record routing on the ticket in one line.
+Record routing on the ticket in the mandatory `I work on this` marker.
 
 ## Isolation
 
