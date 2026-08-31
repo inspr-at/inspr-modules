@@ -56,6 +56,56 @@ MAX_BEHIND="${DOCTRINE_MAX_BEHIND:-3}"
 DOCTRINE_UPSTREAMS="${DOCTRINE_UPSTREAMS:-inspr-modules|inspr-doctrine-private}"
 is_doctrine_upstream() { printf '%s' "$1" | grep -qiE "($DOCTRINE_UPSTREAMS)"; }
 
+# Canonical comparison identity for GitHub and GitHub-style Git remotes.
+# Both flake `github` owner/repo pairs and Git URLs resolve to lower-case
+# `owner/repo`. Keep SCP host aliases as a compatibility path for users whose
+# SSH config names GitHub (for example `git-personal`) without changing the
+# repository identity.
+normalize_upstream_identity() {
+  local raw lower rest path owner repo
+  raw="$1"
+  lower=$(printf '%s' "$raw" | tr '[:upper:]' '[:lower:]')
+  case "$lower" in
+    https://github.com/*|http://github.com/*|git://github.com/*)
+      path="${lower#*://github.com/}"
+      ;;
+    ssh://github.com/*|ssh://*@github.com/*|git+ssh://github.com/*|git+ssh://*@github.com/*)
+      path="${lower#*github.com/}"
+      ;;
+    github.com:*|*@github.com:*)
+      path="${lower#*github.com:}"
+      ;;
+    ssh://*/*|git+ssh://*/*)
+      rest="${lower#*://}"
+      path="${rest#*/}"
+      ;;
+    *@*:*)
+      path="${lower#*:}"
+      ;;
+    github:*)
+      path="${lower#github:}"
+      ;;
+    */*)
+      path="$lower"
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+
+  path="${path#/}"
+  path="${path%/}"
+  path="${path%.git}"
+  case "$path" in
+    */*/*|""|*'?'*|*'#'*|*'|'*|*$'\t'*|*$'\n'*) return 1 ;;
+  esac
+  owner="${path%%/*}"
+  repo="${path#*/}"
+  [[ -n "$owner" && -n "$repo" && "$owner" != "$repo" ]] || return 1
+  case "$owner$repo" in *[!a-z0-9._-]*) return 1 ;; esac
+  printf '%s/%s' "$owner" "$repo"
+}
+
 red=$'\033[0;31m'; grn=$'\033[0;32m'; yel=$'\033[1;33m'; dim=$'\033[2m'; rst=$'\033[0m'
 fail=0; unchecked=0
 ok()   { printf "  ${grn}✓${rst} %s\n" "$1"; }
@@ -78,7 +128,8 @@ repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || {
 run_multipath_only() {
   declare -a focused_upstream=() focused_rev=() focused_label=()
   local sm entry row_count mode stage symlink_target pin url up
-  local flake_rows iname iurl irev
+  local path_rows row key path_value matched_section match_count
+  local url_rows url_count flake_rows record iname iurl irev
   local i j prev_i split
 
   for sm in doctrine doctrine-private; do
@@ -105,13 +156,36 @@ run_multipath_only() {
       continue
     fi
 
-    pin=$(printf '%s\n' "$entry" | awk '{print $2}')
-    url=$(git config -f .gitmodules --get "submodule.$sm.url" 2>/dev/null)
-    if [[ -z "$url" ]]; then
-      bad "$sm is an indexed gitlink without a .gitmodules URL — upstream equality is unverifiable"
+    path_rows=$(git config -f .gitmodules --get-regexp '^submodule\..*\.path$' 2>/dev/null || true)
+    matched_section=""
+    match_count=0
+    while IFS= read -r row; do
+      [[ -z "$row" ]] && continue
+      key="${row%% *}"
+      path_value="${row#* }"
+      if [[ "$path_value" == "$sm" ]]; then
+        matched_section="${key%.path}"
+        match_count=$((match_count+1))
+      fi
+    done <<< "$path_rows"
+    if [[ "$match_count" -ne 1 ]]; then
+      bad "$sm has $match_count matching .gitmodules path entries; expected exactly one"
       continue
     fi
-    up=$(printf '%s' "$url" | sed -E 's#^(git@[^:]+:|https://[^/]+/)##; s/\.git$//')
+
+    url_rows=$(git config -f .gitmodules --get-all "$matched_section.url" 2>/dev/null || true)
+    url_count=$(printf '%s\n' "$url_rows" | awk 'NF { count++ } END { print count + 0 }')
+    if [[ "$url_count" -ne 1 ]]; then
+      bad "$sm .gitmodules section has $url_count URL entries; expected exactly one"
+      continue
+    fi
+    url="$url_rows"
+    if ! up=$(normalize_upstream_identity "$url"); then
+      bad "$sm .gitmodules URL cannot be normalized to one upstream identity"
+      continue
+    fi
+
+    pin=$(printf '%s\n' "$entry" | awk '{print $2}')
     if is_doctrine_upstream "$up"; then
       focused_upstream+=("$up")
       focused_rev+=("$pin")
@@ -120,8 +194,10 @@ run_multipath_only() {
   done
 
   if [[ -f flake.lock ]]; then
-    flake_rows=$(python3 - <<'PY'
+    flake_rows=$(DOCTRINE_UPSTREAMS="$DOCTRINE_UPSTREAMS" python3 - <<'PY'
 import json
+import os
+import re
 
 try:
     with open("flake.lock", encoding="utf-8") as handle:
@@ -129,19 +205,83 @@ try:
 except Exception:
     raise SystemExit(1)
 
-for name, node in data.get("nodes", {}).items():
-    locked = node.get("locked", {})
-    if locked.get("type") == "github" and locked.get("rev"):
-        print(f"{name}|{locked.get('owner', '')}/{locked.get('repo', '')}|{locked['rev']}")
+nodes = data.get("nodes", {})
+if not isinstance(nodes, dict):
+    raise SystemExit(1)
+
+try:
+    doctrine_pattern = re.compile(os.environ["DOCTRINE_UPSTREAMS"], re.IGNORECASE)
+except (KeyError, re.error):
+    raise SystemExit(1)
+
+def text(value):
+    return value if isinstance(value, str) else ""
+
+def relevant(*values):
+    return any(doctrine_pattern.search(text(value)) for value in values)
+
+def emit_error():
+    print("error|||")
+
+for name, node in nodes.items():
+    if not isinstance(node, dict):
+        if relevant(name):
+            emit_error()
+        continue
+    locked = node.get("locked")
+    if not isinstance(locked, dict):
+        if relevant(name):
+            emit_error()
+        continue
+
+    kind = locked.get("type")
+    owner = text(locked.get("owner"))
+    repo = text(locked.get("repo"))
+    url = text(locked.get("url"))
+    rev = text(locked.get("rev"))
+    is_relevant = relevant(name, owner, repo, url, f"{owner}/{repo}")
+    if not is_relevant:
+        continue
+
+    safe_name = re.sub(r"[^A-Za-z0-9._+-]", "_", text(name)) or "doctrine"
+    if kind == "github":
+        if not owner or not repo or not rev:
+            emit_error()
+            continue
+        raw_identity = f"{owner}/{repo}"
+    elif kind == "git":
+        if not url or not rev:
+            emit_error()
+            continue
+        raw_identity = url
+    else:
+        emit_error()
+        continue
+
+    if any(char in raw_identity for char in "|\t\r\n") or any(char in rev for char in "|\t\r\n"):
+        emit_error()
+        continue
+    print(f"path|{safe_name}|{raw_identity}|{rev}")
 PY
     ) || {
       bad "flake.lock cannot be parsed — doctrine consumption paths are unverifiable"
       flake_rows=""
     }
-    while IFS='|' read -r iname iurl irev; do
-      [[ -z "$iname" ]] && continue
-      is_doctrine_upstream "$iurl" || continue
-      focused_upstream+=("$iurl")
+    while IFS='|' read -r record iname iurl irev; do
+      [[ -z "$record" ]] && continue
+      if [[ "$record" == "error" ]]; then
+        bad "doctrine-relevant flake node is malformed — identity type/url/rev must be complete"
+        continue
+      fi
+      if [[ "$record" != "path" ]] || ! up=$(normalize_upstream_identity "$iurl"); then
+        bad "doctrine-relevant flake node cannot be normalized to one upstream identity"
+        continue
+      fi
+      if ! is_doctrine_upstream "$up"; then
+        bad "doctrine-relevant flake node resolves outside the configured doctrine upstreams"
+        continue
+      fi
+      focused_upstream+=("$up")
       focused_rev+=("$irev")
       focused_label+=("flake input $iname")
     done <<< "$flake_rows"

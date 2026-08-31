@@ -30,12 +30,16 @@ new_repo() {
   printf '%s\n' "$path"
 }
 
-add_gitlink() {
-  local repo="$1" path="$2" url="$3" rev="$4"
+add_gitlink_named() {
+  local repo="$1" section="$2" path="$3" url="$4" rev="$5"
   printf '[submodule "%s"]\n\tpath = %s\n\turl = %s\n' \
-    "$path" "$path" "$url" >> "$repo/.gitmodules"
+    "$section" "$path" "$url" >> "$repo/.gitmodules"
   git -C "$repo" update-index --add --cacheinfo 160000 "$rev" "$path"
   git -C "$repo" add .gitmodules
+}
+
+add_gitlink() {
+  add_gitlink_named "$1" "$2" "$2" "$3" "$4"
 }
 
 write_lock() {
@@ -58,6 +62,19 @@ write_dual_lock() {
     '  "nodes": {' \
     "    \"inspr-modules\": {\"locked\": {\"type\": \"github\", \"owner\": \"inspr-at\", \"repo\": \"inspr-modules\", \"rev\": \"$public_rev\"}}," \
     "    \"inspr-doctrine-private\": {\"locked\": {\"type\": \"github\", \"owner\": \"inspr-at\", \"repo\": \"inspr-doctrine-private\", \"rev\": \"$private_rev\"}}," \
+    '    "root": {"inputs": {}}' \
+    '  },' \
+    '  "root": "root",' \
+    '  "version": 7' \
+    '}' > "$repo/flake.lock"
+}
+
+write_git_lock() {
+  local repo="$1" name="$2" url="$3" rev="$4"
+  printf '%s\n' \
+    '{' \
+    '  "nodes": {' \
+    "    \"$name\": {\"locked\": {\"type\": \"git\", \"url\": \"$url\", \"rev\": \"$rev\"}}," \
     '    "root": {"inputs": {}}' \
     '  },' \
     '  "root": "root",' \
@@ -113,6 +130,75 @@ reject_output "same-upstream mismatch" "@-ref does not resolve"
 reject_output "same-upstream mismatch" "command is a COPY"
 reject_output "same-upstream mismatch" "cannot reach origin"
 
+# Standard GitHub URL forms identify the same upstream as a locked GitHub
+# owner/repo node. Scheme spelling must not turn a mismatch into two paths.
+repo=$(new_repo ssh-url-identity)
+add_gitlink "$repo" doctrine ssh://git@github.com/inspr-at/inspr-modules.git "$REV_A"
+write_lock "$repo" inspr-modules inspr-at inspr-modules "$REV_B"
+run_check "$repo" --multipath-only
+expect_status "SSH URL identity" 1
+expect_output "SSH URL identity" "consumption paths DISAGREE for inspr-at/inspr-modules"
+
+repo=$(new_repo scp-url-identity)
+add_gitlink "$repo" doctrine git@github.com:inspr-at/inspr-modules.git "$REV_A"
+write_lock "$repo" inspr-modules inspr-at inspr-modules "$REV_B"
+run_check "$repo" --multipath-only
+expect_status "SCP URL identity" 1
+expect_output "SCP URL identity" "consumption paths DISAGREE for inspr-at/inspr-modules"
+
+# `.gitmodules` section names are caller-selected; path, not section spelling,
+# binds the indexed gitlink to its URL.
+repo=$(new_repo custom-section)
+add_gitlink_named "$repo" vendor-doctrine doctrine https://github.com/inspr-at/inspr-modules.git "$REV_A"
+write_lock "$repo" inspr-modules inspr-at inspr-modules "$REV_B"
+run_check "$repo" --multipath-only
+expect_status "custom submodule section" 1
+expect_output "custom submodule section" "consumption paths DISAGREE for inspr-at/inspr-modules"
+
+# A valid Nix locked.type=git node participates using the same URL identity.
+repo=$(new_repo locked-git)
+add_gitlink "$repo" doctrine https://github.com/inspr-at/inspr-modules.git "$REV_A"
+write_git_lock "$repo" doctrine-git git://github.com/inspr-at/inspr-modules.git "$REV_B"
+run_check "$repo" --multipath-only
+expect_status "locked git input" 1
+expect_output "locked git input" "consumption paths DISAGREE for inspr-at/inspr-modules"
+
+# Doctrine-relevant lock nodes cannot disappear merely because a required
+# identity or revision field is absent. Unrelated malformed nodes stay outside
+# this focused check's ownership.
+repo=$(new_repo relevant-missing-rev)
+add_gitlink "$repo" doctrine https://github.com/inspr-at/inspr-modules.git "$REV_A"
+printf '%s\n' \
+  '{"nodes":{"inspr-modules":{"locked":{"type":"github","owner":"inspr-at","repo":"inspr-modules"}}},"root":"root","version":7}' \
+  > "$repo/flake.lock"
+run_check "$repo" --multipath-only
+expect_status "relevant lock missing rev" 1
+expect_output "relevant lock missing rev" "doctrine-relevant flake node is malformed"
+
+repo=$(new_repo relevant-missing-identity)
+printf '%s\n' \
+  "{\"nodes\":{\"inspr-modules\":{\"locked\":{\"type\":\"github\",\"repo\":\"inspr-modules\",\"rev\":\"$REV_A\"}}},\"root\":\"root\",\"version\":7}" \
+  > "$repo/flake.lock"
+run_check "$repo" --multipath-only
+expect_status "relevant lock missing identity" 1
+expect_output "relevant lock missing identity" "doctrine-relevant flake node is malformed"
+
+repo=$(new_repo relevant-git-missing-rev)
+printf '%s\n' \
+  '{"nodes":{"doctrine-git":{"locked":{"type":"git","url":"https://github.com/inspr-at/inspr-modules.git"}}},"root":"root","version":7}' \
+  > "$repo/flake.lock"
+run_check "$repo" --multipath-only
+expect_status "relevant git lock missing rev" 1
+expect_output "relevant git lock missing rev" "doctrine-relevant flake node is malformed"
+
+repo=$(new_repo unrelated-malformed-lock)
+printf '%s\n' \
+  '{"nodes":{"unrelated":{"locked":{"type":"github","owner":"example","repo":"other"}}},"root":"root","version":7}' \
+  > "$repo/flake.lock"
+run_check "$repo" --multipath-only
+expect_status "unrelated malformed lock" 0
+expect_output "unrelated malformed lock" "single doctrine consumption path"
+
 # An unresolved gitlink merge has stages 1/2/3 and no authoritative stage 0.
 # Silently treating it as absent would leave the flake input as a vacuous
 # single path exactly while a doctrine-pin merge is unresolved.
@@ -126,6 +212,15 @@ run_check "$repo" --multipath-only
 expect_status "unresolved gitlink index" 1
 expect_output "unresolved gitlink index" "doctrine index has 3 row(s)"
 expect_output "unresolved gitlink index" "exactly one stage-0 gitlink"
+
+repo=$(new_repo ambiguous-submodule-path)
+add_gitlink_named "$repo" vendor-one doctrine https://github.com/inspr-at/inspr-modules.git "$REV_A"
+printf '[submodule "vendor-two"]\n\tpath = doctrine\n\turl = https://github.com/inspr-at/inspr-modules.git\n' \
+  >> "$repo/.gitmodules"
+git -C "$repo" add .gitmodules
+run_check "$repo" --multipath-only
+expect_status "ambiguous submodule path" 1
+expect_output "ambiguous submodule path" "doctrine has 2 matching .gitmodules path entries"
 
 # No named path is a valid single-path repository. A named regular file is not
 # absence: it is a malformed consumer path and must fail closed. The atelier's
@@ -228,8 +323,16 @@ expect_output "malformed flake.lock" "flake.lock cannot be parsed"
 repo=$(new_repo missing-url)
 git -C "$repo" update-index --add --cacheinfo 160000 "$REV_A" doctrine
 run_check "$repo" --multipath-only
-expect_status "missing gitlink URL" 1
-expect_output "missing gitlink URL" "indexed gitlink without a .gitmodules URL"
+expect_status "missing gitmodules path" 1
+expect_output "missing gitmodules path" "doctrine has 0 matching .gitmodules path entries"
+
+repo=$(new_repo matching-path-missing-url)
+git -C "$repo" update-index --add --cacheinfo 160000 "$REV_A" doctrine
+printf '[submodule "vendor-doctrine"]\n\tpath = doctrine\n' > "$repo/.gitmodules"
+git -C "$repo" add .gitmodules
+run_check "$repo" --multipath-only
+expect_status "matching path missing URL" 1
+expect_output "matching path missing URL" "doctrine .gitmodules section has 0 URL entries"
 
 run_check "$repo" --unknown
 expect_status "unknown argument" 2
