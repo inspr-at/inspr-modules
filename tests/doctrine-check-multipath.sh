@@ -89,6 +89,14 @@ run_check() {
   last_status=$?
 }
 
+run_check_with_upstreams() {
+  local repo="$1" upstreams="$2"
+  shift 2
+  (cd "$repo" && DOCTRINE_UPSTREAMS="$upstreams" "$BASH_UNDER_TEST" "$CHECK" "$@") \
+    > "$last_output" 2>&1
+  last_status=$?
+}
+
 expect_status() {
   local label="$1" expected="$2"
   if [[ "$last_status" -ne "$expected" ]]; then
@@ -146,6 +154,30 @@ run_check "$repo" --multipath-only
 expect_status "SCP URL identity" 1
 expect_output "SCP URL identity" "consumption paths DISAGREE for inspr-at/inspr-modules"
 
+# A non-GitHub host remains part of repository identity. Sharing owner/repo
+# text with GitHub must not collapse GitLab and GitHub into one upstream.
+repo=$(new_repo distinct-git-host)
+add_gitlink "$repo" doctrine ssh://git@gitlab.com/inspr-at/inspr-modules.git "$REV_A"
+write_lock "$repo" inspr-modules inspr-at inspr-modules "$REV_B"
+run_check "$repo" --multipath-only
+expect_status "distinct Git host" 0
+expect_output "distinct Git host" "2 consumption path(s), all agreeing per upstream"
+
+# Git resolves ../ submodule URLs relative to the superproject's remote URL.
+repo=$(new_repo relative-submodule-url)
+git -C "$repo" remote add origin https://github.com/inspr-at/consumer.git
+add_gitlink "$repo" doctrine ../inspr-modules.git "$REV_A"
+write_lock "$repo" inspr-modules inspr-at inspr-modules "$REV_B"
+run_check "$repo" --multipath-only
+expect_status "relative submodule URL" 1
+expect_output "relative submodule URL" "consumption paths DISAGREE for inspr-at/inspr-modules"
+
+repo=$(new_repo relative-without-origin)
+add_gitlink "$repo" doctrine ../inspr-modules.git "$REV_A"
+run_check "$repo" --multipath-only
+expect_status "relative URL without origin" 1
+expect_output "relative URL without origin" "relative URL but remote.origin.url has 0 value(s)"
+
 # `.gitmodules` section names are caller-selected; path, not section spelling,
 # binds the indexed gitlink to its URL.
 repo=$(new_repo custom-section)
@@ -154,6 +186,13 @@ write_lock "$repo" inspr-modules inspr-at inspr-modules "$REV_B"
 run_check "$repo" --multipath-only
 expect_status "custom submodule section" 1
 expect_output "custom submodule section" "consumption paths DISAGREE for inspr-at/inspr-modules"
+
+repo=$(new_repo spaced-section)
+add_gitlink_named "$repo" "vendor doctrine" doctrine https://github.com/inspr-at/inspr-modules.git "$REV_A"
+write_lock "$repo" inspr-modules inspr-at inspr-modules "$REV_B"
+run_check "$repo" --multipath-only
+expect_status "spaced submodule section" 1
+expect_output "spaced submodule section" "consumption paths DISAGREE for inspr-at/inspr-modules"
 
 # A valid Nix locked.type=git node participates using the same URL identity.
 repo=$(new_repo locked-git)
@@ -199,6 +238,23 @@ run_check "$repo" --multipath-only
 expect_status "unrelated malformed lock" 0
 expect_output "unrelated malformed lock" "single doctrine consumption path"
 
+# Relevance can come from a flake input edge even when the locked node ID is
+# opaque and none of its malformed fields name doctrine.
+repo=$(new_repo opaque-relevant-edge)
+printf '%s\n' \
+  '{"nodes":{"root":{"inputs":{"inspr-modules":"opaque"}},"opaque":{"locked":null}},"root":"root","version":7}' \
+  > "$repo/flake.lock"
+run_check "$repo" --multipath-only
+expect_status "opaque relevant input edge" 1
+expect_output "opaque relevant input edge" "doctrine-relevant flake node is malformed"
+
+# An invalid configured relevance regex is a configuration error, not a clean
+# repository. It must be diagnosed before any path filtering occurs.
+repo=$(new_repo invalid-upstream-regex)
+run_check_with_upstreams "$repo" '[' --multipath-only
+expect_status "invalid doctrine regex" 2
+expect_output "invalid doctrine regex" "DOCTRINE_UPSTREAMS is not a valid regular expression"
+
 # An unresolved gitlink merge has stages 1/2/3 and no authoritative stage 0.
 # Silently treating it as absent would leave the flake input as a vacuous
 # single path exactly while a doctrine-pin merge is unresolved.
@@ -212,6 +268,14 @@ run_check "$repo" --multipath-only
 expect_status "unresolved gitlink index" 1
 expect_output "unresolved gitlink index" "doctrine index has 3 row(s)"
 expect_output "unresolved gitlink index" "exactly one stage-0 gitlink"
+
+# A Git-index read failure is not equivalent to an absent named path.
+repo=$(new_repo unreadable-index)
+write_lock "$repo" inspr-modules inspr-at inspr-modules "$REV_A"
+printf 'not a Git index\n' > "$repo/.git/index"
+run_check "$repo" --multipath-only
+expect_status "Git index read failure" 1
+expect_output "Git index read failure" "cannot read Git index for doctrine"
 
 repo=$(new_repo ambiguous-submodule-path)
 add_gitlink_named "$repo" vendor-one doctrine https://github.com/inspr-at/inspr-modules.git "$REV_A"

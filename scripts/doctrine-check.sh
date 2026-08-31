@@ -56,37 +56,35 @@ MAX_BEHIND="${DOCTRINE_MAX_BEHIND:-3}"
 DOCTRINE_UPSTREAMS="${DOCTRINE_UPSTREAMS:-inspr-modules|inspr-doctrine-private}"
 is_doctrine_upstream() { printf '%s' "$1" | grep -qiE "($DOCTRINE_UPSTREAMS)"; }
 
-# Canonical comparison identity for GitHub and GitHub-style Git remotes.
-# Both flake `github` owner/repo pairs and Git URLs resolve to lower-case
-# `owner/repo`. Keep SCP host aliases as a compatibility path for users whose
-# SSH config names GitHub (for example `git-personal`) without changing the
-# repository identity.
+# Canonical comparison identity for Git remotes. Known github.com transport
+# forms and flake `github` owner/repo pairs resolve to lower-case `owner/repo`.
+# Every other host remains part of the identity (`host/owner/repo`): matching
+# path text on GitLab or an SSH alias does not prove it is the GitHub upstream.
 normalize_upstream_identity() {
-  local raw lower rest path owner repo
+  local raw lower rest authority host path owner repo
   raw="$1"
   lower=$(printf '%s' "$raw" | tr '[:upper:]' '[:lower:]')
   case "$lower" in
-    https://github.com/*|http://github.com/*|git://github.com/*)
-      path="${lower#*://github.com/}"
-      ;;
-    ssh://github.com/*|ssh://*@github.com/*|git+ssh://github.com/*|git+ssh://*@github.com/*)
-      path="${lower#*github.com/}"
-      ;;
-    github.com:*|*@github.com:*)
-      path="${lower#*github.com:}"
-      ;;
-    ssh://*/*|git+ssh://*/*)
+    https://*/*|http://*/*|git://*/*|ssh://*/*|git+ssh://*/*)
       rest="${lower#*://}"
+      authority="${rest%%/*}"
+      [[ "$authority" != "$rest" ]] || return 1
       path="${rest#*/}"
+      host="${authority##*@}"
+      host=$(printf '%s' "$host" | sed -E 's/:[0-9]+$//')
       ;;
-    *@*:*)
+    github.com:*|*@*:*)
+      authority="${lower%%:*}"
       path="${lower#*:}"
+      host="${authority##*@}"
       ;;
     github:*)
       path="${lower#github:}"
+      host="github.com"
       ;;
     */*)
       path="$lower"
+      host=""
       ;;
     *)
       return 1
@@ -102,8 +100,51 @@ normalize_upstream_identity() {
   owner="${path%%/*}"
   repo="${path#*/}"
   [[ -n "$owner" && -n "$repo" && "$owner" != "$repo" ]] || return 1
+  [[ "$owner" != "." && "$owner" != ".." && "$repo" != "." && "$repo" != ".." ]] || return 1
   case "$owner$repo" in *[!a-z0-9._-]*) return 1 ;; esac
-  printf '%s/%s' "$owner" "$repo"
+  if [[ -z "$host" || "$host" == "github.com" ]]; then
+    printf '%s/%s' "$owner" "$repo"
+    return
+  fi
+  case "$host" in *[!a-z0-9._:-]*) return 1 ;; esac
+  printf '%s/%s/%s' "$host" "$owner" "$repo"
+}
+
+# Git treats a relative submodule URL as relative to the superproject remote
+# repository itself (../foo.git is a sibling of bar.git). Preserve the remote
+# transport/authority here; normalize_upstream_identity decides whether that
+# authority is github.com or a distinct host.
+resolve_relative_git_url() {
+  RELATIVE_GIT_URL="$1" BASE_GIT_URL="$2" python3 - <<'PY'
+import os
+import posixpath
+import re
+from urllib.parse import urlsplit, urlunsplit
+
+relative = os.environ["RELATIVE_GIT_URL"]
+base = os.environ["BASE_GIT_URL"]
+if not (relative.startswith("../") or relative.startswith("./")):
+    raise SystemExit(1)
+
+parsed = urlsplit(base)
+if parsed.scheme:
+    if not parsed.netloc or not parsed.path:
+        raise SystemExit(1)
+    joined = posixpath.normpath(posixpath.join(parsed.path, relative))
+    if not joined.startswith("/"):
+        joined = "/" + joined
+    print(urlunsplit((parsed.scheme, parsed.netloc, joined, "", "")))
+    raise SystemExit
+
+scp = re.fullmatch(r"([^/:]+(?:@[^/:]+)?):(.*)", base)
+if scp:
+    prefix, base_path = scp.groups()
+    joined = posixpath.normpath(posixpath.join(base_path, relative))
+    print(f"{prefix}:{joined}")
+    raise SystemExit
+
+raise SystemExit(1)
+PY
 }
 
 red=$'\033[0;31m'; grn=$'\033[0;32m'; yel=$'\033[1;33m'; dim=$'\033[2m'; rst=$'\033[0m'
@@ -128,12 +169,16 @@ repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || {
 run_multipath_only() {
   declare -a focused_upstream=() focused_rev=() focused_label=()
   local sm entry row_count mode stage symlink_target pin url up
-  local path_rows row key path_value matched_section match_count
-  local url_rows url_count flake_rows record iname iurl irev
+  local row key path_value matched_section match_count
+  local url_count origin_url origin_count resolved_url
+  local flake_rows record iname iurl irev
   local i j prev_i split
 
   for sm in doctrine doctrine-private; do
-    entry=$(git ls-files --stage -- "$sm" 2>/dev/null)
+    if ! entry=$(git ls-files --stage -- "$sm" 2>/dev/null); then
+      bad "cannot read Git index for $sm — doctrine consumption paths are unverifiable"
+      continue
+    fi
     [[ -z "$entry" ]] && continue
 
     row_count=$(printf '%s\n' "$entry" | awk 'NF { count++ } END { print count + 0 }')
@@ -156,30 +201,59 @@ run_multipath_only() {
       continue
     fi
 
-    path_rows=$(git config -f .gitmodules --get-regexp '^submodule\..*\.path$' 2>/dev/null || true)
+    if [[ ! -f .gitmodules ]]; then
+      bad "$sm has 0 matching .gitmodules path entries; expected exactly one"
+      continue
+    fi
+    if ! git config -f .gitmodules --list >/dev/null 2>&1; then
+      bad ".gitmodules cannot be parsed — $sm upstream is unverifiable"
+      continue
+    fi
     matched_section=""
     match_count=0
-    while IFS= read -r row; do
-      [[ -z "$row" ]] && continue
-      key="${row%% *}"
-      path_value="${row#* }"
+    while IFS= read -r -d '' row; do
+      key="${row%%$'\n'*}"
+      path_value="${row#*$'\n'}"
       if [[ "$path_value" == "$sm" ]]; then
         matched_section="${key%.path}"
         match_count=$((match_count+1))
       fi
-    done <<< "$path_rows"
+    done < <(git config -z -f .gitmodules --get-regexp '^submodule\..*\.path$' 2>/dev/null || true)
     if [[ "$match_count" -ne 1 ]]; then
       bad "$sm has $match_count matching .gitmodules path entries; expected exactly one"
       continue
     fi
 
-    url_rows=$(git config -f .gitmodules --get-all "$matched_section.url" 2>/dev/null || true)
-    url_count=$(printf '%s\n' "$url_rows" | awk 'NF { count++ } END { print count + 0 }')
+    url=""
+    url_count=0
+    while IFS= read -r -d '' row; do
+      url="$row"
+      url_count=$((url_count+1))
+    done < <(git config -z -f .gitmodules --get-all "$matched_section.url" 2>/dev/null || true)
     if [[ "$url_count" -ne 1 ]]; then
       bad "$sm .gitmodules section has $url_count URL entries; expected exactly one"
       continue
     fi
-    url="$url_rows"
+
+    case "$url" in
+      ../*|./*)
+        origin_url=""
+        origin_count=0
+        while IFS= read -r -d '' row; do
+          origin_url="$row"
+          origin_count=$((origin_count+1))
+        done < <(git config -z --get-all remote.origin.url 2>/dev/null || true)
+        if [[ "$origin_count" -ne 1 ]]; then
+          bad "$sm uses a relative URL but remote.origin.url has $origin_count value(s); expected exactly one"
+          continue
+        fi
+        if ! resolved_url=$(resolve_relative_git_url "$url" "$origin_url"); then
+          bad "$sm relative .gitmodules URL cannot be resolved against remote.origin.url"
+          continue
+        fi
+        url="$resolved_url"
+        ;;
+    esac
     if ! up=$(normalize_upstream_identity "$url"); then
       bad "$sm .gitmodules URL cannot be normalized to one upstream identity"
       continue
@@ -198,6 +272,7 @@ run_multipath_only() {
 import json
 import os
 import re
+import subprocess
 
 try:
     with open("flake.lock", encoding="utf-8") as handle:
@@ -210,27 +285,85 @@ if not isinstance(nodes, dict):
     raise SystemExit(1)
 
 try:
-    doctrine_pattern = re.compile(os.environ["DOCTRINE_UPSTREAMS"], re.IGNORECASE)
-except (KeyError, re.error):
+    doctrine_pattern = os.environ["DOCTRINE_UPSTREAMS"]
+except KeyError:
     raise SystemExit(1)
 
 def text(value):
     return value if isinstance(value, str) else ""
 
 def relevant(*values):
-    return any(doctrine_pattern.search(text(value)) for value in values)
+    for value in values:
+        result = subprocess.run(
+            ["grep", "-qiE", f"({doctrine_pattern})"],
+            input=text(value),
+            text=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+        if result.returncode == 0:
+            return True
+        if result.returncode > 1:
+            raise SystemExit(1)
+    return False
 
 def emit_error():
     print("error|||")
 
+def resolve_input_path(parts, trail=()):
+    current = data.get("root")
+    if not isinstance(current, str):
+        raise ValueError
+    for part in parts:
+        if not isinstance(part, str) or current in trail:
+            raise ValueError
+        node = nodes.get(current)
+        inputs = node.get("inputs") if isinstance(node, dict) else None
+        if not isinstance(inputs, dict) or part not in inputs:
+            raise ValueError
+        target = inputs[part]
+        if isinstance(target, str):
+            current = target
+        elif isinstance(target, list):
+            current = resolve_input_path(target, trail + (current,))
+        else:
+            raise ValueError
+    return current
+
+relevant_ids = set()
+edge_errors = 0
+for node in nodes.values():
+    inputs = node.get("inputs") if isinstance(node, dict) else None
+    if not isinstance(inputs, dict):
+        continue
+    for input_name, target in inputs.items():
+        if not relevant(input_name):
+            continue
+        try:
+            if isinstance(target, str):
+                target_id = target
+            elif isinstance(target, list):
+                target_id = resolve_input_path(target)
+            else:
+                raise ValueError
+            if target_id not in nodes:
+                raise ValueError
+            relevant_ids.add(target_id)
+        except ValueError:
+            edge_errors += 1
+
+for _ in range(edge_errors):
+    emit_error()
+
 for name, node in nodes.items():
     if not isinstance(node, dict):
-        if relevant(name):
+        if name in relevant_ids or relevant(name):
             emit_error()
         continue
     locked = node.get("locked")
     if not isinstance(locked, dict):
-        if relevant(name):
+        if name in relevant_ids or relevant(name):
             emit_error()
         continue
 
@@ -239,7 +372,7 @@ for name, node in nodes.items():
     repo = text(locked.get("repo"))
     url = text(locked.get("url"))
     rev = text(locked.get("rev"))
-    is_relevant = relevant(name, owner, repo, url, f"{owner}/{repo}")
+    is_relevant = name in relevant_ids or relevant(name, owner, repo, url, f"{owner}/{repo}")
     if not is_relevant:
         continue
 
@@ -258,7 +391,7 @@ for name, node in nodes.items():
         emit_error()
         continue
 
-    if any(char in raw_identity for char in "|\t\r\n") or any(char in rev for char in "|\t\r\n"):
+    if any(char in raw_identity for char in "\0|\t\r\n") or any(char in rev for char in "\0|\t\r\n"):
         emit_error()
         continue
     print(f"path|{safe_name}|{raw_identity}|{rev}")
@@ -319,6 +452,12 @@ PY
 }
 
 if [[ "$MODE" == "multipath-only" ]]; then
+  printf '' | grep -E "($DOCTRINE_UPSTREAMS)" >/dev/null 2>&1
+  regex_status=$?
+  if [[ $regex_status -gt 1 ]]; then
+    echo "DOCTRINE_UPSTREAMS is not a valid regular expression" >&2
+    exit 2
+  fi
   run_multipath_only
   echo
   if [[ $fail -eq 0 ]]; then
