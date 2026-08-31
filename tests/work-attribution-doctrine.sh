@@ -25,6 +25,7 @@ grep -Fq -- '## Topic: workflow/work-attribution' "$core" || {
 
 for requirement in \
   'designated PPM or PMA tracker' \
+  'no marker means no material work' \
   'Do not name only the coordinator when a child implements.' \
   'Preserve attribution history' \
   'it never means accepted, approved, merged'; do

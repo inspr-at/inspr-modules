@@ -673,7 +673,10 @@ This document is the authoritative source for rules every agent follows, regardl
 - 🔴 **HARD** | `always` | Before material work, bind the exact user-authorized scope to one existing ticket in the product's designated PPM or PMA tracker; never split or duplicate the same work across both trackers. If no suitable ticket exists, create it before any edit, commit, deployment, external write, or other state-changing action. Read-only orientation and status inspection are not material work.
   <!-- rule_ids: INSPR-321:ticket-first-single-system-of-record | cluster: workflow-work-attribution-001 -->
 
-- 🔴 **HARD** | `always` | Before material work starts, record every participating agent or subagent on that ticket as `I work on this — session: <session-name> (<session-UUID>); role: <builder|reviewer|operator>; started: <ISO-8601>`. The coordinator records the marker before dispatch when a worker cannot write the tracker itself. Do not name only the coordinator when a child implements.
+- 🔴 **HARD** | `always` | When a worker cannot write the designated tracker, its coordinating session MUST create or reuse the ticket and add the worker marker before dispatch. The worker does not substitute a local backlog note or start untracked; no marker means no material work.
+  <!-- rule_ids: INSPR-321:coordinator-writes-before-dispatch | cluster: workflow-work-attribution-001 -->
+
+- 🔴 **HARD** | `always` | Before material work starts, record every participating agent or subagent on that ticket as `I work on this — session: <session-name> (<session-UUID>); role: <builder|reviewer|operator>; started: <ISO-8601>`. Do not name only the coordinator when a child implements.
   <!-- rule_ids: INSPR-321:implementer-session-attribution | cluster: workflow-work-attribution-001 -->
 
 - 🔴 **HARD** | `always` | Preserve attribution history: add a new marker when ownership transfers or a reviewer/operator joins; never overwrite an earlier marker. One implementer per ticket is the default. Parallel builders require explicit, non-overlapping child-ticket scopes.
