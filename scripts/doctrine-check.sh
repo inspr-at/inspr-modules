@@ -61,9 +61,16 @@ is_doctrine_upstream() { printf '%s' "$1" | grep -qiE "($DOCTRINE_UPSTREAMS)"; }
 # Every other host remains part of the identity (`host/owner/repo`): matching
 # path text on GitLab or an SSH alias does not prove it is the GitHub upstream.
 normalize_upstream_identity() {
-  local raw lower rest authority host path owner repo
+  local raw kind lower rest authority host path owner repo
   raw="$1"
+  kind="$2"
   lower=$(printf '%s' "$raw" | tr '[:upper:]' '[:lower:]')
+  if [[ "$kind" == "github" ]]; then
+    path="$lower"
+    host="github.com"
+  elif [[ "$kind" != "git" ]]; then
+    return 1
+  else
   case "$lower" in
     https://*/*|http://*/*|git://*/*|ssh://*/*|git+ssh://*/*)
       rest="${lower#*://}"
@@ -82,14 +89,11 @@ normalize_upstream_identity() {
       path="${lower#github:}"
       host="github.com"
       ;;
-    */*)
-      path="$lower"
-      host=""
-      ;;
     *)
       return 1
       ;;
   esac
+  fi
 
   path="${path#/}"
   path="${path%/}"
@@ -102,7 +106,7 @@ normalize_upstream_identity() {
   [[ -n "$owner" && -n "$repo" && "$owner" != "$repo" ]] || return 1
   [[ "$owner" != "." && "$owner" != ".." && "$repo" != "." && "$repo" != ".." ]] || return 1
   case "$owner$repo" in *[!a-z0-9._-]*) return 1 ;; esac
-  if [[ -z "$host" || "$host" == "github.com" ]]; then
+  if [[ "$host" == "github.com" ]]; then
     printf '%s/%s' "$owner" "$repo"
     return
   fi
@@ -306,7 +310,7 @@ run_multipath_only() {
       continue
     fi
     url="$effective_url"
-    if ! up=$(normalize_upstream_identity "$url"); then
+    if ! up=$(normalize_upstream_identity "$url" git); then
       bad "$sm .gitmodules URL cannot be normalized to one upstream identity"
       continue
     fi
@@ -385,7 +389,7 @@ def resolve_input_path(parts, trail=()):
 
 relevant_ids = set()
 edge_errors = 0
-for node in nodes.values():
+for source_id, node in nodes.items():
     inputs = node.get("inputs") if isinstance(node, dict) else None
     if not isinstance(inputs, dict):
         continue
@@ -400,7 +404,7 @@ for node in nodes.values():
                 target_id = resolve_input_path(target)
             else:
                 raise ValueError
-            if target_id not in nodes:
+            if target_id not in nodes or target_id == source_id:
                 raise ValueError
             relevant_ids.add(target_id)
         except ValueError:
@@ -410,6 +414,7 @@ for _ in range(edge_errors):
     emit_error()
 
 for name, node in nodes.items():
+    original_exists = isinstance(node, dict) and "original" in node
     original = node.get("original") if isinstance(node, dict) else None
     original_owner = text(original.get("owner")) if isinstance(original, dict) else ""
     original_repo = text(original.get("repo")) if isinstance(original, dict) else ""
@@ -463,7 +468,7 @@ for name, node in nodes.items():
 
     original_kind = ""
     original_identity = ""
-    if original_mentions_doctrine:
+    if original_exists:
         if not isinstance(original, dict):
             emit_error()
             continue
@@ -510,7 +515,12 @@ PY
         bad "doctrine-relevant flake node has an unsupported discovery record"
         continue
       fi
-      if ! up=$(normalize_upstream_identity "$iurl"); then
+      if [[ "$record" == "path-git" ]]; then
+        if ! up=$(normalize_upstream_identity "$iurl" git); then
+          bad "doctrine-relevant flake node cannot be normalized to one upstream identity"
+          continue
+        fi
+      elif ! up=$(normalize_upstream_identity "$iurl" github); then
         bad "doctrine-relevant flake node cannot be normalized to one upstream identity"
         continue
       fi
@@ -525,7 +535,7 @@ PY
           bad "doctrine-relevant original metadata has an unsupported identity type"
           continue
         fi
-        if ! original_up=$(normalize_upstream_identity "$original_url"); then
+        if ! original_up=$(normalize_upstream_identity "$original_url" "$original_kind"); then
           bad "doctrine-relevant original metadata cannot be normalized"
           continue
         fi

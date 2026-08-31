@@ -218,6 +218,34 @@ run_check "$repo" --multipath-only
 expect_status "ambiguous effective Git URL" 1
 expect_output "ambiguous effective Git URL" "does not resolve to exactly one effective Git URL"
 
+# A local path is not GitHub merely because its last two components look like
+# owner/repo. Use a real bare repository for the plain relative-path case.
+repo=$(new_repo local-git-path)
+mkdir -p "$repo/inspr-at"
+git -C "$repo/inspr-at" init -q --bare inspr-modules.git
+add_gitlink "$repo" doctrine inspr-at/inspr-modules.git "$REV_A"
+write_lock "$repo" inspr-modules inspr-at inspr-modules "$REV_B"
+run_check "$repo" --multipath-only
+expect_status "real local Git path" 1
+expect_output "real local Git path" ".gitmodules URL cannot be normalized to one upstream identity"
+reject_output "real local Git path" "consumption paths DISAGREE for inspr-at/inspr-modules"
+
+repo=$(new_repo absolute-local-shape)
+add_gitlink "$repo" doctrine /inspr-at/inspr-modules.git "$REV_A"
+write_lock "$repo" inspr-modules inspr-at inspr-modules "$REV_B"
+run_check "$repo" --multipath-only
+expect_status "absolute local Git path" 1
+expect_output "absolute local Git path" ".gitmodules URL cannot be normalized to one upstream identity"
+reject_output "absolute local Git path" "consumption paths DISAGREE for inspr-at/inspr-modules"
+
+repo=$(new_repo flake-local-path)
+add_gitlink "$repo" doctrine https://github.com/inspr-at/inspr-modules.git "$REV_A"
+write_git_lock "$repo" doctrine-local inspr-at/inspr-modules "$REV_B"
+run_check "$repo" --multipath-only
+expect_status "flake local Git path" 1
+expect_output "flake local Git path" "flake node cannot be normalized to one upstream identity"
+reject_output "flake local Git path" "consumption paths DISAGREE for inspr-at/inspr-modules"
+
 # `.gitmodules` section names are caller-selected; path, not section spelling,
 # binds the indexed gitlink to its URL.
 repo=$(new_repo custom-section)
@@ -316,6 +344,14 @@ run_check "$repo" --multipath-only
 expect_status "original and locked inconsistent" 1
 expect_output "original and locked inconsistent" "original and locked doctrine identities disagree"
 
+repo=$(new_repo locked-relevant-original-elsewhere)
+printf '%s\n' \
+  "{\"nodes\":{\"opaque\":{\"original\":{\"type\":\"github\",\"owner\":\"example\",\"repo\":\"other\"},\"locked\":{\"type\":\"github\",\"owner\":\"inspr-at\",\"repo\":\"inspr-modules\",\"rev\":\"$REV_A\"}}},\"root\":\"opaque\",\"version\":7}" \
+  > "$repo/flake.lock"
+run_check "$repo" --multipath-only
+expect_status "locked relevant original elsewhere" 1
+expect_output "locked relevant original elsewhere" "original and locked doctrine identities disagree"
+
 repo=$(new_repo unrelated-original-null-lock)
 printf '%s\n' \
   '{"nodes":{"opaque":{"original":{"type":"github","owner":"example","repo":"other"},"locked":null}},"root":"opaque","version":7}' \
@@ -323,6 +359,24 @@ printf '%s\n' \
 run_check "$repo" --multipath-only
 expect_status "unrelated original null lock" 0
 expect_output "unrelated original null lock" "single doctrine consumption path"
+
+# A relevant follows path that resolves back to its owning node is a cycle,
+# even when that node also has a superficially valid doctrine lock.
+repo=$(new_repo relevant-self-follow)
+printf '%s\n' \
+  "{\"nodes\":{\"root\":{\"inputs\":{\"base\":\"base\"}},\"base\":{\"inputs\":{\"inspr-modules\":[\"base\"]},\"locked\":{\"type\":\"github\",\"owner\":\"inspr-at\",\"repo\":\"inspr-modules\",\"rev\":\"$REV_A\"}}},\"root\":\"root\",\"version\":7}" \
+  > "$repo/flake.lock"
+run_check "$repo" --multipath-only
+expect_status "relevant self-follow" 1
+expect_output "relevant self-follow" "doctrine-relevant flake node is malformed"
+
+repo=$(new_repo valid-nested-follow)
+printf '%s\n' \
+  "{\"nodes\":{\"root\":{\"inputs\":{\"base\":\"base\",\"policy\":[\"base\",\"inspr-modules\"]}},\"base\":{\"inputs\":{\"inspr-modules\":\"target\"}},\"target\":{\"locked\":{\"type\":\"github\",\"owner\":\"inspr-at\",\"repo\":\"inspr-modules\",\"rev\":\"$REV_A\"}}},\"root\":\"root\",\"version\":7}" \
+  > "$repo/flake.lock"
+run_check "$repo" --multipath-only
+expect_status "valid nested follow" 0
+expect_output "valid nested follow" "single doctrine consumption path"
 
 # An invalid configured relevance regex is a configuration error, not a clean
 # repository. It must be diagnosed before any path filtering occurs.
