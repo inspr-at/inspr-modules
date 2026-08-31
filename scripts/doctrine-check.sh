@@ -388,6 +388,7 @@ def resolve_input_path(parts, trail=()):
     return current
 
 relevant_ids = set()
+relevant_edges = {}
 edge_errors = 0
 for source_id, node in nodes.items():
     inputs = node.get("inputs") if isinstance(node, dict) else None
@@ -404,11 +405,33 @@ for source_id, node in nodes.items():
                 target_id = resolve_input_path(target)
             else:
                 raise ValueError
-            if target_id not in nodes or target_id == source_id:
+            if target_id not in nodes:
                 raise ValueError
             relevant_ids.add(target_id)
+            relevant_edges.setdefault(source_id, set()).add(target_id)
         except ValueError:
             edge_errors += 1
+
+edge_state = {}
+
+def relevant_edge_cycle(node_id):
+    state = edge_state.get(node_id, 0)
+    if state == 1:
+        return True
+    if state == 2:
+        return False
+    edge_state[node_id] = 1
+    for target_id in relevant_edges.get(node_id, ()):
+        if relevant_edge_cycle(target_id):
+            return True
+    edge_state[node_id] = 2
+    return False
+
+try:
+    if any(relevant_edge_cycle(node_id) for node_id in relevant_edges):
+        edge_errors += 1
+except RecursionError:
+    edge_errors += 1
 
 for _ in range(edge_errors):
     emit_error()

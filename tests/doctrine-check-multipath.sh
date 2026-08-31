@@ -370,6 +370,16 @@ run_check "$repo" --multipath-only
 expect_status "relevant self-follow" 1
 expect_output "relevant self-follow" "doctrine-relevant flake node is malformed"
 
+# Relevant follows edges can also cycle across nodes. Equal locked revisions do
+# not make that graph valid: discovery must reject A -> B -> A before comparing.
+repo=$(new_repo relevant-multi-node-cycle)
+printf '%s\n' \
+  "{\"nodes\":{\"root\":{\"inputs\":{\"a\":\"a\",\"b\":\"b\"}},\"a\":{\"inputs\":{\"inspr-modules\":[\"b\"]},\"locked\":{\"type\":\"github\",\"owner\":\"inspr-at\",\"repo\":\"inspr-modules\",\"rev\":\"$REV_A\"}},\"b\":{\"inputs\":{\"inspr-modules\":[\"a\"]},\"locked\":{\"type\":\"github\",\"owner\":\"inspr-at\",\"repo\":\"inspr-modules\",\"rev\":\"$REV_A\"}}},\"root\":\"root\",\"version\":7}" \
+  > "$repo/flake.lock"
+run_check "$repo" --multipath-only
+expect_status "relevant multi-node cycle" 1
+expect_output "relevant multi-node cycle" "doctrine-relevant flake node is malformed"
+
 repo=$(new_repo valid-nested-follow)
 printf '%s\n' \
   "{\"nodes\":{\"root\":{\"inputs\":{\"base\":\"base\",\"policy\":[\"base\",\"inspr-modules\"]}},\"base\":{\"inputs\":{\"inspr-modules\":\"target\"}},\"target\":{\"locked\":{\"type\":\"github\",\"owner\":\"inspr-at\",\"repo\":\"inspr-modules\",\"rev\":\"$REV_A\"}}},\"root\":\"root\",\"version\":7}" \
