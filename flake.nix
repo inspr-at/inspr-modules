@@ -179,6 +179,29 @@
                 touch $out
               '';
 
+            # Consumer CI can enforce the same-upstream doctrine pin invariant
+            # without running the full repository audit. The fixture suite
+            # proves index-only gitlink discovery, staged-pin authority,
+            # per-upstream equality, focused assertion boundaries, fail-closed
+            # argument parsing, and macOS Bash 3.2-compatible syntax (INSPR-323).
+            doctrine-check-multipath = pkgs.runCommand "doctrine-check-multipath"
+              {
+                nativeBuildInputs = [
+                  pkgs.bash
+                  pkgs.coreutils
+                  pkgs.gawk
+                  pkgs.git
+                  pkgs.gnugrep
+                  pkgs.gnused
+                  pkgs.python3
+                ];
+              }
+              ''
+                DOCTRINE_TEST_BASH=${pkgs.bash}/bin/bash \
+                  bash ${./tests/doctrine-check-multipath.sh} ${self}
+                touch $out
+              '';
+
             # The estate versioning policy is normative and linked from the
             # doctrine index. Keep its calendar grammar, real-date validation,
             # normalized ordering, gradual transition contract, and README

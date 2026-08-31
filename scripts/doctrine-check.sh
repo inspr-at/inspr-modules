@@ -16,6 +16,12 @@
 #
 # Run from the root of a consuming repo:
 #   ./doctrine/scripts/doctrine-check.sh
+#   ./doctrine/scripts/doctrine-check.sh --multipath-only
+#
+# --multipath-only runs assertion 5 plus only the index/flake discovery that
+# assertion needs. It is intended for a thin consumer-CI gate whose checkout
+# may initialize the public doctrine path but not doctrine-private. --warn is
+# a full-check adoption mode and cannot be combined with the focused mode.
 #
 # Exit 0 clean, 1 on any failure. --warn downgrades to advisory.
 set -uo pipefail
@@ -26,7 +32,17 @@ set -uo pipefail
 # split passed clean. Keep this file free of Bash-4-only constructs
 # (associative arrays, `${var^^}`, `readarray`).
 
-WARN=0; [[ "${1:-}" == "--warn" ]] && WARN=1
+WARN=0
+MODE="full"
+case "$#:${1:-}" in
+  0:) ;;
+  1:--warn) WARN=1 ;;
+  1:--multipath-only) MODE="multipath-only" ;;
+  *)
+    echo "usage: doctrine-check.sh [--warn | --multipath-only]" >&2
+    exit 2
+    ;;
+esac
 # Commit distance measures AGE, not compatibility: one breaking commit matters
 # more than ten documentation commits. It is a weak proxy kept because it is
 # cheap. Assertion 5 is the strong one. Default lowered from 10 — at 10, a repo
@@ -52,6 +68,106 @@ uncheck() { printf "  ${yel}?${rst} %s\n" "$1"; unchecked=$((unchecked+1)); }
 repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || {
   echo "not a git repository root" >&2; exit 2; }
 [[ "$PWD" == "$repo_root" ]] || { echo "not a git repository root" >&2; exit 2; }
+
+# Focused assertion-5 path discovery intentionally differs from the legacy
+# full check in one way: it reads named gitlinks from the INDEX even when the
+# corresponding submodule checkout is absent. Consumer CI can therefore init
+# only the public `doctrine` checkout needed to execute this script and still
+# compare an indexed `doctrine-private` pin. The default path below is kept
+# byte-for-byte in its prior checkout-sensitive form for existing callers.
+run_multipath_only() {
+  declare -a focused_upstream=() focused_rev=() focused_label=()
+  local sm entry mode pin url up flake_rows iname iurl irev
+  local i j prev_i split
+
+  for sm in doctrine doctrine-private; do
+    entry=$(git ls-files --stage -- "$sm" 2>/dev/null)
+    mode=$(printf '%s\n' "$entry" | awk '{print $1}')
+    [[ "$mode" == "160000" ]] || continue
+
+    pin=$(printf '%s\n' "$entry" | awk '{print $2}')
+    url=$(git config -f .gitmodules --get "submodule.$sm.url" 2>/dev/null)
+    if [[ -z "$url" ]]; then
+      bad "$sm is an indexed gitlink without a .gitmodules URL — upstream equality is unverifiable"
+      continue
+    fi
+    up=$(printf '%s' "$url" | sed -E 's#^(git@[^:]+:|https://[^/]+/)##; s/\.git$//')
+    if is_doctrine_upstream "$up"; then
+      focused_upstream+=("$up")
+      focused_rev+=("$pin")
+      focused_label+=("submodule $sm")
+    fi
+  done
+
+  if [[ -f flake.lock ]]; then
+    flake_rows=$(python3 - <<'PY'
+import json
+
+try:
+    with open("flake.lock", encoding="utf-8") as handle:
+        data = json.load(handle)
+except Exception:
+    raise SystemExit(1)
+
+for name, node in data.get("nodes", {}).items():
+    locked = node.get("locked", {})
+    if locked.get("type") == "github" and locked.get("rev"):
+        print(f"{name}|{locked.get('owner', '')}/{locked.get('repo', '')}|{locked['rev']}")
+PY
+    ) || {
+      bad "flake.lock cannot be parsed — doctrine consumption paths are unverifiable"
+      flake_rows=""
+    }
+    while IFS='|' read -r iname iurl irev; do
+      [[ -z "$iname" ]] && continue
+      is_doctrine_upstream "$iurl" || continue
+      focused_upstream+=("$iurl")
+      focused_rev+=("$irev")
+      focused_label+=("flake input $iname")
+    done <<< "$flake_rows"
+  fi
+
+  if [[ ${#focused_upstream[@]} -lt 2 ]]; then
+    skip "single doctrine consumption path — nothing to cross-check"
+    return
+  fi
+
+  split=0
+  i=0
+  while [[ $i -lt ${#focused_upstream[@]} ]]; do
+    prev_i=-1
+    j=0
+    while [[ $j -lt $i ]]; do
+      if [[ "${focused_upstream[$j]}" == "${focused_upstream[$i]}" ]]; then
+        prev_i=$j
+        break
+      fi
+      j=$((j+1))
+    done
+    if [[ $prev_i -ge 0 && "${focused_rev[$prev_i]}" != "${focused_rev[$i]}" ]]; then
+      bad "consumption paths DISAGREE for ${focused_upstream[$i]}:"
+      printf "      %-22s %.12s\n" "${focused_label[$prev_i]}" "${focused_rev[$prev_i]}"
+      printf "      %-22s %.12s\n" "${focused_label[$i]}" "${focused_rev[$i]}"
+      printf '%s\n' \
+        "      submodule ahead => agents follow rules hosts do not implement;" \
+        "      flake input ahead => hosts run capabilities agents have not read."
+      split=1
+    fi
+    i=$((i+1))
+  done
+  [[ $split -eq 0 ]] && ok "${#focused_upstream[@]} consumption path(s), all agreeing per upstream"
+}
+
+if [[ "$MODE" == "multipath-only" ]]; then
+  run_multipath_only
+  echo
+  if [[ $fail -eq 0 ]]; then
+    echo "${grn}doctrine-check: clean${rst}"
+    exit 0
+  fi
+  echo "${red}doctrine-check: FAILED${rst} — every issue above is invisible at runtime"
+  exit 1
+fi
 
 # Strip HTML comments before scanning for @-refs. Loader files document the
 # pattern using example @-refs inside <!-- --> blocks; parsing those as real
