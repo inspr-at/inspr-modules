@@ -418,6 +418,21 @@ Add it to CI with [`examples/doctrine-check.yml`](examples/doctrine-check.yml).
 Note `submodules: recursive` in the checkout step — without it the check has
 nothing to resolve against and will report everything as broken.
 
+Consumer CI that owns only the same-upstream equality invariant can run the
+focused gate instead:
+
+```bash
+./doctrine/scripts/doctrine-check.sh --multipath-only
+```
+
+That mode runs assertion 5 and only its required index/`flake.lock` discovery.
+It does not resolve `@`-refs, inspect command symlinks, fetch or judge pin
+freshness, or compare declared commands. Indexed `doctrine` and
+`doctrine-private` gitlinks are discovered even when their checkout directories
+are absent, so CI may initialize only the public doctrine path needed to invoke
+the script. `--multipath-only` cannot be combined with `--warn`; unknown or
+conflicting arguments fail closed with exit 2.
+
 `--warn` downgrades failures to advisory, for adopting it on a repo that is not
 clean yet.
 
