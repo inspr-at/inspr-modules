@@ -121,6 +121,12 @@
         checks =
           let
             secretsAuditPkg = pkgs.callPackage ./pkgs/secrets-audit { };
+            workerDoctrineBundle = import ./lib/worker-doctrine-bundle.nix {
+              inherit pkgs;
+              skillSource = ./skills/inspr-worker-doctrine/SKILL.md;
+              attributionSource = ./AGENTS.md;
+              versioningSource = ./docs/AGENTS-VERSIONING.md;
+            };
 
             # Module-eval suite results (INSPR-267). Evaluation is lazy —
             # nothing forces until the module-eval check derivation is
@@ -170,6 +176,50 @@
               }
               ''
                 bash ${./tests/repository-location-surface.sh} ${self}
+                touch $out
+              '';
+
+            # The estate versioning policy is normative and linked from the
+            # doctrine index. Keep its calendar grammar, real-date validation,
+            # normalized ordering, gradual transition contract, and README
+            # boundary executable (INSPR-320).
+            calendar-version-doctrine = pkgs.runCommand "calendar-version-doctrine"
+              {
+                nativeBuildInputs = [
+                  pkgs.bash
+                  pkgs.coreutils
+                  pkgs.gnugrep
+                  pkgs.python3
+                ];
+              }
+              ''
+                bash ${./tests/calendar-version-doctrine.sh} ${self}
+                touch $out
+              '';
+
+            # Home Manager installs a harness-readable worker-doctrine bundle
+            # whose references are byte-identical to the canonical attribution
+            # mirror and calendar-version policy (INSPR-322). Exercise both the
+            # positive bundle and deliberate mirror drift.
+            worker-doctrine-surface = pkgs.runCommand "worker-doctrine-surface"
+              {
+                nativeBuildInputs = [
+                  pkgs.bash
+                  pkgs.coreutils
+                  pkgs.gnugrep
+                ];
+              }
+              ''
+                bash ${./tests/worker-doctrine-surface.sh} ${self} ${workerDoctrineBundle}
+
+                cp -R ${workerDoctrineBundle} ./drifted
+                chmod -R u+w ./drifted
+                printf '\nfixture drift\n' >> ./drifted/references/AGENTS.md
+                if bash ${./tests/worker-doctrine-surface.sh} ${self} ./drifted; then
+                  echo "worker-doctrine drift fixture unexpectedly passed" >&2
+                  exit 1
+                fi
+
                 touch $out
               '';
 
@@ -242,6 +292,22 @@
                   fi
                   touch $out
                 '';
+
+            # Ticket-first work attribution is an always-on global protocol
+            # (INSPR-321), not an optional product-gauntlet convention. Keep
+            # the kernel, non-Claude mirror, full reference and dispatcher in
+            # lockstep and reject the retired opt-in wording.
+            work-attribution-doctrine = pkgs.runCommand "work-attribution-doctrine"
+              {
+                nativeBuildInputs = [
+                  pkgs.bash
+                  pkgs.gnugrep
+                ];
+              }
+              ''
+                bash ${./tests/work-attribution-doctrine.sh} ${self}
+                touch $out
+              '';
 
             # inspr --help must tell the truth (INSPR-258): every dispatch
             # command appears and no stale NOT-YET-IMPLEMENTED claims remain.

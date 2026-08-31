@@ -48,6 +48,12 @@ Phase 4 (synthesized 2026-05-14) produced **521 canonical rules across 12 layer 
 | `fleetcom/AGENTS.md`                | `repo:fleetcom`       | 26    | auto via per-repo CLAUDE.md @-ref           | fleetcom repo-specific delta (archived tool — superseded by Pharos).                                      |
 | `inspr/AGENTS.md`                   | `repo:inspr`          | 0     | auto via per-repo CLAUDE.md @-ref           | inspr meta-repo delta (umbrella initiative root; 0-rule overlay by design).                              |
 
+### Normative cross-domain references
+
+| File | Applies when | Description |
+|---|---|---|
+| [AGENTS-VERSIONING.md](AGENTS-VERSIONING.md) | Creating, publishing, consuming, comparing, pinning, deploying, or migrating any version-bearing artifact | INSPR Calendar Version v1 (`YY.MM.DD[.hh.mm.ss]`), gradual per-repository adoption, mixed-era behavior, supply-chain gates, ecosystem exceptions, and the value-free estate inventory. |
+
 **Phase-4 baseline rule count: 521 canonical rules** (Phase 4 synthesis, 2026-05-14) — every rule lands in exactly one Phase-4 layer. Phase 6 (2026-05-15) carved CORE into kernel + 5 domain packs WITHOUT adding new rules; the same 521 entries are now distributed across more files, optimized for on-demand loading.
 
 ## Repository architecture — the atelier pattern
