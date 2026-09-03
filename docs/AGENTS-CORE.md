@@ -408,7 +408,7 @@ This document is the authoritative source for rules every agent follows, regardl
   *<sub>src: ~/Code/nixcfg/+agents/rules/AGENTS.md L227</sub>*
   <!-- rule_ids: AGENTS.md:L227:never-touch-age-files | cluster: — -->
 
-- 🔴 **HARD** | `always` | When invoking agenix from non-interactive context, pipe content via stdin (agenix -e $dst < $src); EDITOR='cp $src' silently encrypts 0 bytes when stdin is non-TTY
+- 🔴 **HARD** | `always` | When invoking agenix non-interactively, pipe content via stdin — never a plaintext file; on macOS with nix coreutils run `PATH=/bin:$PATH agenix -e dest.age < src`: agenix hard-codes `cp -- /dev/stdin`, and GNU cp 9.x refuses it ("replaced while being copied") for pipes and redirects alike, so the file is not created; historical `EDITOR='cp $src'` silently encrypted 0 bytes and stays forbidden
   *<sub>src: ~/Code/inspr/playbook.md L897</sub>*
   <!-- rule_ids: playbook.md:L897:agenix-pipe-content-via-stdin | cluster: — -->
 
