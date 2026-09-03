@@ -5,7 +5,10 @@ repo_root="${1:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 kernel="$repo_root/docs/AGENTS-KERNEL.md"
 mirror="$repo_root/AGENTS.md"
 core="$repo_root/docs/AGENTS-CORE.md"
-gauntlet="$repo_root/skills/product-gauntlet/SKILL.md"
+gauntlets=(
+  "$repo_root/skills/product-gauntlet/SKILL.md"
+  "$repo_root/skills/design-frontier-gauntlet/SKILL.md"
+)
 
 for surface in "$kernel" "$mirror"; do
   grep -Fq -- 'Ticket first; identify the worker.' "$surface" || {
@@ -40,13 +43,15 @@ if grep -Fq -- 'create one only when PPM writes are explicitly authorized' "$cor
   exit 1
 fi
 
-grep -Fq -- 'Before dispatch, write `I work on this' "$gauntlet" || {
-  printf 'product-gauntlet does not attribute the actual worker before dispatch\n' >&2
-  exit 1
-}
-grep -Fq -- 'PPM or PMA, never both' "$gauntlet" || {
-  printf 'product-gauntlet does not preserve the single tracker of record\n' >&2
-  exit 1
-}
+for gauntlet in "${gauntlets[@]}"; do
+  grep -Fq -- 'Before dispatch, write `I work on this' "$gauntlet" || {
+    printf '%s does not attribute the actual worker before dispatch\n' "$gauntlet" >&2
+    exit 1
+  }
+  grep -Fq -- 'PPM or PMA, never both' "$gauntlet" || {
+    printf '%s does not preserve the single tracker of record\n' "$gauntlet" >&2
+    exit 1
+  }
+done
 
-printf 'work-attribution doctrine verified across kernel, mirror, reference, and gauntlet\n'
+printf 'work-attribution doctrine verified across kernel, mirror, reference, and dispatching skills\n'
