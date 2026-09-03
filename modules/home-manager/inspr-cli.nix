@@ -28,7 +28,9 @@
 let
   cfg = config.inspr.cli;
   f = cfg.fleet;
-  line = name: value: lib.optionalString (value != null && value != "") ''${name}="${value}"'';
+  line = name: value:
+    lib.optionalString (value != null && value != "")
+      "${name}=${lib.escapeShellArg value}";
 in
 {
   options.inspr.cli = {

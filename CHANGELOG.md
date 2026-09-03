@@ -201,8 +201,39 @@ boring and some weeks away.
 
 ## [Unreleased]
 
+### Added
+
+- **`skills/design-frontier-gauntlet` (INSPR-362).** A bounded five-lens
+  interface exploration: Codex with built-in OpenAI ImageGen, exact Claude
+  Fable 5.1, and three distinct Higgsfield image models selected from current
+  official documentation intersected with the live catalog and schema. Each
+  dispatched concept has one attributed worker and isolated output; a
+  deterministic, fail-closed helper produces a local keyboard-accessible
+  solo/matrix gallery, including honest preflight-unavailable cards without
+  invented worker IDs or substituted results. The workflow never deploys by
+  default and labels all simulated actions.
+
+- **Ticket-first work authorization and session attribution (INSPR-321).** Every AI worker now binds material work to one canonical PPM or PMA ticket before changing state and records the actual builder, reviewer, or operator session UUID in a value-free `I work on this` marker. The rule is always-on in the public kernel, detailed in the full doctrine reference, mirrored for non-Claude harnesses, and built into product-gauntlet dispatch.
+
+### Fixed
+
+- `homeManagerModules.inspr-cli` now shell-escapes every nonempty `fleet.conf`
+  value before the Bash CLI sources it. Quotes, command substitutions,
+  backticks, backslashes, spaces, newlines, and dollar expansions remain
+  literal data; null and empty options still emit no assignment. [INSPR-304]
+
 ### Changed
 
+- **Calendar versions are the gradual estate default (INSPR-320).** The
+  normative versioning doctrine defines `YY.MM.DD[.hh.mm.ss]` as an explicit
+  UTC release coordinate with Gregorian validation, deterministic same-day
+  collision handling, immutable enumerated artifact sets, per-coordinate
+  digests, and scheme-aware mixed-era ordering. Adoption remains per
+  repository: current and in-flight releases keep their existing scheme,
+  history is never retagged, and each migration
+  needs a value-free inventory plus executable producer, consumer, update,
+  deployment, and rollback evidence. `inspr-modules` itself remains on SemVer
+  until a separate owner-approved migration passes.
 - `skills/product-gauntlet`: speed-first rewrite. One QA gate per slice (not per ticket), controller preflight, event reports instead of polling, cheaper default models, one headless Chromium at slice-end. Quality bar unchanged.
 
 ### Planned

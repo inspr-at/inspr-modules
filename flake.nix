@@ -121,6 +121,12 @@
         checks =
           let
             secretsAuditPkg = pkgs.callPackage ./pkgs/secrets-audit { };
+            workerDoctrineBundle = import ./lib/worker-doctrine-bundle.nix {
+              inherit pkgs;
+              skillSource = ./skills/inspr-worker-doctrine/SKILL.md;
+              attributionSource = ./AGENTS.md;
+              versioningSource = ./docs/AGENTS-VERSIONING.md;
+            };
 
             # Module-eval suite results (INSPR-267). Evaluation is lazy —
             # nothing forces until the module-eval check derivation is
@@ -141,6 +147,21 @@
             };
           in
           {
+            # The bundled design-frontier skill accepts five independently
+            # attributed concepts and emits one deterministic, local-only
+            # comparison gallery. Exercise both the happy path and its
+            # fail-closed manifest/path/ownership boundaries in CI, including
+            # UUIDv7, hostile text, symlink escapes, and output clobbering.
+            design-frontier-gallery = pkgs.runCommand "design-frontier-gallery"
+              {
+                nativeBuildInputs = [ pkgs.python3 ];
+              }
+              ''
+                cp -R ${./skills/design-frontier-gauntlet/scripts} ./scripts
+                python3 ./scripts/test_build_gallery.py
+                touch $out
+              '';
+
             # Repository licensing is part of the build contract: canonical
             # legal text, package metadata, source headers and public doctrine
             # must stay aligned on the exact SPDX identifier.
@@ -170,6 +191,73 @@
               }
               ''
                 bash ${./tests/repository-location-surface.sh} ${self}
+                touch $out
+              '';
+
+            # Consumer CI can enforce the same-upstream doctrine pin invariant
+            # without running the full repository audit. The fixture suite
+            # proves index-only gitlink discovery, staged-pin authority,
+            # per-upstream equality, focused assertion boundaries, fail-closed
+            # argument parsing, and macOS Bash 3.2-compatible syntax (INSPR-323).
+            doctrine-check-multipath = pkgs.runCommand "doctrine-check-multipath"
+              {
+                nativeBuildInputs = [
+                  pkgs.bash
+                  pkgs.coreutils
+                  pkgs.gawk
+                  pkgs.git
+                  pkgs.gnugrep
+                  pkgs.gnused
+                  pkgs.python3
+                ];
+              }
+              ''
+                DOCTRINE_TEST_BASH=${pkgs.bash}/bin/bash \
+                  bash ${./tests/doctrine-check-multipath.sh} ${self}
+                touch $out
+              '';
+
+            # The estate versioning policy is normative and linked from the
+            # doctrine index. Keep its calendar grammar, real-date validation,
+            # normalized ordering, gradual transition contract, and README
+            # boundary executable (INSPR-320).
+            calendar-version-doctrine = pkgs.runCommand "calendar-version-doctrine"
+              {
+                nativeBuildInputs = [
+                  pkgs.bash
+                  pkgs.coreutils
+                  pkgs.gnugrep
+                  pkgs.python3
+                ];
+              }
+              ''
+                bash ${./tests/calendar-version-doctrine.sh} ${self}
+                touch $out
+              '';
+
+            # Home Manager installs a harness-readable worker-doctrine bundle
+            # whose references are byte-identical to the canonical attribution
+            # mirror and calendar-version policy (INSPR-322). Exercise both the
+            # positive bundle and deliberate mirror drift.
+            worker-doctrine-surface = pkgs.runCommand "worker-doctrine-surface"
+              {
+                nativeBuildInputs = [
+                  pkgs.bash
+                  pkgs.coreutils
+                  pkgs.gnugrep
+                ];
+              }
+              ''
+                bash ${./tests/worker-doctrine-surface.sh} ${self} ${workerDoctrineBundle}
+
+                cp -R ${workerDoctrineBundle} ./drifted
+                chmod -R u+w ./drifted
+                printf '\nfixture drift\n' >> ./drifted/references/AGENTS.md
+                if bash ${./tests/worker-doctrine-surface.sh} ${self} ./drifted; then
+                  echo "worker-doctrine drift fixture unexpectedly passed" >&2
+                  exit 1
+                fi
+
                 touch $out
               '';
 
@@ -205,6 +293,13 @@
               inherit pkgs;
             };
 
+            # Sources the rendered fleet.conf with Bash, matching the CLI's
+            # execution path. Shell-active values must survive literally and
+            # null/empty configuration must remain assignment-free.
+            inspr-cli-functional = import ./tests/inspr-cli-functional.nix {
+              inherit pkgs;
+            };
+
             # Kernel-mirror freshness gate (INSPR-278). Editing the kernel
             # without re-mirroring AGENTS.md burned us in INSPR-269 (the 🔴
             # trust-contexts rule was invisible to non-Claude harnesses for
@@ -235,6 +330,22 @@
                   fi
                   touch $out
                 '';
+
+            # Ticket-first work attribution is an always-on global protocol
+            # (INSPR-321), not an optional product-gauntlet convention. Keep
+            # the kernel, non-Claude mirror, full reference and dispatcher in
+            # lockstep and reject the retired opt-in wording.
+            work-attribution-doctrine = pkgs.runCommand "work-attribution-doctrine"
+              {
+                nativeBuildInputs = [
+                  pkgs.bash
+                  pkgs.gnugrep
+                ];
+              }
+              ''
+                bash ${./tests/work-attribution-doctrine.sh} ${self}
+                touch $out
+              '';
 
             # inspr --help must tell the truth (INSPR-258): every dispatch
             # command appears and no stale NOT-YET-IMPLEMENTED claims remain.

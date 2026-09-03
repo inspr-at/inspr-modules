@@ -668,6 +668,23 @@ This document is the authoritative source for rules every agent follows, regardl
   <!-- rule_ids: SYSOP.md:L255:prime-directive-config-docs-tests,SYSOP-GB.md:L162:prime-directive-config-docs-tests-gb | cluster: process-sync-triad-001 -->
 
 
+## Topic: workflow/work-attribution
+
+- 🔴 **HARD** | `always` | Before material work, bind the exact user-authorized scope to one existing ticket in the product's designated PPM or PMA tracker; never split or duplicate the same work across both trackers. If no suitable ticket exists, create it before any edit, commit, deployment, external write, or other state-changing action. Read-only orientation and status inspection are not material work.
+  <!-- rule_ids: INSPR-321:ticket-first-single-system-of-record | cluster: workflow-work-attribution-001 -->
+
+- 🔴 **HARD** | `always` | When a worker cannot write the designated tracker, its coordinating session MUST create or reuse the ticket and add the worker marker before dispatch. The worker does not substitute a local backlog note or start untracked; no marker means no material work.
+  <!-- rule_ids: INSPR-321:coordinator-writes-before-dispatch | cluster: workflow-work-attribution-001 -->
+
+- 🔴 **HARD** | `always` | Before material work starts, record every participating agent or subagent on that ticket as `I work on this — session: <session-name> (<session-UUID>); role: <builder|reviewer|operator>; started: <ISO-8601>`. Do not name only the coordinator when a child implements.
+  <!-- rule_ids: INSPR-321:implementer-session-attribution | cluster: workflow-work-attribution-001 -->
+
+- 🔴 **HARD** | `always` | Preserve attribution history: add a new marker when ownership transfers or a reviewer/operator joins; never overwrite an earlier marker. One implementer per ticket is the default. Parallel builders require explicit, non-overlapping child-ticket scopes.
+  <!-- rule_ids: INSPR-321:preserve-handoffs-one-implementer | cluster: workflow-work-attribution-001 -->
+
+- 🔴 **HARD** | `never` | A work marker must not contain credentials, secrets, private prompts, raw payloads, or unrelated personal data, and it never means accepted, approved, merged, or exclusively owned beyond the declared role.
+  <!-- rule_ids: INSPR-321:value-free-non-approval-marker | cluster: workflow-work-attribution-001 -->
+
 ## Topic: workflow/ppm
 
 - 🔴 **HARD** | `do` | Mark PPM tickets as done only when acceptance criteria are met.
@@ -678,9 +695,9 @@ This document is the authoritative source for rules every agent follows, regardl
   *<sub>src: ~/Code/fleetcom/AGENTS.md L44</sub>*
   <!-- rule_ids: AGENTS.md:L44:ticket-key-style | cluster: — -->
 
-- 🟡 **STRONG** | `do` | Before starting work check PPM for a backing ticket; if none exists, create one only when PPM writes are explicitly authorized, otherwise report it and ask.
-  *<sub>src: ~/Code/fleetcom/AGENTS.md L39</sub>*
-  <!-- rule_ids: AGENTS.md:L39:ppm-backing-ticket | cluster: — -->
+- 🔴 **HARD** | `do` | Apply the universal ticket-first and session-attribution protocol in `workflow/work-attribution`; use the owning product's designated tracker and do not create a second copy merely to satisfy a preferred tracker.
+  *<sub>src: INSPR-321</sub>*
+  <!-- rule_ids: INSPR-321:tracker-routing-no-duplicate | cluster: workflow-work-attribution-001 -->
 
 - 🟡 **STRONG** | `dont` | Do not create local backlog files. When PPM writes are explicitly authorized, create epics and tickets in PPM instead.
   *<sub>src: ~/Code/fleetcom/AGENTS.md L40</sub>*

@@ -17,7 +17,7 @@ Reusable Home Manager modules + utilities from the [INSPR](https://inspr.at) ini
 | Module | Namespace | What it does |
 |---|---|---|
 | `agent-secrets` | `inspr.secrets.agents` | Materialize agenix-encrypted env files into a per-user "agent-exception" directory at HM activation. Pairs with the env-file pattern (`KEY=value`) for `set -a; source $FILE` consumers. |
-| `agent-skills` | `inspr.agent-skills` | Declarative agent-skill provisioning across CLI harnesses. Materializes skill directories (SKILL.md convention) into every configured harness skills path — Claude Code `~/.claude/skills/` and Codex `~/.codex/skills/` by default, extensible per consumer — as read-only /nix/store symlinks. Skills are either **bundled** (shipped in this repo under `skills/<name>/` — currently `ship-next`, `housekeeping`, `tidyrepo`, `product-gauntlet`) or **external** (any pinned path, e.g. a `fetchFromGitHub` of anthropics/skills). Per-skill harness subsetting via `skills.<name>.harnesses`. One source of truth per skill; per-harness copies cannot drift. |
+| `agent-skills` | `inspr.agent-skills` | Declarative agent-skill provisioning across CLI harnesses. Materializes skill directories (SKILL.md convention) into every configured harness skills path — Claude Code `~/.claude/skills/` and Codex `~/.codex/skills/` by default, extensible per consumer — as read-only /nix/store symlinks. Skills are either **bundled** (shipped in this repo under `skills/<name>/` — currently `ship-next`, `housekeeping`, `tidyrepo`, `product-gauntlet`, `design-frontier-gauntlet`) or **external** (any pinned path, e.g. a `fetchFromGitHub` of anthropics/skills). Per-skill harness subsetting via `skills.<name>.harnesses`. When enabled, the module also installs the reserved `inspr-worker-doctrine` skill by default, carrying the canonical ticket-attribution mirror and calendar-version policy from the same immutable input revision. It never sets Home Manager's `force`, so an unmanaged path collision stops activation instead of replacing user-owned files. One source of truth per skill; per-harness copies cannot drift. |
 | `devenv-direnv-fix` | `inspr.devenv.direnv-fix` | Declaratively materialize devenv's direnv-lib snippet (`~/.config/direnv/lib/z-devenv.sh`) with its colliding `_nix_direnv_preflight` function renamed to `_devenv_preflight`, so it stops shadowing nix-direnv's preflight when both libs are loaded. Source comes from `devenv direnvrc` at build time + `sed`-rename + sanity-grep — auto-tracks devenv version bumps. Without this, `use nix` in any `.envrc` errors with `--no-warn-dirty: command not found`. INSPR-175. |
 | `git-atelier-credentials` | `inspr.git.atelier` | Per-atelier outbound git credentials, **forge-agnostic** (works on GitHub, Forgejo, Codeberg, GitLab, Gitea, sourcehut, bare-SSH). **Strategy A** (per-repo SSH deploy keys, narrow servers) and **Strategy B** (per-host user SSH key, account-federated for workstations — the canonical answer to "this machine doesn't have permission to that service") both implemented; **Strategy C** (bot user / access token via credential helper) option-typed and throws on use — INSPR-168 follow-up. Strategy A produces per-repo SSH aliases (`<host>-<atelier>-<repo>`) with narrow URL rewrites; Strategy B produces one alias per atelier (`git-<atelier>`) with owner-prefix URL rewrites covering all repos under `forge.owner` automatically. Per-atelier commit author identity (`git.userName`, `git.userEmail`, optional `git.workspacePath`) wires `includeIf` rules so commits attribute correctly per-persona (gitdir-scoped when `workspacePath` set, else `hasconfig:remote.*.url:` match on git 2.36+). All SSH match blocks use `HostKeyAlias` so one known_hosts entry covers all aliased paths; managed `~/.ssh/known_hosts.d/inspr-git-atelier-<name>` files ship vendor-published host keys for github.com + codeberg.org (self-hosted forges supply via `forge.extraKnownHosts`). Multi-atelier per host supported; Strategy A + B coexist on the same atelier with "longest insteadOf wins" precedence. The full design and 4-tier scaling story live in the maintainer's private design notes; the option documentation in `modules/home-manager/git-atelier-credentials.nix` is self-contained. |
 | `git-identity` | `inspr.git-identity` | Multi-identity git config with both `gitdir:` AND `hasconfig:remote.*.url:` includeIf rules. The repo's own remote URL picks the identity automatically — no per-host directory list to maintain. |
@@ -212,11 +212,14 @@ nix build .#checks.aarch64-darwin.secrets-audit-functional --print-build-logs
 
 | Check | Coverage |
 |---|---|
+| `design-frontier-gallery` | Deterministic five-lens local gallery generation; UUIDv7 and honest preflight-unavailable states; HTML escaping and URL-safe entries; sandbox, symlink, ownership, current-model-evidence, distinct-model and output-clobber boundaries. |
 | `license-surface` | Canonical AGPLv3 text, exact AGPL-3.0-only declarations across public/source/doctrine surfaces, and Nix package metadata for both shipped utilities |
 | `repository-location-surface` | Canonical INSPR organization links, clone guidance, and Pharos container default, while explicitly preserving the intentionally personal `nixcfg` location |
+| `work-attribution-doctrine` | Keeps the always-on kernel, non-Claude mirror, full reference, product gauntlet, and design-frontier dispatcher aligned on ticket-first work authorization, actual session UUID attribution, single-tracker routing and value-free markers. |
 | `secrets-audit-functional` | Drift detection logic (clean / declared-missing / orphan / commented-out fixtures); `--help` regression test for [INSPR-50](https://github.com/inspr-at/inspr-modules/commit/8fa4b37) (PATH-leak-in-help symptom that prompted the writeShellApplication migration) |
+| `inspr-cli-functional` | Sources a synthetic rendered `fleet.conf` with Bash and proves quotes, command substitutions, backticks, backslashes, spaces, newlines, and dollar expansions remain literal values without executing; null/empty configuration remains assignment-free. |
 | `paimos-config-functional` | Executes synthetic activations to prove legacy `api_key`, missing files, and unset/empty URL variables preserve the prior config; diagnostics resist shell interpolation; jq encoding safely preserves quoted and multiline routing URLs. Never reads a real user config or credential. |
-| `module-eval` (since INSPR-72) | 104 sub-tests across the Home Manager and NixOS modules, run via `lib.evalModules` + stub HM and NixOS harnesses (`tests/module-eval/harness.nix`). Verifies: assertions and throws fire when they should, required options stay required, deprecations warn, Paimos literal/env URL output stays nested under `instances` without credential references, rollout/failure guards precede replacement, git include counts match declarations, and SSH authorization output and guards remain deterministic. Runs entirely at flake-eval time—no activation, real HM, or network. |
+| `module-eval` (since INSPR-72) | 118 sub-tests across the Home Manager and NixOS modules, run via `lib.evalModules` + stub HM and NixOS harnesses (`tests/module-eval/harness.nix`). Verifies: assertions and throws fire when they should, required options stay required, deprecations warn, shell-active fleet values are encoded, Paimos literal/env URL output stays nested under `instances` without credential references, rollout/failure guards precede replacement, git include counts match declarations, and SSH authorization output and guards remain deterministic. Runs entirely at flake-eval time—no activation, real HM, or network. |
 
 ### Local dev (without nix sandbox)
 
@@ -233,6 +236,12 @@ nix build .#secrets-audit
 ## Versioning + deprecation policy
 
 Semantic versioning: **MAJOR.MINOR.PATCH** per [semver.org](https://semver.org/).
+
+This repository remains on that legacy scheme until an owner-approved
+repository migration is completed. The estate-wide gradual default and its
+mixed-era requirements are defined in the normative
+[Versioning Doctrine](docs/AGENTS-VERSIONING.md); publishing that doctrine does
+not itself migrate this or any consuming repository.
 
 - **PATCH** — bugfixes, doc improvements, no API surface changes
 - **MINOR** — new options, new modules, deprecations (still backward-compatible)
@@ -409,6 +418,21 @@ rules.
 Add it to CI with [`examples/doctrine-check.yml`](examples/doctrine-check.yml).
 Note `submodules: recursive` in the checkout step — without it the check has
 nothing to resolve against and will report everything as broken.
+
+Consumer CI that owns only the same-upstream equality invariant can run the
+focused gate instead:
+
+```bash
+./doctrine/scripts/doctrine-check.sh --multipath-only
+```
+
+That mode runs assertion 5 and only its required index/`flake.lock` discovery.
+It does not resolve `@`-refs, inspect command symlinks, fetch or judge pin
+freshness, or compare declared commands. Indexed `doctrine` and
+`doctrine-private` gitlinks are discovered even when their checkout directories
+are absent, so CI may initialize only the public doctrine path needed to invoke
+the script. `--multipath-only` cannot be combined with `--warn`; unknown or
+conflicting arguments fail closed with exit 2.
 
 `--warn` downgrades failures to advisory, for adopting it on a repo that is not
 clean yet.
