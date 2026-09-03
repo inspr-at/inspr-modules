@@ -147,6 +147,21 @@
             };
           in
           {
+            # The bundled design-frontier skill accepts five independently
+            # attributed concepts and emits one deterministic, local-only
+            # comparison gallery. Exercise both the happy path and its
+            # fail-closed manifest/path/ownership boundaries in CI, including
+            # UUIDv7, hostile text, symlink escapes, and output clobbering.
+            design-frontier-gallery = pkgs.runCommand "design-frontier-gallery"
+              {
+                nativeBuildInputs = [ pkgs.python3 ];
+              }
+              ''
+                cp -R ${./skills/design-frontier-gauntlet/scripts} ./scripts
+                python3 ./scripts/test_build_gallery.py
+                touch $out
+              '';
+
             # Repository licensing is part of the build contract: canonical
             # legal text, package metadata, source headers and public doctrine
             # must stay aligned on the exact SPDX identifier.
