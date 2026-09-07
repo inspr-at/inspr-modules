@@ -7,8 +7,11 @@ import json
 import os
 import re
 import shutil
+import signal
 import stat
 import sys
+import threading
+import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -107,18 +110,14 @@ class ProbeHost:
     which: Which
     run: Runner
     read_file: ReadFile
-    exists: Callable[[str], bool]
     isdir: Callable[[str], bool]
     isfile: Callable[[str], bool]
     islink: Callable[[str], bool]
     realpath: Callable[[str], str]
     readlink: Callable[[str], str]
-    listdir: Callable[[str], list[str]]
     environ: Mapping[str, str]
     platform: str
     nixos_marker: bool
-    makedirs: Callable[[str], None]
-    write_file: Callable[[str, bytes], None]
 
 
 def real_host(environ: Mapping[str, str] | None = None) -> ProbeHost:
@@ -147,31 +146,18 @@ def real_host(environ: Mapping[str, str] | None = None) -> ProbeHost:
     def _read(path: str, limit: int) -> bytes:
         return read_bounded(path, limit)
 
-    def _write(path: str, data: bytes) -> None:
-        directory = os.path.dirname(path)
-        os.makedirs(directory, mode=0o700, exist_ok=True)
-        tmp = path + ".tmp"
-        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-        with os.fdopen(fd, "wb") as handle:
-            handle.write(data)
-        os.replace(tmp, path)
-
     return ProbeHost(
         which=_which,
         run=_run,
         read_file=_read,
-        exists=os.path.exists,
         isdir=os.path.isdir,
         isfile=os.path.isfile,
         islink=os.path.islink,
         realpath=os.path.realpath,
         readlink=lambda path: os.readlink(path),
-        listdir=lambda path: os.listdir(path),
         environ=env,
         platform=sys.platform,
         nixos_marker=os.path.isfile("/etc/NIXOS"),
-        makedirs=lambda path: os.makedirs(path, mode=0o700, exist_ok=True),
-        write_file=_write,
     )
 
 
@@ -190,26 +176,133 @@ def run_closed(
         raise ProfileError("invalid_command")
     if cwd is not None and (not cwd.startswith("/") or cwd != os.path.normpath(cwd)):
         raise ProfileError("unsafe_cwd")
+    if timeout <= 0 or max_output < 0:
+        raise ProfileError("invalid_command")
     env = operator_env(environ)
     if extra_env:
         env.update(extra_env)
+
+    proc = subprocess.Popen(
+        argv,
+        cwd=cwd,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        start_new_session=True,
+    )
+    stdout_buf = bytearray()
+    stderr_buf = bytearray()
+    stream_state = {"total": 0, "bound": False}
+    lock = threading.Lock()
+    deadline = time.monotonic() + timeout
+
+    def _kill_group(*, force: bool) -> None:
+        if proc.poll() is not None:
+            return
+        sig = signal.SIGKILL if force else signal.SIGTERM
+        try:
+            os.killpg(proc.pid, sig)
+        except ProcessLookupError:
+            return
+        except OSError:
+            try:
+                proc.kill()
+            except OSError:
+                pass
+
+    def _close_streams() -> None:
+        for stream in (proc.stdout, proc.stderr):
+            if stream is not None:
+                try:
+                    stream.close()
+                except OSError:
+                    pass
+
+    def _consume(stream, buf: bytearray) -> None:
+        try:
+            while True:
+                try:
+                    chunk = stream.read(4096)
+                except (OSError, ValueError):
+                    break
+                if not chunk:
+                    break
+                with lock:
+                    if stream_state["bound"]:
+                        continue
+                    next_total = stream_state["total"] + len(chunk)
+                    if next_total > max_output:
+                        stream_state["bound"] = True
+                        _kill_group(force=True)
+                        continue
+                    buf.extend(chunk)
+                    stream_state["total"] = next_total
+        finally:
+            try:
+                stream.close()
+            except OSError:
+                pass
+
+    threads = (
+        threading.Thread(target=_consume, args=(proc.stdout, stdout_buf), daemon=True),
+        threading.Thread(target=_consume, args=(proc.stderr, stderr_buf), daemon=True),
+    )
+    for thread in threads:
+        thread.start()
+
+    timed_out = False
+    exit_code = 0
     try:
-        completed = subprocess.run(
-            argv,
-            cwd=cwd,
-            env=env,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            timeout=timeout,
-            check=False,
-        )
-    except subprocess.TimeoutExpired as exc:
-        raise ProbeTimeout from exc
-    stdout = completed.stdout or b""
-    stderr = completed.stderr or b""
-    if len(stdout) > max_output or len(stderr) > max_output:
-        raise ProbeOutputBound
-    return RunResult(tuple(argv), stdout, stderr, completed.returncode)
+        while proc.poll() is None:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                timed_out = True
+                break
+            with lock:
+                bound = stream_state["bound"]
+            if bound:
+                break
+            try:
+                exit_code = proc.wait(timeout=remaining)
+                break
+            except subprocess.TimeoutExpired:
+                timed_out = True
+                break
+        if proc.poll() is None:
+            _kill_group(force=True)
+        _close_streams()
+        for thread in threads:
+            thread.join(timeout=max(0.0, deadline - time.monotonic()))
+        if proc.poll() is None:
+            remaining = max(0.0, deadline - time.monotonic())
+            if remaining:
+                try:
+                    exit_code = proc.wait(timeout=remaining)
+                except subprocess.TimeoutExpired:
+                    timed_out = True
+                    _kill_group(force=True)
+                    exit_code = proc.wait()
+            else:
+                timed_out = True
+                _kill_group(force=True)
+                exit_code = proc.wait()
+        else:
+            exit_code = proc.returncode if proc.returncode is not None else exit_code
+    finally:
+        _close_streams()
+        if proc.poll() is None:
+            _kill_group(force=True)
+            try:
+                proc.wait()
+            except OSError:
+                pass
+
+    if timed_out:
+        raise ProbeTimeout
+    with lock:
+        if stream_state["bound"]:
+            raise ProbeOutputBound
+    return RunResult(tuple(argv), bytes(stdout_buf), bytes(stderr_buf), exit_code)
 
 
 def operator_env(environ: Mapping[str, str]) -> dict[str, str]:
@@ -835,6 +928,7 @@ Flags:
   --profile PATH   Operator-owned JSON profile (not sourced as shell).
   --json           JSON evidence only on stdout.
   --no-cache       Accepted for compatibility; probes always observe fresh evidence.
+                   inputs.cache_dir, if present, is accepted but ignored.
   -h, --help       Show this help.
 
 Exit codes:

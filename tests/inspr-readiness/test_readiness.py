@@ -6,8 +6,10 @@ from __future__ import annotations
 import json
 import os
 import sys
+import time
 import unittest
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 from readiness.contract import (
     CONTRACT_VERSION,
@@ -258,18 +260,14 @@ class FakeHost:
             which=self.which,
             run=self.run,
             read_file=self.read_file,
-            exists=self.exists,
             isdir=self.isdir,
             isfile=self.isfile,
             islink=self.islink,
             realpath=self.realpath,
             readlink=self.readlink,
-            listdir=self.listdir,
             environ=self.environ,
             platform=self.platform,
             nixos_marker=self.nixos_marker,
-            makedirs=lambda path: self.dirs.add(path),
-            write_file=lambda path, data: self.files.__setitem__(path, data),
         )
 
 
@@ -359,6 +357,23 @@ class ProbeTests(unittest.TestCase):
         self.assertEqual(evidence.status, "needs_setup")
         result = next(item for item in evidence.checks if item.id == "activated_generation")
         self.assertEqual(result.reason, "generation_digest_mismatch")
+        self.assertEqual(evidence.next_action, "activate_home_manager")
+
+    def test_nixos_generation_digest_mismatch_hints_nixos_activation(self):
+        payload = base_profile()
+        payload["expected"]["host_kind"] = "nixos-home-manager"
+        payload["expected"]["nix_system_generation_digest"] = generation_digest(
+            "/nix/store/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb-nixos-system"
+        )
+        host = FakeHost()
+        host.platform = "linux"
+        host.nixos_marker = True
+        host.links["/run/current-system"] = "/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-nixos-system"
+        host.links["/nix/var/nix/profiles/system"] = "/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-nixos-system"
+        evidence = run_profile(payload, host)
+        result = next(item for item in evidence.checks if item.id == "activated_generation")
+        self.assertEqual(result.reason, "generation_digest_mismatch")
+        self.assertEqual(evidence.next_action, "activate_nixos_generation")
 
     def test_doctrine_hash_drift(self):
         host = FakeHost()
@@ -694,6 +709,103 @@ class ProbeTests(unittest.TestCase):
         self.assertNotIn("OPENAI_API_KEY", names)
         self.assertNotIn("fixture-blocked-token", result.stdout.decode("utf-8"))
         self.assertNotIn("fixture-blocked-token", result.stderr.decode("utf-8"))
+
+
+class RunClosedBoundaryTests(unittest.TestCase):
+    _ENV = {
+        "PATH": os.environ.get("PATH", "/usr/bin"),
+        "HOME": "/fixture/home",
+    }
+
+    def test_output_bound_stops_flooding_stdout_quickly(self):
+        script = (
+            "import sys\n"
+            "while True:\n"
+            "    sys.stdout.write('x' * 4096)\n"
+            "    sys.stdout.flush()\n"
+        )
+        started = time.monotonic()
+        with self.assertRaises(ProbeOutputBound):
+            run_closed(
+                [sys.executable, "-c", script],
+                timeout=30,
+                max_output=8192,
+                environ=self._ENV,
+            )
+        self.assertLess(time.monotonic() - started, 5.0)
+
+    def test_combined_stdout_stderr_budget(self):
+        script = (
+            "import sys\n"
+            "sys.stdout.write('a' * 7000)\n"
+            "sys.stdout.flush()\n"
+            "sys.stderr.write('b' * 7000)\n"
+            "sys.stderr.flush()\n"
+        )
+        with self.assertRaises(ProbeOutputBound):
+            run_closed(
+                [sys.executable, "-c", script],
+                timeout=5,
+                max_output=8192,
+                environ=self._ENV,
+            )
+
+    def test_binary_output_and_exit_codes(self):
+        script = "import sys; sys.stdout.buffer.write(bytes(range(256))); sys.exit(17)"
+        result = run_closed(
+            [sys.executable, "-c", script],
+            timeout=5,
+            max_output=512,
+            environ=self._ENV,
+        )
+        self.assertEqual(result.exit_code, 17)
+        self.assertEqual(result.stdout, bytes(range(256)))
+        self.assertEqual(result.stderr, b"")
+
+    def test_timeout_stops_runaway_process(self):
+        script = "import time\nwhile True:\n    time.sleep(0.01)\n"
+        started = time.monotonic()
+        with self.assertRaises(ProbeTimeout):
+            run_closed(
+                [sys.executable, "-c", script],
+                timeout=1,
+                max_output=65536,
+                environ=self._ENV,
+            )
+        self.assertLess(time.monotonic() - started, 5.0)
+
+    def test_retained_pipe_writer_does_not_hang_or_emit_late_marker(self):
+        import tempfile
+
+        marker = Path(tempfile.mkdtemp()) / "late-marker"
+        script = (
+            "import os, sys\n"
+            f"marker = {str(marker)!r}\n"
+            "if os.fork() == 0:\n"
+            "    os.setsid()\n"
+            "    try:\n"
+            "        while True:\n"
+            "            os.write(1, b'z' * 4096)\n"
+            "    except OSError:\n"
+            "        os._exit(0)\n"
+            "    open(marker, 'w', encoding='utf-8').write('late')\n"
+            "    os._exit(0)\n"
+            "sys.stdout.write('EARLY\\n')\n"
+            "sys.stdout.flush()\n"
+            "while True:\n"
+            "    sys.stdout.write('LATE\\n')\n"
+            "    sys.stdout.flush()\n"
+        )
+        started = time.monotonic()
+        with self.assertRaises(ProbeOutputBound):
+            run_closed(
+                [sys.executable, "-c", script],
+                timeout=5,
+                max_output=8192,
+                environ=self._ENV,
+            )
+        self.assertLess(time.monotonic() - started, 2.0)
+        self.assertFalse(marker.exists())
 
 
 class CacheIgnoreTests(unittest.TestCase):

@@ -72,7 +72,10 @@ EOF
 # ── paths ──────────────────────────────────────────────────────────────────
 # All overridable via env vars so consumers without Markus's exact layout
 # can still run the tool. Same {VAR:-default} pattern across all four.
-HOSTNAME_SHORT="$(hostname -s)"
+if command -v hostname >/dev/null 2>&1; then
+  HOSTNAME_SHORT="$(hostname -s 2>/dev/null || true)"
+fi
+HOSTNAME_SHORT="${HOSTNAME_SHORT:-$(uname -n 2>/dev/null || echo unknown)}"
 NIXCFG_DIR="${INSPR_NIXCFG_DIR:-$HOME/Code/nixcfg}"
 INSPR_DIR="${INSPR_DIR:-$HOME/Code/inspr}"
 SECRETS_DIR="${INSPR_AGENT_SECRETS_DIR:-$HOME/.inspr/secrets/agents}"

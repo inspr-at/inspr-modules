@@ -387,7 +387,9 @@ inspr readiness --profile /absolute/path/to/readiness.json --json
 ```
 
 `--no-cache` remains accepted. Probes are bounded and always observe
-fresh evidence; leftover cache files cannot change a result.
+fresh evidence; leftover cache files cannot change a result. The optional
+`inputs.cache_dir` key remains accepted for profile compatibility but is
+ignored.
 
 ### Expected digest derivation (read-only)
 

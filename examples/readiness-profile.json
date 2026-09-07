@@ -12,9 +12,9 @@
   "expected": {
     "host_kind": "macos-home-manager",
     "home_manager_generation_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
-            "doctrine_kernel_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
-            "doctrine_loader_ref": "@./doctrine/docs/AGENTS-KERNEL.md",
-            "config_revision": "rev1",
+    "doctrine_kernel_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "doctrine_loader_ref": "@./doctrine/docs/AGENTS-KERNEL.md",
+    "config_revision": "rev1",
     "paimos_instance": "studio",
     "paimos_deployment": "studio",
     "paimos_project_key": "INSPR",

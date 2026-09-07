@@ -27,7 +27,6 @@ MIN_TTL_SECONDS = 30
 SUBPROCESS_TIMEOUT_SECONDS = 20
 ACCOUNT_PROBE_TIMEOUT_SECONDS = 5
 ACCOUNT_PROBE_OUTPUT_BYTES = 1024
-CACHE_SCHEMA = "inspr.readiness.cache.v1"
 ACCOUNT_PROBE_CODEX_OUTPUT_BYTES = 512
 MAX_GENERATION_HOPS = 8
 
@@ -569,7 +568,7 @@ def aggregate(profile: Profile, checks: list[CheckResult], *, now: datetime) -> 
         result = by_id.get(check_id) or CheckResult(check_id, "unknown", "missing_required_evidence")
         required_statuses.append(result.status)
         if next_action == "none" and result.status != "pass":
-            next_action = _next_action(result)
+            next_action = _next_action(result, profile)
 
     if any(status in BLOCKING_UNKNOWN for status in required_statuses):
         overall = "unavailable"
@@ -594,10 +593,9 @@ def aggregate(profile: Profile, checks: list[CheckResult], *, now: datetime) -> 
     return evidence
 
 
-def _next_action(result: CheckResult) -> str:
+def _next_action(result: CheckResult, profile: Profile) -> str:
     mapping = {
         "host_kind": "adopt_nix_home_manager",
-        "activated_generation": "activate_home_manager",
         "doctrine_loader": "repair_doctrine_loader",
         "workspace_isolation": "select_declared_workspace",
         "tool_prerequisites": "install_declared_tools",
@@ -611,10 +609,10 @@ def _next_action(result: CheckResult) -> str:
         "nixos_unavailable_on_macos",
     }:
         return "adopt_nix_home_manager"
-    if result.reason == "generation_not_activated" and result.id == "activated_generation":
+    if result.id == "activated_generation":
+        if profile.expected.get("host_kind") == "nixos-home-manager":
+            return "activate_nixos_generation"
         return "activate_home_manager"
-    if result.reason == "nixos_generation_not_activated":
-        return "activate_nixos_generation"
     if result.reason.startswith("missing_integration"):
         return "install_missing_integration"
     if result.reason in {"runtime_action_required", "runtime_not_ready"}:

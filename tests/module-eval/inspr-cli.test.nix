@@ -66,7 +66,7 @@ let
     }
   ];
 
-    safetyTests = map (testCase: {
+  safetyTests = map (testCase: {
       inherit (testCase) name;
       assertion =
         let
