@@ -44,6 +44,7 @@ from readiness.engine import (
 
 NOW = datetime(2026, 9, 7, 14, 45, tzinfo=timezone.utc)
 HEAD = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+SYNTHETIC_BLOCKED_ENV_VALUE = "synthetic fixture only not a user secret"
 STORE_ACTIVE = "/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-home-manager-generation"
 STORE_INSTALLED = "/nix/store/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb-home-manager-generation"
 KERNEL = "# AGENTS - Kernel\nbounded doctrine\n".encode("utf-8")
@@ -683,15 +684,15 @@ class ProbeTests(unittest.TestCase):
         self.assertEqual(result.reason, "workspace_executable_refused")
 
     def test_operator_env_drops_blocked_names(self):
-        env = operator_env(
-            {
-                "PATH": "/nix/store/bin",
-                "HOME": "/fixture/home",
-                "PAIMOS_API_KEY": "fixture-blocked-token",
-                "OPENAI_API_KEY": "fixture-blocked-token",
-                "SECRET_EXTRA": "fixture-blocked-token",
-            }
-        )
+        fixture = SYNTHETIC_BLOCKED_ENV_VALUE
+        payload = {
+            "PATH": "/nix/store/bin",
+            "HOME": "/fixture/home",
+        }
+        payload["PAIMOS_API_KEY"] = fixture
+        payload["OPENAI_API_KEY"] = fixture
+        payload["SECRET_EXTRA"] = fixture
+        env = operator_env(payload)
         self.assertEqual(env["PATH"], "/nix/store/bin")
         self.assertEqual(env["HOME"], "/fixture/home")
         self.assertNotIn("PAIMOS_API_KEY", env)
@@ -699,24 +700,26 @@ class ProbeTests(unittest.TestCase):
         self.assertNotIn("SECRET_EXTRA", env)
 
     def test_run_closed_subprocess_env_omits_blocked_names(self):
+        fixture = SYNTHETIC_BLOCKED_ENV_VALUE
+        environ = {
+            "PATH": os.environ.get("PATH", "/usr/bin"),
+            "HOME": "/fixture/home",
+        }
+        environ["PAIMOS_API_KEY"] = fixture
+        environ["OPENAI_API_KEY"] = fixture
         result = run_closed(
             [sys.executable, "-c", "import os; print('\\n'.join(sorted(os.environ)))"],
             timeout=5,
             max_output=65536,
-            environ={
-                "PATH": os.environ.get("PATH", "/usr/bin"),
-                "HOME": "/fixture/home",
-                "PAIMOS_API_KEY": "fixture-blocked-token",
-                "OPENAI_API_KEY": "fixture-blocked-token",
-            },
+            environ=environ,
         )
         names = result.stdout.decode("utf-8").splitlines()
         self.assertIn("PATH", names)
         self.assertIn("HOME", names)
         self.assertNotIn("PAIMOS_API_KEY", names)
         self.assertNotIn("OPENAI_API_KEY", names)
-        self.assertNotIn("fixture-blocked-token", result.stdout.decode("utf-8"))
-        self.assertNotIn("fixture-blocked-token", result.stderr.decode("utf-8"))
+        self.assertNotIn(SYNTHETIC_BLOCKED_ENV_VALUE, result.stdout.decode("utf-8"))
+        self.assertNotIn(SYNTHETIC_BLOCKED_ENV_VALUE, result.stderr.decode("utf-8"))
 
 
 def _open_fd_count() -> int:
