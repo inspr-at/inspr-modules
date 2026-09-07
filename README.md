@@ -21,7 +21,7 @@ Reusable Home Manager modules + utilities from the [INSPR](https://inspr.at) ini
 | `devenv-direnv-fix` | `inspr.devenv.direnv-fix` | Declaratively materialize devenv's direnv-lib snippet (`~/.config/direnv/lib/z-devenv.sh`) with its colliding `_nix_direnv_preflight` function renamed to `_devenv_preflight`, so it stops shadowing nix-direnv's preflight when both libs are loaded. Source comes from `devenv direnvrc` at build time + `sed`-rename + sanity-grep — auto-tracks devenv version bumps. Without this, `use nix` in any `.envrc` errors with `--no-warn-dirty: command not found`. INSPR-175. |
 | `git-atelier-credentials` | `inspr.git.atelier` | Per-atelier outbound git credentials, **forge-agnostic** (works on GitHub, Forgejo, Codeberg, GitLab, Gitea, sourcehut, bare-SSH). **Strategy A** (per-repo SSH deploy keys, narrow servers) and **Strategy B** (per-host user SSH key, account-federated for workstations — the canonical answer to "this machine doesn't have permission to that service") both implemented; **Strategy C** (bot user / access token via credential helper) option-typed and throws on use — INSPR-168 follow-up. Strategy A produces per-repo SSH aliases (`<host>-<atelier>-<repo>`) with narrow URL rewrites; Strategy B produces one alias per atelier (`git-<atelier>`) with owner-prefix URL rewrites covering all repos under `forge.owner` automatically. Per-atelier commit author identity (`git.userName`, `git.userEmail`, optional `git.workspacePath`) wires `includeIf` rules so commits attribute correctly per-persona (gitdir-scoped when `workspacePath` set, else `hasconfig:remote.*.url:` match on git 2.36+). All SSH match blocks use `HostKeyAlias` so one known_hosts entry covers all aliased paths; managed `~/.ssh/known_hosts.d/inspr-git-atelier-<name>` files ship vendor-published host keys for github.com + codeberg.org (self-hosted forges supply via `forge.extraKnownHosts`). Multi-atelier per host supported; Strategy A + B coexist on the same atelier with "longest insteadOf wins" precedence. The full design and 4-tier scaling story live in the maintainer's private design notes; the option documentation in `modules/home-manager/git-atelier-credentials.nix` is self-contained. |
 | `git-identity` | `inspr.git-identity` | Multi-identity git config with both `gitdir:` AND `hasconfig:remote.*.url:` includeIf rules. The repo's own remote URL picks the identity automatically — no per-host directory list to maintain. |
-| `inspr-cli` | `inspr.cli` | Renders the `inspr` CLI's fleet configuration (Headscale, tracker, Pharos, expected git identity). Endpoints and identity metadata only — never credentials. Unset values make the dependent checks SKIP rather than FAIL, so the CLI is useful before you have configured anything. |
+| `inspr-cli` | `inspr.cli` | Renders the `inspr` CLI's fleet configuration (Headscale, tracker, Pharos, expected git identity) and, optionally, an operator-owned JSON readiness profile. Endpoints, identity metadata, and opaque readiness identities only — never credentials. Unset fleet values make the dependent `inspr check` items SKIP rather than FAIL. Readiness JSON is never sourced as shell. |
 | `paimos-config` | `inspr.paimos-cli` | Declaratively materializes routing only (`default_instance` + URLs). URLs may be literals or come from a routing env file. It never handles API credentials: INSPR workstations authenticate interactively into the OS keyring; headless automation injects `PAIMOS_URL` + `PAIMOS_API_KEY` into the running process from approved encrypted storage. |
 | `ssh-authorized` | `inspr.ssh.authorized` | Declarative `~/.ssh/authorized_keys` via aliased key map + trust list. Manages a marker-delimited block; lines outside the markers (Headscale deploy keys, GitHub Actions OIDC, recovery keys) are preserved across activations. Sorted output → byte-identical regardless of input order. Throws at eval time if `trust` references an undeclared alias. **Rich keys form** (since INSPR-77) supports per-key `{ status; note; }` metadata for grandfathering: `legacy` keys render with a `[legacy]` tag for fleet-wide audit, `revoked` keys keep the declaration as historical record but are not admitted (and throw if accidentally left in `trust`). |
 | `default` | (aggregate) | Imports seven of the eight above — **`inspr-cli` is excluded on purpose**, because it writes a `fleet.conf` and should be an explicit opt-in rather than something an aggregate turns on for you. Import it by name if you want it. Consumers wanting à-la-carte should import individual modules. |
@@ -37,7 +37,7 @@ Reusable Home Manager modules + utilities from the [INSPR](https://inspr.at) ini
 
 | Package | What it does |
 |---|---|
-| `inspr` | The INSPR CLI (evolved from `inspr-doctor`, INSPR-195): `check` (read-only drift diagnosis, incl. the kernel byte-budget gate), `heal` (apply mapped fixes with verified-applied semantics), `onboard` (fresh-host walkthrough, optional Pharos registration), `post-deploy` (nixcfg → Pharos → HostDash validation). |
+| `inspr` | The INSPR CLI (evolved from `inspr-doctor`, INSPR-195): `check` (read-only drift diagnosis, incl. the kernel byte-budget gate), `readiness` (read-only, machine-readable development-machine probe driven by an operator-owned project profile), `heal` (apply mapped fixes with verified-applied semantics), `onboard` (fresh-host walkthrough, optional Pharos registration), `post-deploy` (nixcfg → Pharos → HostDash validation). |
 | `secrets-audit` | Bash script: detects drift between `secrets/*.age` files and their declarations in `secrets/secrets.nix`. Three modes: human report, `--quiet`, `--json`. |
 
 ## Consumer pattern
@@ -360,6 +360,51 @@ the only thing that catches it. That check exists because it happened.
 Nothing in this file is a credential. Every value is an endpoint or public
 identity metadata, and the rendered file is world-readable; authentication
 lives in the OS keyring.
+
+## Running `inspr readiness` with a named profile
+
+`inspr check` answers "is this host onboarded onto the INSPR operating
+layer?". `inspr readiness` answers a narrower, project-scoped question:
+does **this** execution host, runtime, account, harness, and workspace
+currently match an operator-owned profile, with evidence that is safe to
+export? It is a prerequisite for later Paimos launch enforcement, not a
+compliance certificate, not a heal action, and not launch gating.
+
+First supported execution hosts are **NixOS** and **macOS with activated
+Home Manager**. Other onboarding remains `unavailable`, with next action
+`adopt_nix_home_manager`. The probe never activates Nix, never switches
+accounts, never starts a worker or model turn, and never treats
+browser-supplied JSON as proof.
+
+Copy [`examples/readiness-profile.json`](examples/readiness-profile.json)
+and fill in **your** opaque identities and expected digests. Then:
+
+```bash
+inspr readiness --profile /absolute/path/to/readiness.json --json
+```
+
+Home Manager can materialize the same JSON without sourcing it as shell:
+
+```nix
+imports = [ inputs.inspr-modules.homeManagerModules.inspr-cli ];
+
+inspr.cli.readiness = {
+  enable = true;
+  profile = builtins.fromJSON (builtins.readFile ./readiness.json);
+};
+# then: inspr readiness --profile ~/.config/inspr/readiness.json --json
+```
+
+Compatibility: `inspr check`, `heal`, `onboard`, and `post-deploy` keep
+their existing flags and skip/fail behaviour. `inspr check --profile=`
+still selects the workstation/server **doctor** class; `inspr readiness
+--profile PATH` is a different flag on a different sub-command.
+
+What this command does **not** prove: live customer acceptance, Paimos
+launch gating, or a named-account match that requires Paimos agentd
+`account/read`. Missing native integrations are reported as
+`unavailable` with a `missing_integration_*` reason; they are never
+fabricated as pass.
 
 ## Checking that your wiring actually resolves
 

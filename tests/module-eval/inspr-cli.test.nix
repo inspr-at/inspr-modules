@@ -66,17 +66,30 @@ let
     }
   ];
 
-  safetyTests = map (testCase: {
-    inherit (testCase) name;
-    assertion =
-      let
-        text = renderedText { exampleHost = testCase.value; };
-      in
-      lib.hasSuffix "${assignment "INSPR_EXAMPLE_HOST" testCase.value}\n" text
-      && lib.length (lib.filter
-        (line: lib.hasPrefix "INSPR_" line)
-        (lib.splitString "\n" text)) == 1;
-  }) shellCases;
+    safetyTests = map (testCase: {
+      inherit (testCase) name;
+      assertion =
+        let
+          text = renderedText { exampleHost = testCase.value; };
+        in
+        lib.hasSuffix "${assignment "INSPR_EXAMPLE_HOST" testCase.value}\n" text
+        && lib.length (lib.filter
+          (line: lib.hasPrefix "INSPR_" line)
+          (lib.splitString "\n" text)) == 1;
+    }) shellCases;
+
+  readinessProfile = {
+    contract_version = "inspr.readiness.v1";
+    profile_id = "studio-dev";
+    identities = {
+      execution_host = "host-alpha";
+      runtime = "studio";
+      project = "INSPR";
+      account = "coordinator";
+      harness = "claude";
+      workspace = "wt-readiness";
+    };
+  };
 
   tests = [
     {
@@ -135,6 +148,50 @@ let
           (assignment "INSPR_GIT_IDENTITY_EMAIL" "identity-email")
           (assignment "INSPR_EXAMPLE_HOST" "example-host")
         ];
+    }
+
+    {
+      name = "disabled readiness emits no readiness profile";
+      assertion =
+        let
+          result = evalModule {
+            module = insprCli;
+            config = { };
+          };
+        in
+        result.success && !((result.config.xdg.configFile or { }) ? "inspr/readiness.json");
+    }
+
+    {
+      name = "readiness JSON is not shell-sourced and preserves active strings";
+      assertion =
+        let
+          result = evalModule {
+            module = insprCli;
+            config.inspr.cli.readiness = {
+              enable = true;
+              profile = readinessProfile // {
+                expected.host_kind = "$(touch readiness-marker)";
+              };
+            };
+          };
+          text = result.config.xdg.configFile."inspr/readiness.json".text;
+        in
+        result.success
+        && lib.hasInfix "$(touch readiness-marker)" text
+        && !(lib.hasPrefix "INSPR_" text);
+    }
+
+    {
+      name = "readiness enable without profile fails closed";
+      assertion =
+        let
+          result = evalModule {
+            module = insprCli;
+            config.inspr.cli.readiness.enable = true;
+          };
+        in
+        result.success && builtins.any (item: item.message == "inspr.cli.readiness.profile must be set when inspr.cli.readiness.enable is true") result.failedAssertions;
     }
   ] ++ safetyTests;
 in

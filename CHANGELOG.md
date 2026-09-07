@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- `inspr readiness` — a read-only, machine-readable development-machine
+  probe driven by an operator-owned JSON profile (`inspr.readiness.v1`).
+  It binds opaque host/runtime/project/account/harness/workspace
+  identities, expected generation and doctrine digests, and closed
+  built-in probes. Required unknown, unsupported, or stale evidence
+  cannot be `ready`. Existing `check` / `heal` / `onboard` /
+  `post-deploy` behaviour is unchanged. This is not Paimos launch
+  gating and not a live customer-acceptance claim. [INSPR-377]
+
+---
+
 ## [0.4.0] - 2026-08-18
 
 First release whose documentation describes the release. Everything below

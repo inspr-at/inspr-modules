@@ -1,0 +1,47 @@
+{
+  "contract_version": "inspr.readiness.v1",
+  "profile_id": "studio-dev",
+  "identities": {
+    "execution_host": "host-alpha",
+    "runtime": "studio",
+    "project": "INSPR",
+    "account": "coordinator",
+    "harness": "claude",
+    "workspace": "wt-readiness"
+  },
+  "expected": {
+    "host_kind": "macos-home-manager",
+    "home_manager_generation_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "doctrine_kernel_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "config_revision": "rev1",
+    "paimos_instance": "studio",
+    "paimos_deployment": "studio",
+    "paimos_project_key": "INSPR",
+    "account_label": "claude_ai_max",
+    "harness": "claude",
+    "model": "opus",
+    "effort": "xhigh",
+    "workspace_mode": "exclusive",
+    "workspace_identity_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "tools": ["nix", "git", "paimos"]
+  },
+  "requested_capabilities": ["runtime_ready", "exclusive_workspace"],
+  "checks": {
+    "required": [
+      "host_kind",
+      "activated_generation",
+      "doctrine_loader",
+      "workspace_isolation",
+      "tool_prerequisites",
+      "paimos_runtime_doctor",
+      "paimos_account"
+    ],
+    "optional": ["dispatch_profile"]
+  },
+  "inputs": {
+    "workspace_root": "/absolute/path/to/workspace",
+    "doctrine_kernel": "/absolute/path/to/workspace/doctrine/docs/AGENTS-KERNEL.md",
+    "doctrine_loader": "/absolute/path/to/workspace/CLAUDE.md"
+  },
+  "observation_ttl_seconds": 300
+}

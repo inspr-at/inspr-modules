@@ -24,6 +24,10 @@
 #
 # Nothing here is a credential. Every value is an endpoint or a name, and the
 # rendered file is world-readable. Auth lives in the OS keyring.
+#
+# Optional `inspr.cli.readiness` materializes an operator-owned JSON profile
+# for `inspr readiness`. That file is never sourced as shell; the CLI validates
+# a closed contract before any probe.
 { config, lib, ... }:
 let
   cfg = config.inspr.cli;
@@ -31,10 +35,35 @@ let
   line = name: value:
     lib.optionalString (value != null && value != "")
       "${name}=${lib.escapeShellArg value}";
+  readinessJson =
+    if cfg.readiness.profile == null then
+      null
+    else
+      builtins.toJSON cfg.readiness.profile;
 in
 {
   options.inspr.cli = {
     enable = lib.mkEnableOption "declarative fleet config for the inspr CLI";
+
+    readiness = {
+      enable = lib.mkEnableOption "declarative JSON profile for inspr readiness";
+      profile = lib.mkOption {
+        type = lib.types.nullOr lib.types.attrs;
+        default = null;
+        example = {
+          contract_version = "inspr.readiness.v1";
+          profile_id = "studio-dev";
+        };
+        description = ''
+          Operator-owned readiness profile as a Nix attrset, serialized to
+          JSON at `xdg.configFile."inspr/readiness.json"`. Customer-specific
+          identities and expected revisions belong here. The file is never
+          sourced as shell and must not contain credentials, emails, or
+          command fields. `inspr readiness` validates the closed contract
+          before running built-in probes.
+        '';
+      };
+    };
 
     fleet = {
       headscaleUrl = lib.mkOption {
@@ -107,20 +136,37 @@ in
     };
   };
 
-  config = lib.mkIf cfg.enable {
-    xdg.configFile."inspr/fleet.conf".text = ''
-      # Rendered by inspr-modules homeManagerModules.inspr-cli — do not edit.
-      # Change the values in your Home Manager configuration instead.
-    '' + lib.concatStringsSep "\n" (lib.filter (l: l != "") [
-      (line "INSPR_HEADSCALE_URL" f.headscaleUrl)
-      (line "INSPR_TAILNET_NAME" f.tailnetName)
-      (line "INSPR_PAIMOS_URL" f.paimosUrl)
-      (line "INSPR_PAIMOS_INSTANCE" f.paimosInstance)
-      (line "INSPR_PHAROS_URL" f.pharosUrl)
-      (line "INSPR_PHAROS_HOST" f.pharosHost)
-      (line "INSPR_GIT_IDENTITY_NAME" f.gitIdentityName)
-      (line "INSPR_GIT_IDENTITY_EMAIL" f.gitIdentityEmail)
-      (line "INSPR_EXAMPLE_HOST" f.exampleHost)
-    ]) + "\n";
-  };
+  config = lib.mkMerge [
+    (lib.mkIf cfg.enable {
+      xdg.configFile."inspr/fleet.conf".text = ''
+        # Rendered by inspr-modules homeManagerModules.inspr-cli — do not edit.
+        # Change the values in your Home Manager configuration instead.
+      '' + lib.concatStringsSep "\n" (lib.filter (l: l != "") [
+        (line "INSPR_HEADSCALE_URL" f.headscaleUrl)
+        (line "INSPR_TAILNET_NAME" f.tailnetName)
+        (line "INSPR_PAIMOS_URL" f.paimosUrl)
+        (line "INSPR_PAIMOS_INSTANCE" f.paimosInstance)
+        (line "INSPR_PHAROS_URL" f.pharosUrl)
+        (line "INSPR_PHAROS_HOST" f.pharosHost)
+        (line "INSPR_GIT_IDENTITY_NAME" f.gitIdentityName)
+        (line "INSPR_GIT_IDENTITY_EMAIL" f.gitIdentityEmail)
+        (line "INSPR_EXAMPLE_HOST" f.exampleHost)
+      ]) + "\n";
+    })
+    (lib.mkIf cfg.readiness.enable {
+      assertions = [
+        {
+          assertion = cfg.readiness.profile != null;
+          message = "inspr.cli.readiness.profile must be set when inspr.cli.readiness.enable is true";
+        }
+        {
+          assertion = readinessJson == null || builtins.stringLength readinessJson <= 65536;
+          message = "inspr.cli.readiness.profile exceeds the 64KiB readiness profile bound";
+        }
+      ];
+      xdg.configFile = lib.optionalAttrs (readinessJson != null) {
+        "inspr/readiness.json".text = readinessJson + "\n";
+      };
+    })
+  ];
 }

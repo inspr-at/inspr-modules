@@ -2,8 +2,8 @@
 #
 # The agent-ready operating layer's diagnostic + heal + onboard tool.
 # Replaces the older `inspr-doctor.sh` (single-purpose probe) with a
-# fuller sub-command CLI: check / heal / onboard, plus --vision and
-# --help flags. See VISION.md (`inspr --vision`) for the mission.
+# fuller sub-command CLI: check / heal / onboard / readiness, plus --vision
+# and --help flags. See VISION.md (`inspr --vision`) for the mission.
 #
 # Packaging note: identical pattern to ./secrets-audit (writeShellApplication
 # with shellcheck at build time + automatic-minimum dependency closure).
@@ -13,6 +13,8 @@
 {
   lib,
   writeShellApplication,
+  runCommand,
+  python3,
   coreutils,
   findutils,
   gnugrep,
@@ -24,6 +26,12 @@
   openssh,
 }:
 
+let
+  readinessLib = runCommand "inspr-readiness-lib" { } ''
+    mkdir -p "$out/readiness"
+    cp -R ${./readiness}/. "$out/readiness/"
+  '';
+in
 writeShellApplication {
   name = "inspr";
 
@@ -37,6 +45,7 @@ writeShellApplication {
     yq-go      # structural, non-printing Paimos config validation
     curl       # headscale /health probe
     openssh    # optional live-host deployment checks
+    python3    # closed readiness contract + probes
   ];
 
   # The script deliberately uses `set -uo pipefail` WITHOUT `-e`. Each
@@ -72,10 +81,12 @@ writeShellApplication {
     "SC2329"
   ];
 
-  text = builtins.readFile ./inspr.sh;
+  text = ''
+    export INSPR_READINESS_LIB=${lib.escapeShellArg (toString readinessLib)}
+  '' + builtins.readFile ./inspr.sh;
 
   meta = {
-    description = "INSPR onboarding + drift-heal CLI (check / heal / onboard / --vision)";
+    description = "INSPR onboarding + drift-heal CLI (check / heal / onboard / readiness / --vision)";
     homepage = "https://github.com/inspr-at/inspr-modules";
     license = lib.licenses.agpl3Only;
     mainProgram = "inspr";

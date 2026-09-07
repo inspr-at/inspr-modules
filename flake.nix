@@ -46,8 +46,8 @@
 #                                       secrets/*.age and secrets.nix
 #                                       declarations.
 #   packages.<system>.inspr            Bash CLI: INSPR onboarding diagnostic +
-#                                       heal + onboard sub-commands. Replaces
-#                                       the older inspr-doctor.sh probe.
+#                                       heal + onboard + readiness sub-commands.
+#                                       Replaces the older inspr-doctor.sh probe.
 #
 # Consumer pattern (in your flake.nix):
 #   inputs.inspr-modules.url = "github:inspr-at/inspr-modules/v0.4.4";  # pin a tag; main moves
@@ -300,6 +300,31 @@
               inherit pkgs;
             };
 
+            # Read-only development-machine readiness contract and CLI
+            # (INSPR-377). Deterministic fixtures only; does not claim live
+            # customer acceptance or Paimos launch gating. Runs on Darwin
+            # without building NixOS.
+            inspr-readiness =
+              let
+                insprPkg = pkgs.callPackage ./pkgs/inspr { };
+              in
+              pkgs.runCommand "inspr-readiness"
+                {
+                  nativeBuildInputs = [
+                    pkgs.python3
+                    pkgs.bash
+                    pkgs.coreutils
+                    pkgs.git
+                    pkgs.gnugrep
+                  ];
+                }
+                ''
+                  export PYTHONPATH=${./pkgs/inspr}
+                  export INSPR=${insprPkg}/bin/inspr
+                  python3 -m unittest discover -s ${./tests/inspr-readiness} -p 'test_*.py' -v
+                  touch $out
+                '';
+
             # Kernel-mirror freshness gate (INSPR-278). Editing the kernel
             # without re-mirroring AGENTS.md burned us in INSPR-269 (the 🔴
             # trust-contexts rule was invisible to non-Claude harnesses for
@@ -356,7 +381,7 @@
               pkgs.runCommand "inspr-help-surface"
                 { nativeBuildInputs = [ pkgs.gnugrep ]; } ''
                   help="$(${insprPkg}/bin/inspr --help)"
-                  for cmd in check heal onboard post-deploy; do
+                  for cmd in check heal onboard post-deploy readiness; do
                     printf '%s' "$help" | grep -q "$cmd" || {
                       echo "inspr --help no longer mentions '$cmd'" >&2
                       exit 1
