@@ -28,12 +28,19 @@ SUBPROCESS_TIMEOUT_SECONDS = 20
 ACCOUNT_PROBE_TIMEOUT_SECONDS = 5
 ACCOUNT_PROBE_OUTPUT_BYTES = 1024
 CACHE_SCHEMA = "inspr.readiness.cache.v1"
+ACCOUNT_PROBE_CODEX_OUTPUT_BYTES = 512
+MAX_GENERATION_HOPS = 8
 
 DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 IDENTITY_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 ACCOUNT_KEY_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 TOOL_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$")
 REVISION_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
+LOADER_REF_RE = re.compile(r"^@\./(?:[A-Za-z0-9._-]+/)*AGENTS-KERNEL\.md$")
+DOCTOR_LAYER_NAME_RE = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
+LEGACY_AUTOLOAD_REF_RE = re.compile(
+    r"@\./(?:[A-Za-z0-9._-]+/)*AGENTS-(?:CORE|PROFILE-[A-Z0-9][A-Z0-9_-]*)\.md"
+)
 
 HOST_KINDS = ("nixos-home-manager", "macos-home-manager")
 HARNESSES = ("claude", "codex")
@@ -130,6 +137,7 @@ EXPECTED_KEYS = frozenset(
         "home_manager_generation_digest",
         "nix_system_generation_digest",
         "doctrine_kernel_digest",
+        "doctrine_loader_ref",
         "config_revision",
         "flake_lock_digest",
         "paimos_instance",
@@ -431,6 +439,11 @@ def _parse_expected(raw: Mapping[str, Any]) -> dict[str, Any]:
     ):
         if digest_field in raw and raw[digest_field] not in (None, ""):
             expected[digest_field] = require_digest(raw[digest_field], field=digest_field)
+    if "doctrine_loader_ref" in raw and raw["doctrine_loader_ref"] not in (None, ""):
+        value = raw["doctrine_loader_ref"]
+        if not isinstance(value, str) or len(value) > MAX_STRING or not LOADER_REF_RE.fullmatch(value):
+            raise ProfileError("invalid_doctrine_loader_ref")
+        expected["doctrine_loader_ref"] = value
     if "config_revision" in raw and raw["config_revision"] not in (None, ""):
         if not isinstance(raw["config_revision"], str) or not REVISION_RE.fullmatch(raw["config_revision"]):
             raise ProfileError("invalid_config_revision")
@@ -512,6 +525,8 @@ def _require_check_inputs(required: tuple[str, ...], expected: Mapping[str, Any]
     if "doctrine_loader" in required:
         if "doctrine_kernel_digest" not in expected:
             raise ProfileError("missing_doctrine_kernel_digest")
+        if "doctrine_loader_ref" not in expected:
+            raise ProfileError("missing_doctrine_loader_ref")
         if "doctrine_kernel" not in inputs or "doctrine_loader" not in inputs:
             raise ProfileError("missing_doctrine_inputs")
     if "workspace_isolation" in required:
@@ -549,21 +564,12 @@ def expected_revisions(profile: Profile) -> dict[str, str]:
 def aggregate(profile: Profile, checks: list[CheckResult], *, now: datetime) -> Evidence:
     by_id = {item.id: item for item in checks}
     required_statuses = []
-    optional_warn = False
     next_action = "none"
     for check_id in profile.required_checks:
         result = by_id.get(check_id) or CheckResult(check_id, "unknown", "missing_required_evidence")
         required_statuses.append(result.status)
         if next_action == "none" and result.status != "pass":
             next_action = _next_action(result)
-    for check_id in profile.optional_checks:
-        result = by_id.get(check_id)
-        if result is not None and result.status == "warn":
-            optional_warn = True
-        elif result is not None and result.status in BLOCKING_UNKNOWN:
-            optional_warn = True
-        elif result is not None and result.status == "fail":
-            optional_warn = True
 
     if any(status in BLOCKING_UNKNOWN for status in required_statuses):
         overall = "unavailable"
@@ -573,11 +579,6 @@ def aggregate(profile: Profile, checks: list[CheckResult], *, now: datetime) -> 
         overall = "ready"
     else:
         overall = "unavailable"
-    if overall == "ready":
-        next_action = "none"
-        if optional_warn:
-            # Warnings do not demote ready; they remain on the optional checks.
-            pass
     evidence = Evidence(
         status=overall,
         observed_at=now,

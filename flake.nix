@@ -321,6 +321,10 @@
                 ''
                   export PYTHONPATH=${./pkgs/inspr}
                   export INSPR=${insprPkg}/bin/inspr
+                  export GIT_AUTHOR_NAME=ReadinessFixture
+                  export GIT_AUTHOR_EMAIL=dev@example.invalid
+                  export GIT_COMMITTER_NAME=ReadinessFixture
+                  export GIT_COMMITTER_EMAIL=dev@example.invalid
                   python3 -m unittest discover -s ${./tests/inspr-readiness} -p 'test_*.py' -v
                   touch $out
                 '';

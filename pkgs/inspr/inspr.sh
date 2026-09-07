@@ -1060,7 +1060,7 @@ ${BOLD}Usage:${RESET}
 ${BOLD}Flags:${RESET}
   ${CYAN}--profile PATH${RESET}   Operator-owned JSON profile. Never sourced as shell.
   ${CYAN}--json${RESET}           JSON evidence only on stdout.
-  ${CYAN}--no-cache${RESET}       Ignore and do not write the bounded evidence cache.
+  ${CYAN}--no-cache${RESET}       Accepted for compatibility; probes always observe fresh evidence.
   ${CYAN}-h, --help${RESET}       Show this help.
 
 ${BOLD}Exit codes:${RESET}

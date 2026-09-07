@@ -15,10 +15,16 @@ from pathlib import Path
 from readiness.contract import CONTRACT_VERSION, digest_bytes
 from readiness.engine import generation_digest, workspace_identity_digest
 
-ROOT = Path(__file__).resolve().parents[2]
-PYTHONPATH = str(ROOT / "pkgs" / "inspr")
+
+def _readiness_pythonpath() -> str:
+    for entry in os.environ.get("PYTHONPATH", "").split(os.pathsep):
+        if entry and (Path(entry) / "readiness").is_dir():
+            return entry
+    return str(Path(__file__).resolve().parents[2] / "pkgs" / "inspr")
+
+
+PYTHONPATH = _readiness_pythonpath()
 KERNEL = "# AGENTS - Kernel\nbounded doctrine\n".encode("utf-8")
-HEAD = None
 
 
 def run_cli(profile: Path, env: dict[str, str], extra: list[str] | None = None) -> subprocess.CompletedProcess[str]:
@@ -45,10 +51,40 @@ class RealCliTests(unittest.TestCase):
         (self.workspace / "doctrine" / "docs" / "AGENTS-KERNEL.md").write_bytes(KERNEL)
         (self.workspace / "CLAUDE.md").write_text("@./doctrine/docs/AGENTS-KERNEL.md\n", encoding="utf-8")
         subprocess.run(["git", "init", "-q", str(self.workspace)], check=True)
-        subprocess.run(["git", "-C", str(self.workspace), "config", "user.email", "dev@example.invalid"], check=True)
-        subprocess.run(["git", "-C", str(self.workspace), "config", "commit.gpgsign", "false"], check=True)
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(self.workspace),
+                "-c",
+                "user.name=ReadinessFixture",
+                "-c",
+                "user.email=dev@example.invalid",
+                "config",
+                "commit.gpgsign",
+                "false",
+            ],
+            check=True,
+        )
         subprocess.run(["git", "-C", str(self.workspace), "add", "CLAUDE.md", "doctrine/docs/AGENTS-KERNEL.md"], check=True)
-        subprocess.run(["git", "-C", str(self.workspace), "commit", "-q", "-m", "fixture"], check=True)
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(self.workspace),
+                "-c",
+                "user.name=ReadinessFixture",
+                "-c",
+                "user.email=dev@example.invalid",
+                "-c",
+                "commit.gpgsign=false",
+                "commit",
+                "-q",
+                "-m",
+                "fixture",
+            ],
+            check=True,
+        )
         head = subprocess.check_output(["git", "-C", str(self.workspace), "rev-parse", "HEAD"], text=True).strip()
         git_dir = subprocess.check_output(["git", "-C", str(self.workspace), "rev-parse", "--git-dir"], text=True).strip()
         common = subprocess.check_output(["git", "-C", str(self.workspace), "rev-parse", "--git-common-dir"], text=True).strip()
@@ -56,11 +92,14 @@ class RealCliTests(unittest.TestCase):
         self.workspace_digest = workspace_identity_digest(head, is_worktree=git_dir != common, mode="exclusive")
         store = "/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-home-manager-generation"
         current = self.home / ".local/state/home-manager/gcroots/current-home"
-        profile = self.home / ".local/state/nix/profiles/home-manager"
+        profiles = self.home / ".local/state/nix/profiles"
+        profile = profiles / "home-manager"
+        generation_link = profiles / "home-manager-78-link"
         current.parent.mkdir(parents=True)
-        profile.parent.mkdir(parents=True)
+        profiles.mkdir(parents=True)
         current.symlink_to(store)
-        profile.symlink_to(store)
+        profile.symlink_to("home-manager-78-link")
+        generation_link.symlink_to(store)
         self.generation = generation_digest(store)
         self._write_tool("paimos", self._paimos_script())
         self._write_tool("claude", self._claude_script())
@@ -127,6 +166,7 @@ printf '%s\\n' '{"loggedIn":true,"authMethod":"claude.ai","subscriptionType":"ma
             "host_kind": "macos-home-manager",
             "home_manager_generation_digest": self.generation,
             "doctrine_kernel_digest": digest_bytes(KERNEL),
+            "doctrine_loader_ref": "@./doctrine/docs/AGENTS-KERNEL.md",
             "config_revision": "rev1",
             "paimos_instance": "studio",
             "paimos_deployment": "studio",
@@ -187,6 +227,68 @@ printf '%s\\n' '{"loggedIn":true,"authMethod":"claude.ai","subscriptionType":"ma
         self.assertNotIn("/Users/", result.stdout)
         self.assertNotIn("should-not-export", result.stdout)
         self.assertNotIn("dev@example.invalid", result.stdout)
+
+    def test_missing_profile_is_usage_error_without_path_or_traceback(self):
+        missing = self.root / "definitely-not-here.json"
+        result = run_cli(missing, self.env)
+        self.assertEqual(result.returncode, 2)
+        self.assertNotIn("Traceback", result.stdout)
+        self.assertNotIn("Traceback", result.stderr)
+        error = json.loads(result.stdout)
+        self.assertEqual(error["error"], "profile_invalid")
+        self.assertEqual(error["reason"], "unreadable_profile")
+        self.assertNotIn(str(missing), result.stdout)
+        self.assertNotIn(str(missing), result.stderr)
+        self.assertNotIn("/Users/", result.stdout + result.stderr)
+
+    def test_directory_profile_is_usage_error_without_path_or_traceback(self):
+        result = run_cli(self.root, self.env)
+        self.assertEqual(result.returncode, 2)
+        self.assertNotIn("Traceback", result.stdout)
+        self.assertNotIn("Traceback", result.stderr)
+        error = json.loads(result.stdout)
+        self.assertEqual(error["error"], "profile_invalid")
+        self.assertEqual(error["reason"], "unsafe_profile_path")
+        self.assertNotIn(str(self.root), result.stdout)
+        self.assertNotIn(str(self.root), result.stderr)
+
+    def test_unreadable_profile_is_usage_error_without_path(self):
+        path = self.root / "secret-profile.json"
+        path.write_text("{}", encoding="utf-8")
+        path.chmod(0)
+        try:
+            result = run_cli(path, self.env)
+        finally:
+            path.chmod(0o600)
+        self.assertEqual(result.returncode, 2)
+        self.assertNotIn("Traceback", result.stdout + result.stderr)
+        error = json.loads(result.stdout)
+        self.assertEqual(error["error"], "profile_invalid")
+        self.assertIn(error["reason"], {"unreadable_profile", "profile_json"})
+        self.assertNotIn(str(path), result.stdout)
+        self.assertNotIn(str(path), result.stderr)
+
+    def test_forged_cache_does_not_change_cli_observation(self):
+        if sys.platform != "darwin":
+            self.skipTest("first-supported live CLI host class is macOS Home Manager")
+        profile = self._profile()
+        cache_file = self.cache / "forged-ready.json"
+        cache_file.write_text(
+            json.dumps({"status": "ready", "checks": [{"id": "host_kind", "status": "pass", "reason": "host_kind_supported"}]}),
+            encoding="utf-8",
+        )
+        result = run_cli(profile, self.env)
+        payload = json.loads(result.stdout)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(payload["status"], "ready")
+        current = self.home / ".local/state/home-manager/gcroots/current-home"
+        current.unlink()
+        broken = run_cli(profile, self.env)
+        broken_payload = json.loads(broken.stdout)
+        self.assertEqual(broken.returncode, 1)
+        self.assertEqual(broken_payload["status"], "needs_setup")
+        generation = next(item for item in broken_payload["checks"] if item["id"] == "activated_generation")
+        self.assertEqual(generation["reason"], "generation_not_activated")
 
     def test_real_cli_rejects_relative_path_escape(self):
         bad = self.root / "bad.json"

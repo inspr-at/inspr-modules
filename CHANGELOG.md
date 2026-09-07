@@ -20,6 +20,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `post-deploy` behaviour is unchanged. This is not Paimos launch
   gating and not a live customer-acceptance claim. [INSPR-377]
 
+### Fixed
+
+- Home Manager and NixOS generation comparison follows the real
+  multi-hop profile chain (relative `*-N-link` → `/nix/store/…`) with
+  cycle and hop bounds, so an activated host is not reported as
+  `generation_not_activated`.
+- Expired or forged result-cache files cannot skip probes or promote
+  `ready`; probes always observe fresh evidence. `--no-cache` stays
+  accepted for compatibility.
+- Missing, unreadable, or directory profile paths emit closed JSON with
+  exit 2 and do not print host paths or tracebacks.
+- Codex account class requires the documented `codex login status` line,
+  not a help/error substring. Unknown future doctor layers may be
+  ignored only after schema and known-layer validation. `host_kind`
+  does not treat Darwin alone as Home Manager activation.
+
 ---
 
 ## [0.4.0] - 2026-08-18

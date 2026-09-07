@@ -370,11 +370,14 @@ currently match an operator-owned profile, with evidence that is safe to
 export? It is a prerequisite for later Paimos launch enforcement, not a
 compliance certificate, not a heal action, and not launch gating.
 
-First supported execution hosts are **NixOS** and **macOS with activated
-Home Manager**. Other onboarding remains `unavailable`, with next action
-`adopt_nix_home_manager`. The probe never activates Nix, never switches
-accounts, never starts a worker or model turn, and never treats
-browser-supplied JSON as proof.
+First supported execution hosts are **NixOS with Home Manager** and **macOS
+with Home Manager**. `host_kind` records that class from observed Home
+Manager generation pointers; it does not treat Darwin alone as proof of
+activation. Activation of the expected generation is a separate required
+check when the operator includes `activated_generation`. Other onboarding
+remains `unavailable`, with next action `adopt_nix_home_manager`. The
+probe never activates Nix, never switches accounts, never starts a worker
+or model turn, and never treats browser-supplied JSON as proof.
 
 Copy [`examples/readiness-profile.json`](examples/readiness-profile.json)
 and fill in **your** opaque identities and expected digests. Then:
@@ -382,6 +385,35 @@ and fill in **your** opaque identities and expected digests. Then:
 ```bash
 inspr readiness --profile /absolute/path/to/readiness.json --json
 ```
+
+`--no-cache` remains accepted. Probes are bounded and always observe
+fresh evidence; leftover cache files cannot change a result.
+
+### Expected digest derivation (read-only)
+
+Digests are `sha256:` plus 64 lowercase hex characters. They are computed
+from **opaque identifiers**, never from path strings, emails, or command
+output:
+
+| Profile field | Exact input to SHA-256 |
+|---|---|
+| `home_manager_generation_digest` | basename of the fully resolved `/nix/store/…-home-manager-generation` path (Home Manager `current-home` is usually one hop; `~/.local/state/nix/profiles/home-manager` is `home-manager → home-manager-N-link → store`) |
+| `nix_system_generation_digest` | basename of the fully resolved `/nix/store/…` system path (`/run/current-system` vs `/nix/var/nix/profiles/system` → `system-N-link` → store) |
+| `workspace_identity_digest` | UTF-8 of `<head>\|worktree=<0\|1>\|mode=<exclusive\|shared>`, where `<head>` is `git rev-parse HEAD` and worktree is 1 when `--git-dir` differs from `--git-common-dir` |
+| `doctrine_kernel_digest` | bytes of the file named by `inputs.doctrine_kernel` |
+
+`expected.doctrine_loader_ref` is the operator-owned kernel `@-ref` that
+must appear in the loader file, using the generic doctrine pattern
+`@./…/AGENTS-KERNEL.md` (for example `@./doctrine/docs/AGENTS-KERNEL.md`
+in a consuming repo, or `@./docs/AGENTS-KERNEL.md` in this atelier).
+Customer profile-pack names are not hardcoded. Auto-loading
+`AGENTS-CORE.md` or `AGENTS-PROFILE-*` from that loader is legacy.
+
+A mismatch check includes the **observed** digest so you can compare.
+Copying that observed value into the profile is an explicit operator
+choice that the current generation, workspace, or kernel is the approved
+one. Drift is not approved automatically; keep the previous expected
+value until you intend to accept the new revision.
 
 Home Manager can materialize the same JSON without sourcing it as shell:
 

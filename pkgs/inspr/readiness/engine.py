@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-only
-"""Read-only readiness engine: closed probes, bounded subprocesses, cached evidence."""
+"""Read-only readiness engine: closed probes and bounded subprocesses."""
 
 from __future__ import annotations
 
@@ -10,18 +10,20 @@ import shutil
 import stat
 import sys
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
-from . import CONTRACT_VERSION
 from .contract import (
+    ACCOUNT_PROBE_CODEX_OUTPUT_BYTES,
     ACCOUNT_PROBE_OUTPUT_BYTES,
     ACCOUNT_PROBE_TIMEOUT_SECONDS,
-    CACHE_SCHEMA,
     DOCTOR_CODE_RE,
+    DOCTOR_LAYER_NAME_RE,
     DOCTOR_LAYER_NAMES,
     DOCTOR_STATES,
+    LEGACY_AUTOLOAD_REF_RE,
+    MAX_GENERATION_HOPS,
     MAX_OUTPUT_BYTES,
     MAX_PROFILE_BYTES,
     Profile,
@@ -33,16 +35,13 @@ from .contract import (
     closed_reason,
     digest_bytes,
     digest_text,
-    expected_revisions,
     load_profile_bytes,
     parse_now,
-    sanitize_exported_reason,
     usage_error_payload,
 )
 
-KERNEL_REF = "@./doctrine/docs/AGENTS-KERNEL.md"
-LEGACY_LOADER = re.compile(r"@\./doctrine/docs/AGENTS-(CORE|PROFILE-MARKUS)\.md")
 STORE_BASENAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+-]{0,230}$")
+NIX_STORE_PREFIX = "/nix/store/"
 GIT_IDENTITY_RE = re.compile(r"^[0-9a-f]{40,64}$")
 PAIMOS_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 INHERITED_ENV = (
@@ -232,17 +231,15 @@ def read_bounded(path: str, limit: int) -> bytes:
 
 
 def evaluate(profile: Profile, host: ProbeHost, *, now: datetime, use_cache: bool = True) -> Evidence:
-    cached = load_cache(profile, host, now=now) if use_cache else None
-    if cached is not None:
-        return cached
+    # Probes are bounded and cheap. Fresh observation is the authority;
+    # leftover cache files and --no-cache are not. The flag remains parsed
+    # for CLI compatibility.
+    del use_cache
     checks: list[CheckResult] = []
     for check_id in (*profile.required_checks, *profile.optional_checks):
         optional = check_id in profile.optional_checks
         checks.append(run_check(check_id, profile, host, optional=optional))
-    evidence = aggregate(profile, checks, now=now)
-    if use_cache:
-        store_cache(profile, host, evidence)
-    return evidence
+    return aggregate(profile, checks, now=now)
 
 
 def run_check(check_id: str, profile: Profile, host: ProbeHost, *, optional: bool) -> CheckResult:
@@ -287,14 +284,11 @@ def probe_host_kind(profile: Profile, host: ProbeHost) -> CheckResult:
 
 
 def observe_host_kind(host: ProbeHost) -> str:
+    hm_present = bool(_home_manager_current(host) or _home_manager_profile(host))
     if host.nixos_marker:
-        return "nixos-home-manager"
+        return "nixos-home-manager" if hm_present else "nixos"
     if host.platform == "darwin":
-        if _home_manager_current(host) or _home_manager_profile(host):
-            return "macos-home-manager"
-        # macOS without any HM profile is still the expected class if requested,
-        # but activation is unproven. Host class is macos; generation probe fails.
-        return "macos-home-manager"
+        return "macos-home-manager" if hm_present else "macos"
     return "unsupported"
 
 
@@ -393,41 +387,74 @@ def _nixos_installed(host: ProbeHost) -> str | None:
 
 
 def _resolve_generation(host: ProbeHost, path: str) -> str | None:
-    target = None
-    if host.islink(path):
+    if not path or not path.startswith("/") or path != os.path.normpath(path):
+        return None
+    seen: set[str] = set()
+    current = path
+    for _ in range(MAX_GENERATION_HOPS):
+        if current in seen:
+            return None
+        seen.add(current)
         try:
-            target = host.readlink(path)
+            is_link = host.islink(current)
         except OSError:
             return None
-        if not target.startswith("/"):
-            target = os.path.normpath(os.path.join(os.path.dirname(path), target))
-    elif host.exists(path):
+        if not is_link:
+            return _store_generation_path(current)
         try:
-            target = host.realpath(path)
+            target = host.readlink(current)
         except OSError:
             return None
-    if not target:
+        current = _join_generation_link(current, target)
+        if current is None:
+            return None
+    try:
+        if current in seen or host.islink(current):
+            return None
+    except OSError:
         return None
-    base = os.path.basename(target.rstrip("/"))
-    if not STORE_BASENAME_RE.fullmatch(base):
+    return _store_generation_path(current)
+
+
+def _join_generation_link(current: str, target: str) -> str | None:
+    if not target or any(ch in target for ch in "\x00\r\n"):
         return None
-    return target
+    parts = [part for part in target.split("/") if part and part != "."]
+    if any(part == ".." for part in parts):
+        return None
+    if target.startswith("/"):
+        joined = os.path.normpath(target)
+    else:
+        joined = os.path.normpath(os.path.join(os.path.dirname(current), target))
+    if not joined.startswith("/") or joined != os.path.normpath(joined):
+        return None
+    return joined
+
+
+def _store_generation_path(path: str) -> str | None:
+    cleaned = path.rstrip("/")
+    if not cleaned.startswith(NIX_STORE_PREFIX):
+        return None
+    rest = cleaned[len(NIX_STORE_PREFIX) :]
+    if not rest or "/" in rest:
+        return None
+    if not STORE_BASENAME_RE.fullmatch(rest):
+        return None
+    return cleaned
 
 
 def probe_doctrine_loader(profile: Profile, host: ProbeHost) -> CheckResult:
     loader = profile.inputs["doctrine_loader"]
     kernel = profile.inputs["doctrine_kernel"]
-    if _inside_workspace_executable(profile, host, loader) or _inside_workspace_executable(profile, host, kernel):
-        # Reading files from the declared workspace is required; executing is not.
-        pass
+    expected_ref = profile.expected["doctrine_loader_ref"]
     try:
         loader_text = host.read_file(loader, MAX_OUTPUT_BYTES).decode("utf-8")
         kernel_bytes = host.read_file(kernel, MAX_PROFILE_BYTES)
     except (OSError, UnicodeDecodeError, ProfileError):
         return CheckResult("doctrine_loader", "fail", "doctrine_unreadable")
-    if KERNEL_REF not in loader_text:
+    if expected_ref not in loader_text:
         return CheckResult("doctrine_loader", "fail", "doctrine_loader_unwired")
-    if LEGACY_LOADER.search(loader_text):
+    if LEGACY_AUTOLOAD_REF_RE.search(loader_text):
         return CheckResult("doctrine_loader", "fail", "doctrine_loader_legacy")
     observed = digest_bytes(kernel_bytes)
     expected = profile.expected["doctrine_kernel_digest"]
@@ -489,11 +516,12 @@ def probe_tool_prerequisites(profile: Profile, host: ProbeHost) -> CheckResult:
     tools = profile.expected.get("tools") or []
     observed = []
     for name in tools:
+        raw = host.which(name)
+        if raw and _inside_workspace_executable(profile, host, raw):
+            return CheckResult("tool_prerequisites", "fail", "workspace_executable_refused")
         pinned = _pinned_tool(profile, host, name)
         if pinned is None:
             return CheckResult("tool_prerequisites", "fail", "declared_tool_missing")
-        if _inside_workspace_executable(profile, host, pinned):
-            return CheckResult("tool_prerequisites", "fail", "workspace_executable_refused")
         observed.append(os.path.basename(pinned))
     digest = digest_text("|".join(observed))
     flake_lock = profile.inputs.get("flake_lock")
@@ -622,10 +650,14 @@ def parse_runtime_doctor(raw: bytes) -> dict[str, Any] | None:
         name = item.get("name")
         state = item.get("state")
         code = item.get("code")
-        if name not in DOCTOR_LAYER_NAMES or state not in DOCTOR_STATES:
+        if not isinstance(name, str) or not DOCTOR_LAYER_NAME_RE.fullmatch(name):
+            return None
+        if state not in DOCTOR_STATES:
             return None
         if not isinstance(code, str) or not DOCTOR_CODE_RE.fullmatch(code):
             return None
+        if name not in DOCTOR_LAYER_NAMES:
+            continue
         parsed.append({"name": name, "state": state, "code": code})
     # Paths, emails, bootstrap strings and raw action text are dropped here.
     return {"instance": instance, "ready": ready, "layers": parsed}
@@ -683,23 +715,37 @@ def _codex_account_label(profile: Profile, host: ProbeHost, expected_label: str)
     result = host.run(
         [binary, "login", "status"],
         timeout=ACCOUNT_PROBE_TIMEOUT_SECONDS,
-        max_output=ACCOUNT_PROBE_OUTPUT_BYTES,
+        max_output=ACCOUNT_PROBE_CODEX_OUTPUT_BYTES,
     )
     if result.exit_code != 0:
         return CheckResult("paimos_account", "unknown", "account_probe_unavailable")
-    text = (result.stdout or result.stderr).decode("utf-8", "replace").strip()
-    if not text or "\n" in text:
+    status = _codex_status_line(result.stdout, result.stderr)
+    if status is None:
         return CheckResult("paimos_account", "unknown", "account_probe_invalid")
-    lowered = text.lower()
-    if "chatgpt" in lowered:
+    if status == "Logged in using ChatGPT":
         label = "chatgpt"
-    elif "api" in lowered:
+    elif status.startswith("Logged in using an API key"):
         label = "api_key"
     else:
         return CheckResult("paimos_account", "unknown", "account_label_unknown")
     if label != expected_label:
         return CheckResult("paimos_account", "fail", "account_mismatch")
     return CheckResult("paimos_account", "pass", "account_label_verified", digest_text(label))
+
+
+def _codex_status_line(stdout: bytes, stderr: bytes) -> str | None:
+    if len(stdout) > ACCOUNT_PROBE_CODEX_OUTPUT_BYTES or len(stderr) > ACCOUNT_PROBE_CODEX_OUTPUT_BYTES:
+        return None
+    if len(stdout) + len(stderr) > ACCOUNT_PROBE_CODEX_OUTPUT_BYTES:
+        return None
+    primary = stdout.decode("utf-8", "replace").strip()
+    diagnostic = stderr.decode("utf-8", "replace").strip()
+    if primary and diagnostic:
+        return None
+    status = primary or diagnostic
+    if not status or any(ch in status for ch in "\r\n"):
+        return None
+    return status
 
 
 def probe_dispatch_profile(profile: Profile, host: ProbeHost) -> CheckResult:
@@ -712,114 +758,21 @@ def probe_dispatch_profile(profile: Profile, host: ProbeHost) -> CheckResult:
     return CheckResult("dispatch_profile", "unknown", "dispatch_profile_unverified")
 
 
-def cache_path(profile: Profile, host: ProbeHost) -> str | None:
-    directory = profile.inputs.get("cache_dir")
-    if directory:
-        return os.path.join(directory, profile.digest[7:] + ".json")
-    xdg = host.environ.get("XDG_CACHE_HOME")
-    home = host.environ.get("HOME")
-    if xdg and xdg.startswith("/"):
-        root = os.path.join(xdg, "inspr/readiness")
-    elif home and home.startswith("/"):
-        root = os.path.join(home, ".cache/inspr/readiness")
-    else:
-        return None
-    return os.path.join(root, profile.digest[7:] + ".json")
-
-
-def load_cache(profile: Profile, host: ProbeHost, *, now: datetime) -> Evidence | None:
-    path = cache_path(profile, host)
-    if not path or not host.isfile(path):
-        return None
-    try:
-        raw = host.read_file(path, MAX_OUTPUT_BYTES)
-        payload = json.loads(raw.decode("utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError, ProfileError):
-        return None
-    if not isinstance(payload, dict) or payload.get("cache_schema") != CACHE_SCHEMA:
-        return None
-    if payload.get("profile_digest") != profile.digest:
-        return None
-    if payload.get("expected_revisions") != expected_revisions(profile):
-        return None
-    if payload.get("context") != profile.identities:
-        return None
-    evidence_raw = payload.get("evidence")
-    if not isinstance(evidence_raw, dict):
-        return None
-    try:
-        observed = datetime.fromisoformat(str(evidence_raw.get("observed_at", "")).replace("Z", "+00:00"))
-        expires = datetime.fromisoformat(str(evidence_raw.get("expires_at", "")).replace("Z", "+00:00"))
-    except ValueError:
-        return None
-    if expires.tzinfo is None or observed.tzinfo is None:
-        return None
-    if now >= expires.astimezone(timezone.utc):
-        stale = _evidence_from_dict(profile, evidence_raw, now=now)
-        if stale is None:
-            return None
-        stale.status = "unavailable"
-        for item in stale.checks:
-            if item.id in profile.required_checks:
-                item.status = "stale"
-                item.reason = "cached_evidence_expired"
-        stale.next_action = "none"
-        return aggregate(profile, stale.checks, now=now)
-    return _evidence_from_dict(profile, evidence_raw, now=now)
-
-
-def store_cache(profile: Profile, host: ProbeHost, evidence: Evidence) -> None:
-    path = cache_path(profile, host)
-    if not path:
-        return
-    directory = os.path.dirname(path)
-    try:
-        host.makedirs(directory)
-        payload = {
-            "cache_schema": CACHE_SCHEMA,
-            "contract_version": CONTRACT_VERSION,
-            "profile_digest": profile.digest,
-            "context": dict(profile.identities),
-            "expected_revisions": expected_revisions(profile),
-            "evidence": evidence.as_dict(),
-        }
-        encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
-        if len(encoded) > MAX_OUTPUT_BYTES:
-            return
-        host.write_file(path, encoded)
-    except OSError:
-        return
-
-
-def _evidence_from_dict(profile: Profile, raw: Mapping[str, Any], *, now: datetime) -> Evidence | None:
-    checks_raw = raw.get("checks")
-    if not isinstance(checks_raw, list):
-        return None
-    checks: list[CheckResult] = []
-    for item in checks_raw:
-        if not isinstance(item, dict):
-            return None
-        check_id = item.get("id")
-        status = item.get("status")
-        reason = item.get("reason")
-        if check_id not in profile.required_checks and check_id not in profile.optional_checks:
-            return None
-        if status not in {"pass", "fail", "warn", "unknown", "unsupported", "stale"}:
-            return None
-        checks.append(CheckResult(str(check_id), str(status), sanitize_exported_reason(str(reason)), item.get("digest") if isinstance(item.get("digest"), str) else None))
-    return aggregate(profile, checks, now=now)
-
-
 def load_profile_file(path: str) -> Profile:
     if not path.startswith("/") or path != os.path.normpath(path):
         raise ProfileError("unsafe_profile_path")
-    info = os.stat(path, follow_symlinks=True)
-    if not stat.S_ISREG(info.st_mode):
-        raise ProfileError("unsafe_profile_path")
-    if info.st_size > MAX_PROFILE_BYTES:
-        raise ProfileError("profile_size")
-    with open(path, "rb") as handle:
-        return load_profile_bytes(handle.read(MAX_PROFILE_BYTES + 1))
+    try:
+        info = os.stat(path, follow_symlinks=True)
+        if not stat.S_ISREG(info.st_mode):
+            raise ProfileError("unsafe_profile_path")
+        if info.st_size > MAX_PROFILE_BYTES:
+            raise ProfileError("profile_size")
+        with open(path, "rb") as handle:
+            return load_profile_bytes(handle.read(MAX_PROFILE_BYTES + 1))
+    except ProfileError:
+        raise
+    except OSError as exc:
+        raise ProfileError("unreadable_profile") from exc
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -854,6 +807,10 @@ def main(argv: list[str] | None = None) -> int:
         evidence = evaluate(profile, real_host(), now=now, use_cache=use_cache)
     except ProfileError as exc:
         return _usage(exc.reason)
+    except OSError:
+        return _usage("unreadable_profile")
+    except Exception:
+        return _usage("internal_error")
     encoded = json.dumps(evidence.as_dict(), sort_keys=True, indent=2)
     sys.stdout.write(encoded + "\n")
     if not json_only:
@@ -877,7 +834,7 @@ Usage:
 Flags:
   --profile PATH   Operator-owned JSON profile (not sourced as shell).
   --json           JSON evidence only on stdout.
-  --no-cache       Ignore and do not write bounded evidence cache.
+  --no-cache       Accepted for compatibility; probes always observe fresh evidence.
   -h, --help       Show this help.
 
 Exit codes:

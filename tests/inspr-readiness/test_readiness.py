@@ -5,17 +5,15 @@ from __future__ import annotations
 
 import json
 import os
-import stat
-import tempfile
+import sys
 import unittest
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 
 from readiness.contract import (
     CONTRACT_VERSION,
+    MAX_GENERATION_HOPS,
     ProfileError,
     digest_bytes,
-    digest_text,
     load_profile_bytes,
     parse_profile,
     usage_error_payload,
@@ -27,7 +25,9 @@ from readiness.engine import (
     RunResult,
     evaluate,
     generation_digest,
+    operator_env,
     parse_runtime_doctor,
+    run_closed,
     workspace_identity_digest,
 )
 
@@ -63,6 +63,7 @@ def base_profile(**overrides):
             "host_kind": "macos-home-manager",
             "home_manager_generation_digest": generation_digest(STORE_ACTIVE),
             "doctrine_kernel_digest": kernel_digest(),
+            "doctrine_loader_ref": "@./doctrine/docs/AGENTS-KERNEL.md",
             "config_revision": "rev1",
             "paimos_instance": "studio",
             "paimos_deployment": "studio",
@@ -154,6 +155,7 @@ class FakeHost:
         self.git_common = "/fixture/workspace/.git"
         self.doctor = doctor_layers()
         self.claude_status = {"loggedIn": True, "authMethod": "claude.ai", "subscriptionType": "max"}
+        self.codex_status = (b"Logged in using ChatGPT\n", b"", 0)
         self.timeout_names: set[str] = set()
         self.recorded: list[list[str]] = []
         self.environ = {"HOME": "/fixture/home", "USER": "operator", "PATH": "/nix/store/bin"}
@@ -166,13 +168,16 @@ class FakeHost:
 
     def _write_home_manager(self, activated: str | None, installed: str | None) -> None:
         current = "/fixture/home/.local/state/home-manager/gcroots/current-home"
-        profile = "/fixture/home/.local/state/nix/profiles/home-manager"
-        self.links.pop(current, None)
-        self.links.pop(profile, None)
+        profiles = "/fixture/home/.local/state/nix/profiles"
+        profile = profiles + "/home-manager"
+        gen_link = profiles + "/home-manager-78-link"
+        for path in (current, profile, gen_link):
+            self.links.pop(path, None)
         if activated:
             self.links[current] = activated
         if installed:
-            self.links[profile] = installed
+            self.links[profile] = "home-manager-78-link"
+            self.links[gen_link] = installed
 
     def _write_doctrine(self) -> None:
         self.files["/fixture/workspace/doctrine/docs/AGENTS-KERNEL.md"] = KERNEL
@@ -198,7 +203,11 @@ class FakeHost:
         current = path
         while current in self.links and current not in seen:
             seen.add(current)
-            current = self.links[current]
+            target = self.links[current]
+            if not target.startswith("/"):
+                current = os.path.normpath(os.path.join(os.path.dirname(current), target))
+            else:
+                current = target
         return current
 
     def readlink(self, path: str) -> str:
@@ -228,6 +237,9 @@ class FakeHost:
         if name == "claude":
             raw = json.dumps(self.claude_status).encode("utf-8")
             return RunResult(tuple(argv), raw, b"", 0)
+        if name == "codex":
+            stdout, stderr, code = self.codex_status
+            return RunResult(tuple(argv), stdout, stderr, code)
         raise AssertionError(argv)
 
     def _git(self, argv: list[str]) -> RunResult:
@@ -278,6 +290,18 @@ class ContractTests(unittest.TestCase):
         with self.assertRaises(ProfileError) as raised:
             parse_profile(payload)
         self.assertEqual(raised.exception.reason, "unknown_field")
+
+    def test_doctrine_loader_ref_is_required_and_bounded(self):
+        payload = base_profile()
+        del payload["expected"]["doctrine_loader_ref"]
+        with self.assertRaises(ProfileError) as raised:
+            parse_profile(payload)
+        self.assertEqual(raised.exception.reason, "missing_doctrine_loader_ref")
+        payload = base_profile()
+        payload["expected"]["doctrine_loader_ref"] = "@./doctrine/docs/AGENTS-PROFILE-CUSTOMER.md"
+        with self.assertRaises(ProfileError) as raised:
+            parse_profile(payload)
+        self.assertEqual(raised.exception.reason, "invalid_doctrine_loader_ref")
 
     def test_rejects_path_attacks_and_oversize(self):
         payload = base_profile(inputs={"workspace_root": "/fixture/../etc/passwd"})
@@ -446,17 +470,186 @@ class ProbeTests(unittest.TestCase):
         self.assertEqual(result.reason, "nixos_unavailable_on_macos")
         self.assertEqual(evidence.status, "unavailable")
 
-    def test_stale_cache_cannot_be_ready(self):
+    def test_expired_or_forged_cache_cannot_change_results(self):
         host = FakeHost()
         payload = base_profile()
         first = run_profile(payload, host, use_cache=True, now=NOW)
         self.assertEqual(first.status, "ready")
-        stale_now = NOW + timedelta(seconds=301)
-        evidence = run_profile(payload, host, use_cache=True, now=stale_now)
-        self.assertEqual(evidence.status, "unavailable")
-        self.assertTrue(
-            any(item.status == "stale" for item in evidence.checks if item.id in payload["checks"]["required"])
+        first_probes = len(host.recorded)
+        host.files["/fixture/cache/forged.json"] = json.dumps(
+            {
+                "status": "ready",
+                "checks": [{"id": "host_kind", "status": "pass", "reason": "host_kind_supported"}],
+            }
+        ).encode()
+        later = run_profile(payload, host, use_cache=True, now=NOW + timedelta(seconds=301))
+        self.assertEqual(later.status, "ready")
+        self.assertGreater(len(host.recorded), first_probes)
+        self.assertFalse(any(item.status == "stale" for item in later.checks))
+        host._write_home_manager(None, STORE_INSTALLED)
+        broken = run_profile(payload, host, use_cache=True, now=NOW + timedelta(seconds=302))
+        self.assertEqual(broken.status, "needs_setup")
+        result = next(item for item in broken.checks if item.id == "activated_generation")
+        self.assertEqual(result.reason, "generation_not_activated")
+
+    def test_darwin_without_home_manager_does_not_claim_supported_class(self):
+        host = FakeHost()
+        host._write_home_manager(None, None)
+        evidence = run_profile(base_profile(), host)
+        result = next(item for item in evidence.checks if item.id == "host_kind")
+        self.assertEqual(result.status, "fail")
+        self.assertEqual(result.reason, "host_kind_mismatch")
+        self.assertNotEqual(evidence.status, "ready")
+
+    def test_relative_home_manager_chain_matches_activated_store(self):
+        host = FakeHost()
+        evidence = run_profile(base_profile(), host)
+        result = next(item for item in evidence.checks if item.id == "activated_generation")
+        self.assertEqual(result.status, "pass")
+        self.assertEqual(result.reason, "generation_activated")
+        self.assertEqual(result.digest, generation_digest(STORE_ACTIVE))
+
+    def test_generation_symlink_cycle_is_unresolved(self):
+        host = FakeHost()
+        current = "/fixture/home/.local/state/home-manager/gcroots/current-home"
+        other = "/fixture/home/.local/state/home-manager/gcroots/loop"
+        host.links[current] = other
+        host.links[other] = current
+        evidence = run_profile(base_profile(), host)
+        result = next(item for item in evidence.checks if item.id == "activated_generation")
+        self.assertEqual(result.reason, "generation_not_activated")
+        self.assertEqual(evidence.status, "needs_setup")
+
+    def test_generation_hop_bound(self):
+        host = FakeHost()
+        start = "/fixture/home/.local/state/home-manager/gcroots/current-home"
+        chain = [start] + [f"/fixture/home/.local/state/nix/profiles/hop-{i}" for i in range(MAX_GENERATION_HOPS)]
+        for src, dst in zip(chain, chain[1:] + [STORE_ACTIVE]):
+            host.links[src] = dst
+        evidence = run_profile(base_profile(), host)
+        result = next(item for item in evidence.checks if item.id == "activated_generation")
+        self.assertEqual(result.reason, "generation_not_activated")
+
+    def test_nixos_relative_system_chain_resolves(self):
+        payload = base_profile()
+        payload["expected"]["host_kind"] = "nixos-home-manager"
+        payload["expected"]["nix_system_generation_digest"] = generation_digest(
+            "/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-nixos-system"
         )
+        host = FakeHost()
+        host.platform = "linux"
+        host.nixos_marker = True
+        host._write_home_manager(STORE_ACTIVE, STORE_ACTIVE)
+        host.links["/run/current-system"] = "/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-nixos-system"
+        host.links["/nix/var/nix/profiles/system"] = "system-42-link"
+        host.links["/nix/var/nix/profiles/system-42-link"] = (
+            "/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-nixos-system"
+        )
+        evidence = run_profile(payload, host)
+        result = next(item for item in evidence.checks if item.id == "activated_generation")
+        self.assertEqual(result.status, "pass")
+        host_kind = next(item for item in evidence.checks if item.id == "host_kind")
+        self.assertEqual(host_kind.status, "pass")
+
+    def test_doctrine_loader_ref_comes_from_profile(self):
+        payload = base_profile()
+        payload["expected"]["doctrine_loader_ref"] = "@./docs/AGENTS-KERNEL.md"
+        host = FakeHost()
+        host.files["/fixture/workspace/CLAUDE.md"] = b"@./docs/AGENTS-KERNEL.md\n"
+        evidence = run_profile(payload, host)
+        result = next(item for item in evidence.checks if item.id == "doctrine_loader")
+        self.assertEqual(result.status, "pass")
+
+    def test_generic_profile_autoload_is_legacy(self):
+        host = FakeHost()
+        host.files["/fixture/workspace/CLAUDE.md"] = (
+            b"@./doctrine/docs/AGENTS-KERNEL.md\n@./doctrine/docs/AGENTS-PROFILE-CUSTOMER.md\n"
+        )
+        evidence = run_profile(base_profile(), host)
+        result = next(item for item in evidence.checks if item.id == "doctrine_loader")
+        self.assertEqual(result.reason, "doctrine_loader_legacy")
+
+    def test_unknown_future_doctor_layer_is_ignored_after_schema(self):
+        host = FakeHost()
+        host.doctor = doctor_layers(extra=[{"name": "future_layer", "state": "unknown", "code": "new_check"}])
+        evidence = run_profile(base_profile(), host)
+        result = next(item for item in evidence.checks if item.id == "paimos_runtime_doctor")
+        self.assertEqual(result.status, "pass")
+        self.assertEqual(evidence.status, "ready")
+
+    def test_invalid_unknown_doctor_layer_voids_report(self):
+        host = FakeHost()
+        host.doctor = doctor_layers(extra=[{"name": "not a layer", "state": "known", "code": "layer_ok"}])
+        evidence = run_profile(base_profile(), host)
+        result = next(item for item in evidence.checks if item.id == "paimos_runtime_doctor")
+        self.assertEqual(result.reason, "runtime_evidence_invalid")
+        self.assertEqual(evidence.status, "unavailable")
+
+    def test_codex_requires_documented_status_line(self):
+        payload = base_profile()
+        payload["expected"]["harness"] = "codex"
+        payload["expected"]["account_label"] = "chatgpt"
+        host = FakeHost()
+        host.which_map["codex"] = "/nix/store/ffffffffffffffffffffffffffffffff-codex/bin/codex"
+        host.files[host.which_map["codex"]] = b"fake"
+        host.codex_status = (b"Logged in using ChatGPT\n", b"", 0)
+        evidence = run_profile(payload, host)
+        result = next(item for item in evidence.checks if item.id == "paimos_account")
+        self.assertEqual(result.status, "pass")
+
+    def test_codex_help_or_api_key_substring_is_not_auth(self):
+        payload = base_profile()
+        payload["expected"]["harness"] = "codex"
+        payload["expected"]["account_label"] = "api_key"
+        host = FakeHost()
+        host.which_map["codex"] = "/nix/store/ffffffffffffffffffffffffffffffff-codex/bin/codex"
+        host.files[host.which_map["codex"]] = b"fake"
+        host.codex_status = (b"use `codex login --api-key` to authenticate\n", b"", 0)
+        evidence = run_profile(payload, host)
+        result = next(item for item in evidence.checks if item.id == "paimos_account")
+        self.assertEqual(result.status, "unknown")
+        self.assertEqual(result.reason, "account_label_unknown")
+        self.assertEqual(evidence.status, "unavailable")
+
+    def test_codex_stderr_api_key_mention_without_status_is_unknown(self):
+        payload = base_profile()
+        payload["expected"]["harness"] = "codex"
+        payload["expected"]["account_label"] = "api_key"
+        host = FakeHost()
+        host.which_map["codex"] = "/nix/store/ffffffffffffffffffffffffffffffff-codex/bin/codex"
+        host.files[host.which_map["codex"]] = b"fake"
+        host.codex_status = (b"", b"missing api_key in environment\n", 0)
+        evidence = run_profile(payload, host)
+        result = next(item for item in evidence.checks if item.id == "paimos_account")
+        self.assertEqual(result.reason, "account_label_unknown")
+        self.assertEqual(evidence.status, "unavailable")
+
+    def test_codex_conflicting_streams_are_unknown(self):
+        payload = base_profile()
+        payload["expected"]["harness"] = "codex"
+        payload["expected"]["account_label"] = "chatgpt"
+        host = FakeHost()
+        host.which_map["codex"] = "/nix/store/ffffffffffffffffffffffffffffffff-codex/bin/codex"
+        host.files[host.which_map["codex"]] = b"fake"
+        host.codex_status = (b"Logged in using ChatGPT\n", b"Logged in using an API key - suffix\n", 0)
+        evidence = run_profile(payload, host)
+        result = next(item for item in evidence.checks if item.id == "paimos_account")
+        self.assertEqual(result.reason, "account_probe_invalid")
+        self.assertEqual(evidence.status, "unavailable")
+
+    def test_named_account_stays_missing_integration_on_codex(self):
+        payload = base_profile(requested_capabilities=["runtime_ready", "named_account"])
+        payload["expected"]["harness"] = "codex"
+        payload["expected"]["account_label"] = "chatgpt"
+        payload["expected"]["account_key"] = "coordinator"
+        host = FakeHost()
+        host.which_map["codex"] = "/nix/store/ffffffffffffffffffffffffffffffff-codex/bin/codex"
+        host.files[host.which_map["codex"]] = b"fake"
+        host.codex_status = (b"Logged in using ChatGPT\n", b"", 0)
+        evidence = run_profile(payload, host)
+        result = next(item for item in evidence.checks if item.id == "paimos_account")
+        self.assertEqual(result.reason, "missing_integration_paimos_named_account_probe")
+        self.assertEqual(evidence.status, "unavailable")
 
     def test_workspace_executables_are_refused(self):
         host = FakeHost()
@@ -464,45 +657,70 @@ class ProbeTests(unittest.TestCase):
         host.files["/fixture/workspace/result/bin/nix"] = b"repo wrapper"
         evidence = run_profile(base_profile(), host)
         result = next(item for item in evidence.checks if item.id == "tool_prerequisites")
-        self.assertEqual(result.reason, "declared_tool_missing")
+        self.assertEqual(result.reason, "workspace_executable_refused")
 
-    def test_paimos_env_is_not_forwarded(self):
-        recorded_env = {}
+    def test_operator_env_drops_blocked_names(self):
+        env = operator_env(
+            {
+                "PATH": "/nix/store/bin",
+                "HOME": "/fixture/home",
+                "PAIMOS_API_KEY": "fixture-blocked-token",
+                "OPENAI_API_KEY": "fixture-blocked-token",
+                "SECRET_EXTRA": "fixture-blocked-token",
+            }
+        )
+        self.assertEqual(env["PATH"], "/nix/store/bin")
+        self.assertEqual(env["HOME"], "/fixture/home")
+        self.assertNotIn("PAIMOS_API_KEY", env)
+        self.assertNotIn("OPENAI_API_KEY", env)
+        self.assertNotIn("SECRET_EXTRA", env)
 
-        def run(argv, *, timeout, max_output, extra_env=None, cwd=None):
-            recorded_env.update(extra_env or {})
-            return RunResult(tuple(argv), json.dumps(doctor_layers()).encode(), b"", 0)
+    def test_run_closed_subprocess_env_omits_blocked_names(self):
+        result = run_closed(
+            [sys.executable, "-c", "import os; print('\\n'.join(sorted(os.environ)))"],
+            timeout=5,
+            max_output=65536,
+            environ={
+                "PATH": os.environ.get("PATH", "/usr/bin"),
+                "HOME": "/fixture/home",
+                "PAIMOS_API_KEY": "fixture-blocked-token",
+                "OPENAI_API_KEY": "fixture-blocked-token",
+            },
+        )
+        names = result.stdout.decode("utf-8").splitlines()
+        self.assertIn("PATH", names)
+        self.assertIn("HOME", names)
+        self.assertNotIn("PAIMOS_API_KEY", names)
+        self.assertNotIn("OPENAI_API_KEY", names)
+        self.assertNotIn("fixture-blocked-token", result.stdout.decode("utf-8"))
+        self.assertNotIn("fixture-blocked-token", result.stderr.decode("utf-8"))
 
-        host = FakeHost()
-        probe = host.as_probe()
-        probe.run = run  # type: ignore[method-assign]
-        # operator_env is applied inside run_closed, not FakeHost.run. Direct probe uses FakeHost.
-        self.assertNotIn("PAIMOS_API_KEY", host.environ)
 
-
-class CacheInvalidateTests(unittest.TestCase):
-    def test_revision_change_invalidates_cache(self):
+class CacheIgnoreTests(unittest.TestCase):
+    def test_forged_ready_cache_cannot_promote_broken_host(self):
         host = FakeHost()
         payload = base_profile()
         profile = parse_profile(payload)
-        first = evaluate(profile, host.as_probe(), now=NOW, use_cache=False)
-        cache_name = profile.digest[7:] + ".json"
-        cached = {
-            "cache_schema": "inspr.readiness.cache.v1",
-            "profile_digest": profile.digest,
-            "context": identities(),
-            "expected_revisions": dict(first.expected_revisions),
-            "evidence": first.as_dict(),
-        }
-        host.files["/fixture/cache/" + cache_name] = json.dumps(cached).encode()
-        payload["expected"]["config_revision"] = "rev2"
-        payload["expected"]["doctrine_kernel_digest"] = kernel_digest()
-        drifted = parse_profile(payload)
-        self.assertNotEqual(drifted.digest, profile.digest)
-        evidence = evaluate(drifted, host.as_probe(), now=NOW, use_cache=True)
-        # New profile digest misses the old cache file and re-probes.
-        self.assertEqual(evidence.profile_digest, drifted.digest)
-        self.assertEqual(evidence.expected_revisions["config_revision"], "rev2")
+        host.files["/fixture/cache/" + profile.digest[7:] + ".json"] = json.dumps(
+            {
+                "cache_schema": "inspr.readiness.cache.v1",
+                "profile_digest": profile.digest,
+                "context": identities(),
+                "expected_revisions": dict(parse_profile(payload).expected),
+                "evidence": {
+                    "status": "ready",
+                    "checks": [
+                        {"id": check_id, "status": "pass", "reason": "host_kind_supported"}
+                        for check_id in payload["checks"]["required"]
+                    ],
+                },
+            }
+        ).encode()
+        host.files["/fixture/workspace/doctrine/docs/AGENTS-KERNEL.md"] = b"drifted kernel\n"
+        host._write_home_manager(None, STORE_INSTALLED)
+        evidence = evaluate(profile, host.as_probe(), now=NOW, use_cache=True)
+        self.assertNotEqual(evidence.status, "ready")
+        self.assertTrue(host.recorded)
 
 
 if __name__ == "__main__":
