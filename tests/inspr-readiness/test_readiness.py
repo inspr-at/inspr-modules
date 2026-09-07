@@ -3,13 +3,20 @@
 
 from __future__ import annotations
 
+import faulthandler
 import json
+import math
 import os
+import signal
 import sys
+import tempfile
+import threading
 import time
 import unittest
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from unittest.mock import patch
 
 from readiness.contract import (
     CONTRACT_VERSION,
@@ -25,6 +32,7 @@ from readiness.engine import (
     ProbeOutputBound,
     ProbeTimeout,
     RunResult,
+    _CLEANUP_GRACE_SECONDS,
     evaluate,
     generation_digest,
     operator_env,
@@ -711,6 +719,30 @@ class ProbeTests(unittest.TestCase):
         self.assertNotIn("fixture-blocked-token", result.stderr.decode("utf-8"))
 
 
+def _open_fd_count() -> int:
+    directory = "/dev/fd" if os.path.isdir("/dev/fd") else "/proc/self/fd"
+    return len(os.listdir(directory))
+
+
+def _test_owned_stop_pid(pid: int) -> None:
+    """Stop one exact synthetic fixture pid. This is test cleanup, not product containment."""
+    if pid <= 1 or pid == os.getpid():
+        return
+    try:
+        os.kill(pid, signal.SIGKILL)
+    except (ProcessLookupError, PermissionError):
+        return
+
+
+@contextmanager
+def _process_watchdog(seconds: float = 8.0):
+    faulthandler.dump_traceback_later(seconds, exit=True)
+    try:
+        yield
+    finally:
+        faulthandler.cancel_dump_traceback_later()
+
+
 class RunClosedBoundaryTests(unittest.TestCase):
     _ENV = {
         "PATH": os.environ.get("PATH", "/usr/bin"),
@@ -725,7 +757,7 @@ class RunClosedBoundaryTests(unittest.TestCase):
             "    sys.stdout.flush()\n"
         )
         started = time.monotonic()
-        with self.assertRaises(ProbeOutputBound):
+        with _process_watchdog(), self.assertRaises(ProbeOutputBound):
             run_closed(
                 [sys.executable, "-c", script],
                 timeout=30,
@@ -742,7 +774,7 @@ class RunClosedBoundaryTests(unittest.TestCase):
             "sys.stderr.write('b' * 7000)\n"
             "sys.stderr.flush()\n"
         )
-        with self.assertRaises(ProbeOutputBound):
+        with _process_watchdog(), self.assertRaises(ProbeOutputBound):
             run_closed(
                 [sys.executable, "-c", script],
                 timeout=5,
@@ -750,62 +782,273 @@ class RunClosedBoundaryTests(unittest.TestCase):
                 environ=self._ENV,
             )
 
-    def test_binary_output_and_exit_codes(self):
-        script = "import sys; sys.stdout.buffer.write(bytes(range(256))); sys.exit(17)"
-        result = run_closed(
-            [sys.executable, "-c", script],
-            timeout=5,
-            max_output=512,
-            environ=self._ENV,
+    def test_infinite_stdout_and_stderr_flood_trips_combined_bound(self):
+        script = (
+            "import sys\n"
+            "while True:\n"
+            "    sys.stdout.write('A' * 4096)\n"
+            "    sys.stdout.flush()\n"
+            "    sys.stderr.write('B' * 4096)\n"
+            "    sys.stderr.flush()\n"
         )
-        self.assertEqual(result.exit_code, 17)
-        self.assertEqual(result.stdout, bytes(range(256)))
-        self.assertEqual(result.stderr, b"")
-
-    def test_timeout_stops_runaway_process(self):
-        script = "import time\nwhile True:\n    time.sleep(0.01)\n"
         started = time.monotonic()
-        with self.assertRaises(ProbeTimeout):
+        with _process_watchdog(), self.assertRaises(ProbeOutputBound):
             run_closed(
                 [sys.executable, "-c", script],
-                timeout=1,
-                max_output=65536,
+                timeout=30,
+                max_output=8192,
                 environ=self._ENV,
             )
         self.assertLess(time.monotonic() - started, 5.0)
 
-    def test_retained_pipe_writer_does_not_hang_or_emit_late_marker(self):
-        import tempfile
+    def test_output_just_below_at_and_over_combined_bound(self):
+        with _process_watchdog():
+            below = run_closed(
+                [sys.executable, "-c", "import sys; sys.stdout.buffer.write(b'a'*50); sys.stderr.buffer.write(b'b'*49)"],
+                timeout=5,
+                max_output=100,
+                environ=self._ENV,
+            )
+            self.assertEqual(len(below.stdout) + len(below.stderr), 99)
+            self.assertEqual(below.exit_code, 0)
+            at = run_closed(
+                [sys.executable, "-c", "import sys; sys.stdout.buffer.write(b'a'*60); sys.stderr.buffer.write(b'b'*40)"],
+                timeout=5,
+                max_output=100,
+                environ=self._ENV,
+            )
+            self.assertEqual(len(at.stdout) + len(at.stderr), 100)
+            self.assertEqual(at.exit_code, 0)
+            with self.assertRaises(ProbeOutputBound):
+                run_closed(
+                    [sys.executable, "-c", "import sys; sys.stdout.buffer.write(b'a'*60); sys.stderr.buffer.write(b'b'*41)"],
+                    timeout=5,
+                    max_output=100,
+                    environ=self._ENV,
+                )
 
-        marker = Path(tempfile.mkdtemp()) / "late-marker"
-        script = (
-            "import os, sys\n"
-            f"marker = {str(marker)!r}\n"
-            "if os.fork() == 0:\n"
-            "    os.setsid()\n"
-            "    try:\n"
-            "        while True:\n"
-            "            os.write(1, b'z' * 4096)\n"
-            "    except OSError:\n"
-            "        os._exit(0)\n"
-            "    open(marker, 'w', encoding='utf-8').write('late')\n"
-            "    os._exit(0)\n"
-            "sys.stdout.write('EARLY\\n')\n"
-            "sys.stdout.flush()\n"
-            "while True:\n"
-            "    sys.stdout.write('LATE\\n')\n"
-            "    sys.stdout.flush()\n"
-        )
-        started = time.monotonic()
-        with self.assertRaises(ProbeOutputBound):
-            run_closed(
+    def test_zero_output_cap_allows_empty_and_rejects_any_byte(self):
+        with _process_watchdog():
+            empty = run_closed(
+                [sys.executable, "-c", "pass"],
+                timeout=5,
+                max_output=0,
+                environ=self._ENV,
+            )
+            self.assertEqual(empty.stdout, b"")
+            self.assertEqual(empty.stderr, b"")
+            self.assertEqual(empty.exit_code, 0)
+            with self.assertRaises(ProbeOutputBound):
+                run_closed(
+                    [sys.executable, "-c", "import sys; sys.stdout.buffer.write(b'x')"],
+                    timeout=5,
+                    max_output=0,
+                    environ=self._ENV,
+                )
+
+    def test_binary_output_and_exit_codes(self):
+        script = "import sys; sys.stdout.buffer.write(bytes(range(256))); sys.exit(17)"
+        with _process_watchdog():
+            result = run_closed(
                 [sys.executable, "-c", script],
                 timeout=5,
-                max_output=8192,
+                max_output=512,
+                environ=self._ENV,
+            )
+        self.assertEqual(result.exit_code, 17)
+        self.assertEqual(result.stdout, bytes(range(256)))
+        self.assertEqual(result.stderr, b"")
+
+    def test_timeout_stops_live_leader(self):
+        script = "import time\nwhile True:\n    time.sleep(0.01)\n"
+        started = time.monotonic()
+        with _process_watchdog(), self.assertRaises(ProbeTimeout):
+            run_closed(
+                [sys.executable, "-c", script],
+                timeout=0.2,
+                max_output=65536,
+                environ=self._ENV,
+            )
+        elapsed = time.monotonic() - started
+        self.assertLess(elapsed, 0.2 + _CLEANUP_GRACE_SECONDS + 0.5)
+        self.assertGreaterEqual(elapsed, 0.05)
+
+    def test_same_group_quiet_holder_after_leader_exit_is_bounded_and_stops_late_work(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            marker = root / "late-marker"
+            pidfile = root / "holder.pid"
+            script = (
+                "import os, sys, time\n"
+                f"marker = {str(marker)!r}\n"
+                f"pidfile = {str(pidfile)!r}\n"
+                "child = os.fork()\n"
+                "if child == 0:\n"
+                "    time.sleep(1.2)\n"
+                "    open(marker, 'w', encoding='utf-8').write('late')\n"
+                "    os._exit(0)\n"
+                "open(pidfile, 'w', encoding='utf-8').write(str(child))\n"
+                "sys.stdout.write('DONE\\n')\n"
+                "sys.stdout.flush()\n"
+                "os._exit(0)\n"
+            )
+            holder = 0
+            started = time.monotonic()
+            try:
+                with _process_watchdog(), self.assertRaises(ProbeTimeout):
+                    run_closed(
+                        [sys.executable, "-c", script],
+                        timeout=0.15,
+                        max_output=4096,
+                        environ=self._ENV,
+                    )
+                elapsed = time.monotonic() - started
+                self.assertLess(elapsed, 1.0)
+                self.assertGreaterEqual(elapsed, 0.05)
+                time.sleep(1.3)
+                self.assertFalse(marker.exists())
+                holder = int(pidfile.read_text(encoding="utf-8")) if pidfile.exists() else 0
+                try:
+                    if holder:
+                        os.kill(holder, 0)
+                        still_alive = True
+                    else:
+                        still_alive = False
+                except ProcessLookupError:
+                    still_alive = False
+                self.assertFalse(still_alive)
+            finally:
+                _test_owned_stop_pid(holder)
+
+    def test_detached_quiet_holder_returns_by_deadline_with_test_owned_cleanup(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            pidfile = Path(tmp) / "holder.pid"
+            script = (
+                "import os, sys, time\n"
+                f"pidfile = {str(pidfile)!r}\n"
+                "child = os.fork()\n"
+                "if child == 0:\n"
+                "    os.setsid()\n"
+                "    time.sleep(30)\n"
+                "    os._exit(0)\n"
+                "open(pidfile, 'w', encoding='utf-8').write(str(child))\n"
+                "os._exit(0)\n"
+            )
+            holder = 0
+            started = time.monotonic()
+            try:
+                with _process_watchdog(), self.assertRaises(ProbeTimeout):
+                    run_closed(
+                        [sys.executable, "-c", script],
+                        timeout=0.15,
+                        max_output=4096,
+                        environ=self._ENV,
+                    )
+                elapsed = time.monotonic() - started
+                self.assertLess(elapsed, 1.0)
+                self.assertTrue(pidfile.exists())
+                holder = int(pidfile.read_text(encoding="utf-8"))
+                os.kill(holder, 0)
+            finally:
+                # Test-owned cleanup of this exact detached fixture pid.
+                # Product containment does not include setsid descendants.
+                _test_owned_stop_pid(holder)
+
+    def test_eof_drain_returns_before_deadline_with_all_output(self):
+        script = "import sys; sys.stdout.write('OUT'); sys.stderr.write('ERR')"
+        started = time.monotonic()
+        with _process_watchdog():
+            result = run_closed(
+                [sys.executable, "-c", script],
+                timeout=5,
+                max_output=1024,
                 environ=self._ENV,
             )
         self.assertLess(time.monotonic() - started, 2.0)
-        self.assertFalse(marker.exists())
+        self.assertEqual(result.stdout, b"OUT")
+        self.assertEqual(result.stderr, b"ERR")
+        self.assertEqual(result.exit_code, 0)
+
+    def test_repeated_runs_do_not_leak_fds_or_threads(self):
+        ok = "import sys; sys.stdout.write('ok')"
+        sleeper = "import time; time.sleep(30)"
+        flood = "import sys\nwhile True:\n    sys.stdout.write('x'*4096)\n    sys.stdout.flush()\n"
+        with _process_watchdog(20.0):
+            run_closed([sys.executable, "-c", ok], timeout=2, max_output=1024, environ=self._ENV)
+            base_threads = threading.active_count()
+            base_fds = _open_fd_count()
+            for _ in range(6):
+                run_closed([sys.executable, "-c", ok], timeout=2, max_output=1024, environ=self._ENV)
+                with self.assertRaises(ProbeTimeout):
+                    run_closed(
+                        [sys.executable, "-c", sleeper],
+                        timeout=0.12,
+                        max_output=1024,
+                        environ=self._ENV,
+                    )
+                with self.assertRaises(ProbeOutputBound):
+                    run_closed(
+                        [sys.executable, "-c", flood],
+                        timeout=5,
+                        max_output=2048,
+                        environ=self._ENV,
+                    )
+            self.assertEqual(threading.active_count(), base_threads)
+            self.assertEqual(_open_fd_count(), base_fds)
+
+    def test_exception_during_drain_terminates_owned_process(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            pidfile = Path(tmp) / "leader.pid"
+            script = (
+                "import os, sys, time\n"
+                f"pidfile = {str(pidfile)!r}\n"
+                "open(pidfile, 'w', encoding='utf-8').write(str(os.getpid()))\n"
+                "sys.stdout.buffer.write(b'X')\n"
+                "sys.stdout.buffer.flush()\n"
+                "time.sleep(30)\n"
+            )
+            real_read = os.read
+
+            def boom(fd, n, *args, **kwargs):
+                data = real_read(fd, n)
+                if data:
+                    raise RuntimeError("injected-read-failure")
+                return data
+
+            leader = 0
+            try:
+                with _process_watchdog(), patch("readiness.engine.os.read", boom), self.assertRaises(RuntimeError):
+                    run_closed(
+                        [sys.executable, "-c", script],
+                        timeout=5,
+                        max_output=4096,
+                        environ=self._ENV,
+                    )
+                deadline = time.monotonic() + 1.0
+                while not pidfile.exists() and time.monotonic() < deadline:
+                    time.sleep(0.01)
+                self.assertTrue(pidfile.exists())
+                leader = int(pidfile.read_text(encoding="utf-8"))
+                time.sleep(0.05)
+                with self.assertRaises(ProcessLookupError):
+                    os.kill(leader, 0)
+            finally:
+                _test_owned_stop_pid(leader)
+
+    def test_rejects_nonfinite_and_invalid_timeout_and_output_caps(self):
+        argv = [sys.executable, "-c", "pass"]
+        timeouts = (0, -0.1, float("nan"), float("inf"), float("-inf"), True, False, None, "1", math.nan)
+        for timeout in timeouts:
+            with self.subTest(timeout=timeout):
+                with self.assertRaises(ProfileError) as ctx:
+                    run_closed(argv, timeout=timeout, max_output=8, environ=self._ENV)
+                self.assertEqual(ctx.exception.reason, "invalid_command")
+        caps = (-1, True, False, 1.5, float("nan"), float("inf"), None, "8")
+        for max_output in caps:
+            with self.subTest(max_output=max_output):
+                with self.assertRaises(ProfileError) as ctx:
+                    run_closed(argv, timeout=1, max_output=max_output, environ=self._ENV)
+                self.assertEqual(ctx.exception.reason, "invalid_command")
 
 
 class CacheIgnoreTests(unittest.TestCase):

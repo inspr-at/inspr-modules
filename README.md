@@ -391,6 +391,15 @@ fresh evidence; leftover cache files cannot change a result. The optional
 `inputs.cache_dir` key remains accepted for profile compatibility but is
 ignored.
 
+Subprocess probes share one combined stdout+stderr byte budget (default
+65536) and a finite positive timeout. The deadline covers drain and
+termination of the owned session/process group, including same-group
+descendants that keep inherited pipes after the leader exits. Detached
+`setsid` processes are outside that group: the probe still returns by the
+deadline and closes its own pipes, but does not claim to kill them. A
+zero output cap allows empty output only. Invalid timeout or cap values
+are rejected as `invalid_command`.
+
 ### Expected digest derivation (read-only)
 
 Digests are `sha256:` plus 64 lowercase hex characters. They are computed

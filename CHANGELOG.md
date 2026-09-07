@@ -36,9 +36,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ignored only after schema and known-layer validation. `host_kind`
   does not treat Darwin alone as Home Manager activation.
 - Subprocess probes enforce a combined stdout+stderr byte budget while
-  streaming, with memory bounded to the configured limit and deadlines that
-  cover drain/termination; runaway output cannot balloon before the bound
-  trips.
+  streaming, with memory bounded to the configured limit and a deadline that
+  covers drain and owned-group termination even when same-group descendants
+  retain inherited pipes after the leader exits. Detached `setsid` holders
+  cannot hang the probe; they are outside owned-group containment. Invalid
+  nonfinite timeout or output-cap values are rejected as `invalid_command`.
 - NixOS `generation_digest_mismatch` now hints `activate_nixos_generation`
   instead of the Home Manager activation action.
 - Packaged CLI hostname resolution falls back to `uname -n` when `hostname`

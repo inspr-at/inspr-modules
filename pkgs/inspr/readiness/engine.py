@@ -4,13 +4,15 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
+import selectors
 import shutil
 import signal
 import stat
+import subprocess
 import sys
-import threading
 import time
 from dataclasses import dataclass
 from datetime import datetime
@@ -161,6 +163,89 @@ def real_host(environ: Mapping[str, str] | None = None) -> ProbeHost:
     )
 
 
+# Bounded wait after timeout/bound/exception to reap the owned leader only.
+# Not a license to return success past the caller deadline.
+_CLEANUP_GRACE_SECONDS = 0.2
+_READ_CHUNK = 4096
+
+
+def _finite_positive_timeout(timeout: object) -> float:
+    if isinstance(timeout, bool) or not isinstance(timeout, (int, float)):
+        raise ProfileError("invalid_command")
+    value = float(timeout)
+    if not math.isfinite(value) or value <= 0.0:
+        raise ProfileError("invalid_command")
+    return value
+
+
+def _nonnegative_output_cap(max_output: object) -> int:
+    if isinstance(max_output, bool) or not isinstance(max_output, int):
+        raise ProfileError("invalid_command")
+    if max_output < 0:
+        raise ProfileError("invalid_command")
+    return max_output
+
+
+def _close_fd(fd: int) -> None:
+    if fd < 0:
+        return
+    try:
+        os.close(fd)
+    except OSError:
+        pass
+
+
+def _kill_owned_group(pgid: int) -> None:
+    if pgid <= 1:
+        return
+    try:
+        os.killpg(pgid, signal.SIGKILL)
+    except ProcessLookupError:
+        return
+    except OSError:
+        return
+
+
+def _decode_wait_status(status: int) -> int:
+    if os.WIFEXITED(status):
+        return os.WEXITSTATUS(status)
+    if os.WIFSIGNALED(status):
+        return -os.WTERMSIG(status)
+    return status
+
+
+def _peek_child_status(pid: int) -> int | None:
+    try:
+        info = os.waitid(os.P_PID, pid, os.WEXITED | os.WNOHANG | os.WNOWAIT)
+    except ChildProcessError:
+        return None
+    except OSError:
+        return None
+    if info is None or getattr(info, "si_pid", 0) == 0:
+        return None
+    killed = (getattr(os, "CLD_KILLED", 2), getattr(os, "CLD_DUMPED", 3))
+    if info.si_code in killed:
+        return -info.si_status
+    return info.si_status
+
+
+def _reap_pid(pid: int, budget: float) -> int | None:
+    deadline = time.monotonic() + max(0.0, budget)
+    while True:
+        try:
+            waited, status = os.waitpid(pid, os.WNOHANG)
+        except ChildProcessError:
+            return None
+        except OSError:
+            return None
+        if waited == pid:
+            return _decode_wait_status(status)
+        remaining = deadline - time.monotonic()
+        if remaining <= 0.0:
+            return None
+        time.sleep(min(0.005, remaining))
+
+
 def run_closed(
     argv: list[str],
     *,
@@ -170,139 +255,169 @@ def run_closed(
     extra_env: Mapping[str, str] | None = None,
     cwd: str | None = None,
 ) -> RunResult:
-    import subprocess
+    """Run argv in a new session under one combined stdout+stderr cap and deadline.
 
+    Same-group descendants that keep inherited pipes cannot hang the drain: on
+    timeout, output bound, or exception this signals only the owned process
+    group, then closes our pipe ends. Detached setsid processes are outside
+    that group and are not claimed; we still return by the deadline.
+    """
     if not argv or not argv[0] or any(not isinstance(item, str) or "\x00" in item for item in argv):
         raise ProfileError("invalid_command")
     if cwd is not None and (not cwd.startswith("/") or cwd != os.path.normpath(cwd)):
         raise ProfileError("unsafe_cwd")
-    if timeout <= 0 or max_output < 0:
-        raise ProfileError("invalid_command")
+    timeout = _finite_positive_timeout(timeout)
+    max_output = _nonnegative_output_cap(max_output)
     env = operator_env(environ)
     if extra_env:
         env.update(extra_env)
 
-    proc = subprocess.Popen(
-        argv,
-        cwd=cwd,
-        env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        start_new_session=True,
-    )
+    stdout_r, stdout_w = os.pipe()
+    stderr_r, stderr_w = os.pipe()
+    open_fds = {stdout_r, stdout_w, stderr_r, stderr_w}
+    proc: subprocess.Popen[bytes] | None = None
+    pgid: int | None = None
+    leader_reaped = False
+    timed_out = False
+    bound = False
+    exit_code: int | None = None
     stdout_buf = bytearray()
     stderr_buf = bytearray()
-    stream_state = {"total": 0, "bound": False}
-    lock = threading.Lock()
-    deadline = time.monotonic() + timeout
 
-    def _kill_group(*, force: bool) -> None:
-        if proc.poll() is not None:
+    def take_fd(fd: int) -> None:
+        open_fds.discard(fd)
+        _close_fd(fd)
+
+    def terminate_owned() -> None:
+        if pgid is None or leader_reaped:
             return
-        sig = signal.SIGKILL if force else signal.SIGTERM
-        try:
-            os.killpg(proc.pid, sig)
-        except ProcessLookupError:
-            return
-        except OSError:
-            try:
-                proc.kill()
-            except OSError:
-                pass
+        _kill_owned_group(pgid)
 
-    def _close_streams() -> None:
-        for stream in (proc.stdout, proc.stderr):
-            if stream is not None:
-                try:
-                    stream.close()
-                except OSError:
-                    pass
+    def reap_owned(budget: float) -> int | None:
+        nonlocal leader_reaped, exit_code
+        if proc is None or leader_reaped:
+            return proc.returncode if proc is not None else None
+        reaped = _reap_pid(proc.pid, budget)
+        if reaped is not None:
+            proc.returncode = reaped
+            exit_code = reaped
+            leader_reaped = True
+        return reaped
 
-    def _consume(stream, buf: bytearray) -> None:
-        try:
-            while True:
-                try:
-                    chunk = stream.read(4096)
-                except (OSError, ValueError):
-                    break
-                if not chunk:
-                    break
-                with lock:
-                    if stream_state["bound"]:
-                        continue
-                    next_total = stream_state["total"] + len(chunk)
-                    if next_total > max_output:
-                        stream_state["bound"] = True
-                        _kill_group(force=True)
-                        continue
-                    buf.extend(chunk)
-                    stream_state["total"] = next_total
-        finally:
-            try:
-                stream.close()
-            except OSError:
-                pass
-
-    threads = (
-        threading.Thread(target=_consume, args=(proc.stdout, stdout_buf), daemon=True),
-        threading.Thread(target=_consume, args=(proc.stderr, stderr_buf), daemon=True),
-    )
-    for thread in threads:
-        thread.start()
-
-    timed_out = False
-    exit_code = 0
     try:
-        while proc.poll() is None:
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                timed_out = True
-                break
-            with lock:
-                bound = stream_state["bound"]
-            if bound:
-                break
-            try:
-                exit_code = proc.wait(timeout=remaining)
-                break
-            except subprocess.TimeoutExpired:
-                timed_out = True
-                break
-        if proc.poll() is None:
-            _kill_group(force=True)
-        _close_streams()
-        for thread in threads:
-            thread.join(timeout=max(0.0, deadline - time.monotonic()))
-        if proc.poll() is None:
-            remaining = max(0.0, deadline - time.monotonic())
-            if remaining:
-                try:
-                    exit_code = proc.wait(timeout=remaining)
-                except subprocess.TimeoutExpired:
-                    timed_out = True
-                    _kill_group(force=True)
-                    exit_code = proc.wait()
-            else:
-                timed_out = True
-                _kill_group(force=True)
-                exit_code = proc.wait()
-        else:
-            exit_code = proc.returncode if proc.returncode is not None else exit_code
-    finally:
-        _close_streams()
-        if proc.poll() is None:
-            _kill_group(force=True)
-            try:
-                proc.wait()
-            except OSError:
-                pass
+        os.set_blocking(stdout_r, False)
+        os.set_blocking(stderr_r, False)
+        try:
+            proc = subprocess.Popen(
+                argv,
+                cwd=cwd,
+                env=env,
+                stdout=stdout_w,
+                stderr=stderr_w,
+                start_new_session=True,
+            )
+        finally:
+            take_fd(stdout_w)
+            take_fd(stderr_w)
+        pgid = proc.pid
+        try:
+            pgid = os.getpgid(proc.pid)
+        except (ProcessLookupError, OSError):
+            pass
 
-    if timed_out:
-        raise ProbeTimeout
-    with lock:
-        if stream_state["bound"]:
+        buffers = {stdout_r: stdout_buf, stderr_r: stderr_buf}
+        live_reads = {stdout_r, stderr_r}
+        total = 0
+        deadline = time.monotonic() + timeout
+        selector = selectors.DefaultSelector()
+        registered: set[int] = set()
+        try:
+            for fd in (stdout_r, stderr_r):
+                selector.register(fd, selectors.EVENT_READ)
+                registered.add(fd)
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0.0:
+                    timed_out = True
+                    break
+                peeked = _peek_child_status(proc.pid)
+                if peeked is not None:
+                    exit_code = peeked
+                if not live_reads and exit_code is not None:
+                    break
+                select_timeout = remaining if live_reads else min(remaining, 0.02)
+                try:
+                    events = selector.select(select_timeout)
+                except InterruptedError:
+                    continue
+                for key, _mask in events:
+                    fd = key.fd
+                    if fd not in live_reads:
+                        continue
+                    try:
+                        chunk = os.read(fd, _READ_CHUNK)
+                    except BlockingIOError:
+                        continue
+                    except OSError:
+                        chunk = b""
+                    if not chunk:
+                        if fd in registered:
+                            selector.unregister(fd)
+                            registered.discard(fd)
+                        live_reads.discard(fd)
+                        take_fd(fd)
+                        continue
+                    next_total = total + len(chunk)
+                    if next_total > max_output:
+                        bound = True
+                        break
+                    buffers[fd].extend(chunk)
+                    total = next_total
+                if bound:
+                    break
+        finally:
+            for fd in list(registered):
+                try:
+                    selector.unregister(fd)
+                except Exception:
+                    pass
+            selector.close()
+
+        abort = timed_out or bound
+        if abort:
+            terminate_owned()
+        for fd in list(live_reads):
+            take_fd(fd)
+        live_reads.clear()
+        reap_budget = _CLEANUP_GRACE_SECONDS if abort else max(0.0, deadline - time.monotonic())
+        reap_owned(reap_budget)
+        if not abort and not leader_reaped:
+            timed_out = True
+            abort = True
+            terminate_owned()
+            reap_owned(_CLEANUP_GRACE_SECONDS)
+
+        if timed_out:
+            raise ProbeTimeout
+        if bound:
             raise ProbeOutputBound
-    return RunResult(tuple(argv), bytes(stdout_buf), bytes(stderr_buf), exit_code)
+        if exit_code is None:
+            raise ProbeTimeout
+        return RunResult(tuple(argv), bytes(stdout_buf), bytes(stderr_buf), exit_code)
+    except BaseException:
+        try:
+            terminate_owned()
+            for fd in list(open_fds):
+                take_fd(fd)
+            reap_owned(_CLEANUP_GRACE_SECONDS)
+        except Exception:
+            pass
+        raise
+    finally:
+        for fd in list(open_fds):
+            take_fd(fd)
+        if proc is not None and not leader_reaped:
+            reap_owned(_CLEANUP_GRACE_SECONDS)
 
 
 def operator_env(environ: Mapping[str, str]) -> dict[str, str]:
