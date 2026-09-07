@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- `inspr readiness` — a read-only, machine-readable development-machine
+  probe driven by an operator-owned JSON profile (`inspr.readiness.v1`).
+  It binds opaque host/runtime/project/account/harness/workspace
+  identities, expected generation and doctrine digests, and closed
+  built-in probes. Required unknown, unsupported, or stale evidence
+  cannot be `ready`. Existing `check` / `heal` / `onboard` /
+  `post-deploy` behaviour is unchanged. This is not Paimos launch
+  gating and not a live customer-acceptance claim. [INSPR-377]
+
+### Fixed
+
+- Home Manager and NixOS generation comparison follows the real
+  multi-hop profile chain (relative `*-N-link` → `/nix/store/…`) with
+  cycle and hop bounds, so an activated host is not reported as
+  `generation_not_activated`.
+- Expired or forged result-cache files cannot skip probes or promote
+  `ready`; probes always observe fresh evidence. `--no-cache` stays
+  accepted for compatibility.
+- Missing, unreadable, or directory profile paths emit closed JSON with
+  exit 2 and do not print host paths or tracebacks.
+- Codex account class requires the documented `codex login status` line,
+  not a help/error substring. Unknown future doctor layers may be
+  ignored only after schema and known-layer validation. `host_kind`
+  does not treat Darwin alone as Home Manager activation.
+- Subprocess probes enforce a combined stdout+stderr byte budget while
+  streaming, with memory bounded to the configured limit and a deadline that
+  covers drain and owned-group termination even when same-group descendants
+  retain inherited pipes after the leader exits. Detached `setsid` holders
+  cannot hang the probe; they are outside owned-group containment. Invalid
+  nonfinite timeout or output-cap values are rejected as `invalid_command`.
+- NixOS `generation_digest_mismatch` now hints `activate_nixos_generation`
+  instead of the Home Manager activation action.
+- Packaged CLI hostname resolution falls back to `uname -n` when `hostname`
+  is unavailable, avoiding sandbox noise without masking diagnostics.
+
+---
+
 ## [0.4.0] - 2026-08-18
 
 First release whose documentation describes the release. Everything below

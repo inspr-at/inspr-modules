@@ -5,6 +5,7 @@
 # Sub-commands:
 #   inspr           = inspr --help (show help)
 #   inspr check     = read-only diagnosis (am I onboarded? what drifted?)
+#   inspr readiness = read-only, machine-readable project-profile probe
 #   inspr heal      = diagnose + offer to fix what's fixable
 #   inspr onboard   = walk a fresh host through INSPR setup; optionally register
 #                     it in Pharos and deploy pharos-beacon
@@ -71,7 +72,10 @@ EOF
 # ── paths ──────────────────────────────────────────────────────────────────
 # All overridable via env vars so consumers without Markus's exact layout
 # can still run the tool. Same {VAR:-default} pattern across all four.
-HOSTNAME_SHORT="$(hostname -s)"
+if command -v hostname >/dev/null 2>&1; then
+  HOSTNAME_SHORT="$(hostname -s 2>/dev/null || true)"
+fi
+HOSTNAME_SHORT="${HOSTNAME_SHORT:-$(uname -n 2>/dev/null || echo unknown)}"
 NIXCFG_DIR="${INSPR_NIXCFG_DIR:-$HOME/Code/nixcfg}"
 INSPR_DIR="${INSPR_DIR:-$HOME/Code/inspr}"
 SECRETS_DIR="${INSPR_AGENT_SECRETS_DIR:-$HOME/.inspr/secrets/agents}"
@@ -924,6 +928,7 @@ cmd_help() {
     echo ""
     echo "${BOLD}Commands:${RESET}"
     echo "  ${GREEN}check${RESET}      Read-only diagnosis — am I onboarded? what drifted?"
+    echo "  ${GREEN}readiness${RESET}  Read-only, machine-readable project-profile probe."
     echo "  ${GREEN}heal${RESET}       Diagnose, then offer to fix what's fixable."
     echo "  ${GREEN}onboard${RESET}    Walk a fresh host through INSPR setup."
     echo "  ${GREEN}post-deploy${RESET} Validate nixcfg → Pharos → HostDash after deploy."
@@ -935,6 +940,7 @@ cmd_help() {
     echo ""
     echo "${BOLD}Sub-command flags${RESET} (see each sub-command's help for full list):"
     echo "  ${DIM}inspr check --verbose | --quiet | --list | --profile=<workstation|server>${RESET}"
+    echo "  ${DIM}inspr readiness --profile PATH [--json] [--no-cache]${RESET}"
     echo "  ${DIM}inspr heal --yes${RESET}     ${DIM}# auto-apply fixable items without prompting${RESET}"
     echo "  ${DIM}inspr onboard${RESET}         ${DIM}# interactive walkthrough (10 steps; optional Pharos registration)${RESET}"
     echo "  ${DIM}inspr post-deploy --host=${EXAMPLE_HOST}${RESET}"
@@ -1045,6 +1051,48 @@ cmd_check() {
         echo "  ${DIM}for fix suggestions on red items, run:${RESET} ${CYAN}inspr heal${RESET}"
         exit 1
     fi
+}
+
+cmd_readiness_help() {
+    cat <<EOF
+${BOLD}inspr readiness${RESET} — read-only, machine-readable development-machine probe.
+
+${BOLD}Usage:${RESET}
+  inspr readiness --profile PATH [--json] [--no-cache]
+
+${BOLD}Flags:${RESET}
+  ${CYAN}--profile PATH${RESET}   Operator-owned JSON profile. Never sourced as shell.
+  ${CYAN}--json${RESET}           JSON evidence only on stdout.
+  ${CYAN}--no-cache${RESET}       Accepted for compatibility; probes always observe fresh evidence.
+  ${CYAN}-h, --help${RESET}       Show this help.
+
+${BOLD}Exit codes:${RESET}
+  0  ready
+  1  needs_setup
+  2  profile / usage error
+  3  unavailable
+
+${DIM}Required unknown, unsupported, or stale evidence cannot be ready.
+This command does not heal, activate Nix, switch accounts, start a
+worker, or treat browser JSON as proof. It is not launch gating.${RESET}
+EOF
+}
+
+cmd_readiness() {
+    if [[ ${1:-} == "-h" || ${1:-} == "--help" ]]; then
+        cmd_readiness_help
+        exit 0
+    fi
+    local lib="${INSPR_READINESS_LIB:-}"
+    if [[ -z "$lib" || ! -d "$lib/readiness" ]]; then
+        echo "${RED}error:${RESET} readiness library is not packaged on this host" >&2
+        exit 2
+    fi
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "${RED}error:${RESET} python3 is required for inspr readiness" >&2
+        exit 2
+    fi
+    PYTHONPATH="$lib${PYTHONPATH:+:$PYTHONPATH}" exec python3 -m readiness "$@"
 }
 
 cmd_heal_help() {
@@ -1786,6 +1834,10 @@ case "$1" in
 check)
     shift
     cmd_check "$@"
+    ;;
+readiness)
+    shift
+    cmd_readiness "$@"
     ;;
 heal)
     shift
