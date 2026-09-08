@@ -161,10 +161,13 @@ let
         config     = evaluated.config;
         assertions = evaluated.config.assertions;
         warnings   = evaluated.config.warnings;
-        # Failed assertions are the ones whose `.assertion = false`. The
-        # NixOS module system aggregates these and refuses to build if
-        # any are non-empty (real HM does the same).
         failedAssertions = lib.filter (a: !a.assertion) evaluated.config.assertions;
+        firewall = result.value.firewall;
+        etc = result.value.etc;
+        deployment = result.value.deployment;
+        fragment = result.value.fragment;
+        units = result.value.units;
+        service = result.value.units."inspr-routing-edge" or null;
       }
       else {
         success = false;
@@ -200,6 +203,18 @@ let
           default = { };
         };
       };
+      systemd.services = lib.mkOption {
+        type    = lib.types.attrsOf lib.types.unspecified;
+        default = { };
+      };
+      networking.firewall.allowedTCPPorts = lib.mkOption {
+        type    = lib.types.listOf lib.types.int;
+        default = [ ];
+      };
+      environment.etc = lib.mkOption {
+        type    = lib.types.attrsOf lib.types.unspecified;
+        default = { };
+      };
       warnings = lib.mkOption {
         type    = lib.types.listOf lib.types.str;
         default = [ ];
@@ -234,9 +249,20 @@ let
 
       # Force the testable surface deeply enough that lazy throws
       # (e.g. revoked-in-trust) fire during eval rather than later.
-      forced = builtins.deepSeq {
+      observable = {
         inherit (evaluated.config) users warnings assertions;
-      } evaluated;
+        firewall = evaluated.config.networking.firewall.allowedTCPPorts;
+        etc = evaluated.config.environment.etc;
+        deployment = evaluated.config.services.inspr.routingEdge.generatedDeployment or { };
+        fragment = evaluated.config.services.inspr.routingEdge.generatedFragmentFile or null;
+        units = lib.mapAttrs (_: svc: {
+          preStart = svc.preStart or null;
+          script = svc.script or null;
+          serviceConfig = svc.serviceConfig or { };
+        }) (evaluated.config.systemd.services or { });
+      };
+
+      forced = builtins.deepSeq observable evaluated;
 
       result = builtins.tryEval forced;
     in
@@ -244,12 +270,27 @@ let
       then {
         success    = true;
         config     = evaluated.config;
-        assertions = evaluated.config.assertions;
-        warnings   = evaluated.config.warnings;
-        failedAssertions = lib.filter (a: !a.assertion) evaluated.config.assertions;
+        assertions = observable.assertions;
+        warnings   = observable.warnings;
+        failedAssertions = lib.filter (a: !a.assertion) observable.assertions;
+        firewall = observable.firewall;
+        etc = observable.etc;
+        deployment = observable.deployment;
+        fragment = observable.fragment;
+        units = observable.units;
+        service = observable.units."inspr-routing-edge" or null;
       }
       else {
         success = false;
+        failedAssertions = [ ];
+        warnings = [ ];
+        assertions = [ ];
+        firewall = [ ];
+        units = { };
+        service = null;
+        deployment = { };
+        fragment = null;
+        etc = { };
       };
 
   # ── Test result aggregator ──────────────────────────────────────────────

@@ -1,0 +1,9 @@
+{
+  "fixture_version": "inspr.routing-invalid-patch/0.1-draft",
+  "base": "../valid/combined-connected.json",
+  "expected_codes": ["DISABLED_APP_HAS_BASE_PATH"],
+  "operations": [
+    { "op": "replace", "path": "/apps/janus/enabled", "value": false },
+    { "op": "replace", "path": "/apps/janus/public_base_path", "value": "/janus" }
+  ]
+}

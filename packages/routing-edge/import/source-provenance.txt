@@ -1,0 +1,10 @@
+inspr-routing-edge source provenance
+schema: inspr-routing-edge-source-provenance/0.1
+private_source_commit: 8fc7c093d4bb682b9804cfa7bf0f6e9480dd936a
+imported_file_count: 48
+source_tree_digest: sha256:9f627001f61543e78204cce9b17bb7acc43c396d8a9a5281c793a9aab4ecb054
+source_archive_digest: sha256:c6e343a3e2003ba2f3b351a27ac632b9c884cbb1b2c0137d4d7203d9b6fae21e
+inventory: packages/routing-edge/import/closed-inventory.json
+receipt: packages/routing-edge/import/import-receipt.json
+note: Opaque commit id and content digests only. No private remote or host paths.
+public_adaptations: packages/routing-edge/import/public-adaptations.json

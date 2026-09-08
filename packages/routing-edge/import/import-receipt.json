@@ -1,0 +1,295 @@
+{
+  "schema": "inspr-routing-edge-import-receipt/0.1",
+  "source_commit": "8fc7c093d4bb682b9804cfa7bf0f6e9480dd936a",
+  "file_count": 48,
+  "files": [
+    {
+      "path": "contracts/routing/README.md",
+      "git_blob": "c1fee50e19530ccafb26b3d98d0af29b5827f4fb",
+      "sha256": "d3c6e760cac585007a5458f3aa40a9d1ab31401a243af9e30f340e6a050894d3",
+      "size": 5048
+    },
+    {
+      "path": "contracts/routing/fixtures/invalid/disabled-app-with-base-path.patch.json",
+      "git_blob": "9b088a811a65248a2c515e72113fd9918008cd64",
+      "sha256": "505515e2101a831897606eb91695307caebffb5036c835bd89077a517308c90a",
+      "size": 341
+    },
+    {
+      "path": "contracts/routing/fixtures/invalid/dot-segment-base-path.patch.json",
+      "git_blob": "e3043cf299a3aaf90b690e36222b05498685d21b",
+      "sha256": "773d11a37f4945dc3d475a80beea6f4adee5f2b9bb4e0c8cf526df20c2dc6855",
+      "size": 277
+    },
+    {
+      "path": "contracts/routing/fixtures/invalid/duplicate-oidc-client.patch.json",
+      "git_blob": "fc1e97770e7f08e67263af2e865064656f64d314",
+      "sha256": "d38ed772eefec50a5dae3ab041df2ccefcb7ffc3bc5f739f8e233eccfd335b86",
+      "size": 288
+    },
+    {
+      "path": "contracts/routing/fixtures/invalid/enabled-with-external-origin.patch.json",
+      "git_blob": "ff5e4e696d34a0e74267bd52e2632c51e65eec03",
+      "sha256": "70fd9eab53d5437dd5108ad0c238d3d7d8a26d53a6bfd33086dbb3d286b2815e",
+      "size": 392
+    },
+    {
+      "path": "contracts/routing/fixtures/invalid/forwarded-identity-trust.patch.json",
+      "git_blob": "abd33feb492b7d4ac1b501ba81d2b0a94cd245dd",
+      "sha256": "aa55e84f214ad2e69d57c9ecfcfdc5ec4e79b31ad8835236faed7542234bd6fd",
+      "size": 267
+    },
+    {
+      "path": "contracts/routing/fixtures/invalid/landing-disabled-app.patch.json",
+      "git_blob": "5de1cd6e01ccc772c3164d7c6e0ec53e848bc9a7",
+      "sha256": "5cfae0f97037a14ea9b4d66137ce70b7192b0667e9502e70a8d42ecbef01e9ca",
+      "size": 327
+    },
+    {
+      "path": "contracts/routing/fixtures/invalid/multiple-root-mounts.patch.json",
+      "git_blob": "86ca909d50f731fffde9aadd5479eed56525a4b9",
+      "sha256": "a276ca8fd5b7115d5533eb32b36283ba2ecc016dac2749bff476a4ad3222f9d5",
+      "size": 261
+    },
+    {
+      "path": "contracts/routing/fixtures/invalid/overlapping-base-path.patch.json",
+      "git_blob": "f8b4c29a1a90190d7a1376af2cdcf5caee37026b",
+      "sha256": "d6995f2941d5bd3f0aac7646306d7e0cb60c79de5df72fc237f29213f5f29f77",
+      "size": 266
+    },
+    {
+      "path": "contracts/routing/fixtures/invalid/percent-encoded-base-path.patch.json",
+      "git_blob": "26c94617ef2e77ba5b2dc6c11fee48085d7c0d8b",
+      "sha256": "f85aff5dd4282622e573a62e14629ff8d15632654d46a432e1d2c318d5e73dde",
+      "size": 269
+    },
+    {
+      "path": "contracts/routing/fixtures/invalid/trailing-slash-base-path.patch.json",
+      "git_blob": "256a16a68bc1c8c53a747c8959167617689e5c60",
+      "sha256": "790dfa3dfd045ee1ede3724c1e5e191d805857db90514179204e3f9594ffc88a",
+      "size": 270
+    },
+    {
+      "path": "contracts/routing/fixtures/valid/combined-aithema-root.json",
+      "git_blob": "3341a514272fcd1ee9479d5252587832543ee58e",
+      "sha256": "e86ad5774f100cbe51bd49c464f63e42e7f4d2b0c6d02ac7fe879297051a6870",
+      "size": 1796
+    },
+    {
+      "path": "contracts/routing/fixtures/valid/combined-connected.json",
+      "git_blob": "2f9d6bbeb86cfa080d10c005b1498e0fb08f1e37",
+      "sha256": "8b6f223923870d3106e069a03d1320956a69de9cc44e4fe610b234492683e694",
+      "size": 1864
+    },
+    {
+      "path": "contracts/routing/fixtures/valid/standalone-aithema.json",
+      "git_blob": "cb94fa07bd71181eb43348da9efd602a0e8b4f39",
+      "sha256": "b25222c9990ad70db1de4fdcde0ddcb2504788b1de117a0a87e8d3426f02dc93",
+      "size": 2053
+    },
+    {
+      "path": "contracts/routing/schema/routing.schema.json",
+      "git_blob": "572637eebdcc94c7c241e26f425d9fdab87d2cf8",
+      "sha256": "28a5233346567ac99887764f83bddfe9e26dc6895beaf0ec40c1fe5c70172107",
+      "size": 5382
+    },
+    {
+      "path": "contracts/routing/tests/test_validate.py",
+      "git_blob": "861117bd72c0a88649cb270991146043107cb3bf",
+      "sha256": "c11aab806bf9a97b5805598df01a70a703cc71c1e49eecdade2e0ada9d7870b2",
+      "size": 5817
+    },
+    {
+      "path": "contracts/routing/validate.py",
+      "git_blob": "65940151747dcda8545a582bd687c97d799087bc",
+      "sha256": "95aab8b8b9dffd59a1b72042c6c4331954df564ea6152e6c9f90cb26e4d9f041",
+      "size": 20742
+    },
+    {
+      "path": "packages/routing-edge/LICENSE",
+      "git_blob": "be3f7b28e564e7dd05eaf59d64adba1a4065ac0e",
+      "sha256": "0d96a4ff68ad6d4b6f1f30f713b18d5184912ba8dd389f86aa7710db079abcb0",
+      "size": 34523
+    },
+    {
+      "path": "packages/routing-edge/README.md",
+      "git_blob": "65380ca74a48df8d44c71ba1d4ba1947e16bd3b7",
+      "sha256": "67888a4a400d83fa724ecc0498122f79008bb0cb6b390cf34ede25a46513c7f0",
+      "size": 15083
+    },
+    {
+      "path": "packages/routing-edge/fixtures/invalid/disabled-app-upstream.patch.json",
+      "git_blob": "447ba2df130acef59788e2fb6a14939bae9674e3",
+      "sha256": "25eee9068fec7f3b4e7c18bb75e15a885e58342c4d1844600d1d4970a031797f",
+      "size": 259
+    },
+    {
+      "path": "packages/routing-edge/fixtures/invalid/missing-upstream.patch.json",
+      "git_blob": "ce2cc5cb127e61a45a57c518243830f320cfdb22",
+      "sha256": "217b2109f7f99ae9332be9e52464395b8c6b4ef8684b2c4650490e1389d293bc",
+      "size": 192
+    },
+    {
+      "path": "packages/routing-edge/fixtures/invalid/public-http-upstream.patch.json",
+      "git_blob": "67a3eb09da3f13e9fde12cc63e8d769f6e8bcd9c",
+      "sha256": "d66357e9d5fca198a77a95bd9f87d51c1741aeb87b43e12edef7a20422bf9cd7",
+      "size": 243
+    },
+    {
+      "path": "packages/routing-edge/fixtures/invalid/upstream-equals-public-origin.patch.json",
+      "git_blob": "b3de595e2ffa08e5887493c72160eb0fb59d8deb",
+      "sha256": "b88a35081b22a65ec43f353409224fb1931881cb3effb0070c513b834c6f5b2b",
+      "size": 245
+    },
+    {
+      "path": "packages/routing-edge/fixtures/invalid/upstream-fragment.patch.json",
+      "git_blob": "03408345ed1d90b1a571a8a371dd6673b74031d4",
+      "sha256": "1a5a17f92a62e5f6fb730a4ba6ca48de570489e4eeb224568572ee7cf05c6c9b",
+      "size": 255
+    },
+    {
+      "path": "packages/routing-edge/fixtures/invalid/upstream-query.patch.json",
+      "git_blob": "b7f1883cfcfbf3888d56bc0ae37ea2fd228dda9f",
+      "sha256": "508e76e7d74ab98974df49cee610b3eb0e0efdd16462be9378c554f90c2a1f6e",
+      "size": 254
+    },
+    {
+      "path": "packages/routing-edge/fixtures/invalid/upstream-userinfo.patch.json",
+      "git_blob": "c7a1e2eb0693f103c6158adc898f6401548141ef",
+      "sha256": "0c4d74da6ea5592febfc25467e5c5cfbeb7baa76502af1e2d6382b63ed9770d1",
+      "size": 262
+    },
+    {
+      "path": "packages/routing-edge/fixtures/valid/combined-aithema-root.deployment.json",
+      "git_blob": "dc7dea3b41f70583f8cee20b2a93a37fea65066c",
+      "sha256": "f2713be1aeda95e6d1042444b3e58ec6a316094bc11a3970e2b132824a06b410",
+      "size": 392
+    },
+    {
+      "path": "packages/routing-edge/fixtures/valid/combined-connected.deployment.json",
+      "git_blob": "57f620c429d4749deb57e7f60b87cf80aabb1ac8",
+      "sha256": "1b72ee8b56eca945390bfe42e01512d9b29fa6f910d71220f2a950632e2395f4",
+      "size": 451
+    },
+    {
+      "path": "packages/routing-edge/fixtures/valid/loopback-http.deployment.json",
+      "git_blob": "5c5942b59ca3189b6ead5a75b61211d49a031847",
+      "sha256": "e44d3c2f526b77c0a54f9244ce1719f74c1b8bce961985c575bad0b21ea1cb7b",
+      "size": 327
+    },
+    {
+      "path": "packages/routing-edge/fixtures/valid/standalone-aithema.deployment.json",
+      "git_blob": "16072976e812445d6d31a459d610c5f984dadada",
+      "sha256": "edea1c54e4008d7ab260bd17fc849604b8f9f7eb9959e58ffbd3e72039fb771e",
+      "size": 270
+    },
+    {
+      "path": "packages/routing-edge/generate.py",
+      "git_blob": "33b4011280208dce41a39d40945ac1696f3ef589",
+      "sha256": "f9e1ba138b4cd2eca143cc0d7afd0335b2a43633ef3c32f66bd92fbd927a3d01",
+      "size": 1513
+    },
+    {
+      "path": "packages/routing-edge/nix/default.nix",
+      "git_blob": "6e98226ab1dac624aa5ad63e5a2ad5dd39092107",
+      "sha256": "0c0a5a0062a92756198e263ae2c7a51868a225c5f59ba4955c94e25108f9a0b2",
+      "size": 4639
+    },
+    {
+      "path": "packages/routing-edge/nix/module.nix",
+      "git_blob": "c573694ab97a6eaba6797bbe0414e3fe60d1e02e",
+      "sha256": "1b396aea8da86497632090b66d9a2ffbc288fe9d1d6f2482b3acf3469038e66d",
+      "size": 22094
+    },
+    {
+      "path": "packages/routing-edge/nix/pinned.nix",
+      "git_blob": "d209c3207e4b66eb7ac4b11272e0506c0f11697d",
+      "sha256": "9ca9491f03e895037dcc5dff36bf30eb1a0baf7effbcad9533c28ad1912d055d",
+      "size": 456
+    },
+    {
+      "path": "packages/routing-edge/nix/tests/default.nix",
+      "git_blob": "afb63e5067dc4d7acf5d9687f00d278f1d1aff6e",
+      "sha256": "27103f71f6d82b2b3f9517194fdbde76a3f879b88da44e5b26167fbe8a0f04c8",
+      "size": 9926
+    },
+    {
+      "path": "packages/routing-edge/nix/tests/harness.nix",
+      "git_blob": "afef62a1dee7c0da7a4bd3e4031df301a935c5d8",
+      "sha256": "6a23c21b356f833848584b0a87289196c5d7da1c7a9922555d68c15652283933",
+      "size": 4409
+    },
+    {
+      "path": "packages/routing-edge/nix/tests/module.test.nix",
+      "git_blob": "7a3296404b04ffae4b9a62c0914daa65d7ea2051",
+      "sha256": "3623a330669d6b5302eac9a092a25aeacb480357398fc79ab0421af498a19f23",
+      "size": 17667
+    },
+    {
+      "path": "packages/routing-edge/nix/tests/nixos-eval.nix",
+      "git_blob": "4cb540b0d0a4d8937547fb7e278415ae771b4502",
+      "sha256": "d8c987e4dbbf10c0af359a6dc7bab9291a4e5916500cb9d46d6d9f896dd81f43",
+      "size": 5294
+    },
+    {
+      "path": "packages/routing-edge/routing_edge/__init__.py",
+      "git_blob": "2698e00adfbd6e25a38b708cc082126755661cc1",
+      "sha256": "56f5b9d4c6feb25864501f52a6d59bcf27416e4dc3e7563f95a4651fb5338df0",
+      "size": 176
+    },
+    {
+      "path": "packages/routing-edge/routing_edge/compile.py",
+      "git_blob": "85e703d27eafba4650a6a721a58f59678345902b",
+      "sha256": "064997c6b262b8c28b9dba1109c2812fb85c6eaeaeeca533fb1e6dbcad715208",
+      "size": 23163
+    },
+    {
+      "path": "packages/routing-edge/routing_edge/deny.py",
+      "git_blob": "9a8aded02750d39cf2e1cb7c36d25762b9a41641",
+      "sha256": "3e2d1a58b940c96f8551199823812fd95be1b56da418bfbfe43bc327db120e27",
+      "size": 6804
+    },
+    {
+      "path": "packages/routing-edge/routing_edge/deployment.py",
+      "git_blob": "a0676766950c9206962eb466db7c691a71ae066d",
+      "sha256": "2e8afd033fccdcb9fa2411de2b8b1e7beebc7d982c07d5371d2ba5cc0d3e0a6c",
+      "size": 11447
+    },
+    {
+      "path": "packages/routing-edge/routing_edge/yaml_emit.py",
+      "git_blob": "6467636d8f96d112f1ba722ca9999c73aecde8d0",
+      "sha256": "04dd8c0e06837ce75cbc46448b39d45518dfaa75af59aa0b3c8b555498ce2d76",
+      "size": 3943
+    },
+    {
+      "path": "packages/routing-edge/tests/__init__.py",
+      "git_blob": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "path": "packages/routing-edge/tests/echo_backend.py",
+      "git_blob": "0781d62132e58ad927aba4392fcfe8c061b90882",
+      "sha256": "e39d0bac53d87066d4da62c138a697c9e3d16f7ea8317a1004ca553ebe25ee76",
+      "size": 3312
+    },
+    {
+      "path": "packages/routing-edge/tests/helpers.py",
+      "git_blob": "93e4343e12b2eb4c32756030209a708b521da69f",
+      "sha256": "4d91a2bea2f3d96a4ef1a76cc10760c1742f3d9849d1611fad0e1c08add83f73",
+      "size": 2238
+    },
+    {
+      "path": "packages/routing-edge/tests/test_compile.py",
+      "git_blob": "b4c9a0492d576431b4cf31d19b9370b04f8bc7d2",
+      "sha256": "3c760f7d1dc6289df66d8700d2138fcbdce0a59b0eb98eaef2dd965bddaa88cf",
+      "size": 14576
+    },
+    {
+      "path": "packages/routing-edge/tests/test_traefik_process.py",
+      "git_blob": "723fa56abc8b7b9188d1918c80d6e277c2c23724",
+      "sha256": "5367cac73c1d997a85949e048c9e6ade8e3cc6dc2a1e4d2a12fc6472546b0c1a",
+      "size": 18189
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "schema": "inspr-routing-edge-public-adaptations/0.1",
+  "source_commit": "8fc7c093d4bb682b9804cfa7bf0f6e9480dd936a",
+  "note": "Paths listed here differ from the import receipt on purpose. Unlisted paths remain byte-identical to the pinned private source blobs.",
+  "adapted_paths": [
+    {
+      "path": "packages/routing-edge/tests/test_traefik_process.py",
+      "reason": "Remove operator-local DEFAULT_TRAEFIK path; resolve Traefik only via INSPR_TRAEFIK_BIN or PATH; fail closed when the pinned process proof cannot run."
+    },
+    {
+      "path": "packages/routing-edge/nix/default.nix",
+      "reason": "Point package metadata homepage at the public inspr-modules location."
+    },
+    {
+      "path": "packages/routing-edge/nix/module.nix",
+      "reason": "Point module documentation URL at the public inspr-modules location."
+    },
+    {
+      "path": "packages/routing-edge/README.md",
+      "reason": "Document inspr-modules flake consumption and pending publication pin; replace private umbrella import examples."
+    }
+  ]
+}

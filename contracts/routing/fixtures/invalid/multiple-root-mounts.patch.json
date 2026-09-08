@@ -1,0 +1,8 @@
+{
+  "fixture_version": "inspr.routing-invalid-patch/0.1-draft",
+  "base": "../valid/combined-aithema-root.json",
+  "expected_codes": ["MULTIPLE_ROOT_MOUNTS"],
+  "operations": [
+    { "op": "replace", "path": "/apps/paimos/public_base_path", "value": "" }
+  ]
+}
