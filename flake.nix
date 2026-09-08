@@ -420,6 +420,16 @@
             };
 
             # Closed Git-blob import boundary for routing-edge (INSPR-390).
+            routing-edge-import-boundary = pkgs.runCommand "routing-edge-import-boundary"
+              {
+                nativeBuildInputs = [ pkgs.python3 pkgs.git ];
+              }
+              ''
+                cd ${self}
+                python3 -m unittest discover -s tests -p 'test_routing_edge_import_boundary.py' -v
+                touch $out
+              '';
+
             routing-edge-import-surface = pkgs.runCommand "routing-edge-import-surface"
               {
                 nativeBuildInputs = [
