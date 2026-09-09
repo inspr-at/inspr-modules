@@ -55,7 +55,7 @@
 #                                       this flake (`insprSource = self`).
 #
 # Consumer pattern (in your flake.nix):
-#   inputs.inspr-modules.url = "github:inspr-at/inspr-modules/v0.4.4";  # pin a tag; main moves
+#   inputs.inspr-modules.url = "github:inspr-at/inspr-modules/v0.5.0";  # pin a tag; main moves
 #   inputs.inspr-modules.inputs.nixpkgs.follows = "nixpkgs";
 #
 #   home.imports = [
