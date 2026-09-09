@@ -9,6 +9,7 @@
 {
   imports = [
     ./ssh-authorized.nix
+    ./aithema-workspace.nix
     ../../packages/routing-edge/nix/module.nix
   ];
 }

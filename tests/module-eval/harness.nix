@@ -190,6 +190,22 @@ let
         users = lib.mkOption {
           type = lib.types.attrsOf (lib.types.submodule {
             options = {
+              isSystemUser = lib.mkOption {
+                type = lib.types.bool;
+                default = false;
+              };
+              group = lib.mkOption {
+                type = lib.types.nullOr lib.types.str;
+                default = null;
+              };
+              home = lib.mkOption {
+                type = lib.types.nullOr lib.types.str;
+                default = null;
+              };
+              createHome = lib.mkOption {
+                type = lib.types.bool;
+                default = false;
+              };
               openssh = {
                 authorizedKeys = {
                   keys = lib.mkOption {
@@ -200,6 +216,10 @@ let
               };
             };
           });
+          default = { };
+        };
+        groups = lib.mkOption {
+          type = lib.types.attrsOf lib.types.unspecified;
           default = { };
         };
       };
@@ -256,6 +276,9 @@ let
         deployment = evaluated.config.services.inspr.routingEdge.generatedDeployment or { };
         fragment = evaluated.config.services.inspr.routingEdge.generatedFragmentFile or null;
         units = lib.mapAttrs (_: svc: {
+          after = svc.after or [ ];
+          wants = svc.wants or [ ];
+          wantedBy = svc.wantedBy or [ ];
           preStart = svc.preStart or null;
           script = svc.script or null;
           serviceConfig = svc.serviceConfig or { };

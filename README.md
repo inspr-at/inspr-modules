@@ -31,6 +31,7 @@ Reusable Home Manager modules + utilities from the [INSPR](https://inspr.at) ini
 | Module | Namespace | What it does |
 |---|---|---|
 | `ssh-authorized` | `inspr.ssh.authorized` | System-side counterpart to the HM `ssh-authorized` (since INSPR-73). Same shared keyring (rich-key form, `status: active \| legacy \| revoked`) but renders into `users.users.<u>.openssh.authorizedKeys.keys` (which NixOS materializes as `/etc/ssh/authorized_keys.d/<u>`). **Multi-user**: `inspr.ssh.authorized.users.<name>.{trust, force, extraKeys}`. **`force = true`** wraps the rendered list in `lib.mkForce` to displace upstream-injected keys (e.g. server-home / hokage profiles); default `false` merges via list concatenation. Throws at eval time on undeclared alias OR revoked-in-trust. Define the `keys` keyring in a plain-Nix file imported at BOTH NixOS-module scope (for this module) AND HM scope (for the HM module) — single source of truth across both. |
+| `aithema-workspace` | `services.inspr.aithemaWorkspace` | Disabled-by-default service for the immutable public Aithema 0.5.0 runtime. Runs the actual Node 24+ CLI as a dedicated static user, keeps SQLite state in a systemd-owned persistent directory, and loads operator-owned runtime JSON through protected systemd credentials. It does not render auth/provider configuration, open a firewall port, provision TLS/OIDC, or weaken Aithema's production validation. |
 | `default` | (aggregate) | Imports all NixOS modules. |
 
 ### Packages
@@ -39,6 +40,7 @@ Reusable Home Manager modules + utilities from the [INSPR](https://inspr.at) ini
 |---|---|
 | `inspr` | The INSPR CLI (evolved from `inspr-doctor`, INSPR-195): `check` (read-only drift diagnosis, incl. the kernel byte-budget gate), `readiness` (read-only, machine-readable development-machine probe driven by an operator-owned project profile), `heal` (apply mapped fixes with verified-applied semantics), `onboard` (fresh-host walkthrough, optional Pharos registration), `post-deploy` (nixcfg → Pharos → HostDash validation). |
 | `secrets-audit` | Bash script: detects drift between `secrets/*.age` files and their declarations in `secrets/secrets.nix`. Three modes: human report, `--quiet`, `--json`. |
+| `aithema-workspace` | Actual `aithema-workspace` executable from the immutable public Aithema 0.5.0 runtime archive. Node 24 is part of the closure; every direct and transitive dependency is fetched from the release lockfile by its recorded integrity. |
 
 ## Consumer pattern
 
@@ -188,6 +190,44 @@ fails only at login. Check with `ssh-keygen -l -f <(echo "<key>")` before you
 commit it; build-time key validation is on the roadmap. Full option reference: the header of
 [`modules/nixos/ssh-authorized.nix`](modules/nixos/ssh-authorized.nix).
 
+### NixOS: Aithema workspace service
+
+Import `nixosModules.aithema-workspace` (or the NixOS aggregate) and point it
+at a protected runtime file managed outside Nix:
+
+```nix
+{
+  services.inspr.aithemaWorkspace = {
+    enable = true;
+    configFile = "/run/secrets/aithema-workspace.json";
+  };
+}
+```
+
+The system manager must be able to read that source file. At service start,
+systemd copies it to a private credential path readable by the `aithema`
+service; the source path is never imported into the Nix store and the file
+contents are never rendered into the unit or command line. A runtime preflight
+checks only that `dataDir` matches the module-managed persistent directory and
+fails with a generic diagnostic. Keep the source root-owned and mode `0600`
+(or use an equivalent secrets materializer).
+
+The file uses Aithema's published runtime schema. A production configuration
+must use `mode: "production"`, a real `jwt-jwks` identity, an approved provider
+registry/policy, and `dataDir: "/var/lib/aithema-workspace"`. The runtime itself
+rejects incomplete identity/provider configuration, mock production providers,
+and non-persistent production storage; this module does not manufacture an
+identity or fallback provider.
+
+Networking also stays operator-owned. Aithema defaults production listening to
+loopback; set `listenHost` and `listenPort` in the protected JSON when a private
+listener is required. The module opens no firewall ports. Behind a TLS reverse
+proxy, set `publicOrigin` to the browser-visible origin and optionally set a
+canonical `publicBasePath` such as `/aithema`; the proxy must preserve that
+prefix. Readiness is then at `{publicBasePath}/health`. The proxy, certificates,
+OIDC client/redirect registration, provider reachability, and customer
+acceptance remain separate consumer responsibilities.
+
 ## Architecture notes — the atelier pattern
 
 These modules emerged from the INSPR onboarding sessions documented in the (private) `inspr` umbrella repo. The design pattern is **the atelier** (formerly called "Pattern β" in older docs — same architecture, more memorable name).
@@ -213,13 +253,14 @@ nix build .#checks.aarch64-darwin.secrets-audit-functional --print-build-logs
 | Check | Coverage |
 |---|---|
 | `design-frontier-gallery` | Deterministic five-lens local gallery generation; UUIDv7 and honest preflight-unavailable states; HTML escaping and URL-safe entries; sandbox, symlink, ownership, current-model-evidence, distinct-model and output-clobber boundaries. |
-| `license-surface` | Canonical AGPLv3 text, exact AGPL-3.0-only declarations across public/source/doctrine surfaces, and Nix package metadata for both shipped utilities |
+| `license-surface` | Canonical AGPLv3 text, exact AGPL-3.0-only declarations across public/source/doctrine surfaces, and Nix package metadata for shipped utilities |
 | `repository-location-surface` | Canonical INSPR organization links, clone guidance, and Pharos container default, while explicitly preserving the intentionally personal `nixcfg` location |
 | `work-attribution-doctrine` | Keeps the always-on kernel, non-Claude mirror, full reference, product gauntlet, and design-frontier dispatcher aligned on ticket-first work authorization, actual session UUID attribution, single-tracker routing and value-free markers. |
 | `secrets-audit-functional` | Drift detection logic (clean / declared-missing / orphan / commented-out fixtures); `--help` regression test for [INSPR-50](https://github.com/inspr-at/inspr-modules/commit/8fa4b37) (PATH-leak-in-help symptom that prompted the writeShellApplication migration) |
 | `inspr-cli-functional` | Sources a synthetic rendered `fleet.conf` with Bash and proves quotes, command substitutions, backticks, backslashes, spaces, newlines, and dollar expansions remain literal values without executing; null/empty configuration remains assignment-free. |
 | `paimos-config-functional` | Executes synthetic activations to prove legacy `api_key`, missing files, and unset/empty URL variables preserve the prior config; diagnostics resist shell interpolation; jq encoding safely preserves quoted and multiline routing URLs. Never reads a real user config or credential. |
-| `module-eval` (since INSPR-72) | 118 sub-tests across the Home Manager and NixOS modules, run via `lib.evalModules` + stub HM and NixOS harnesses (`tests/module-eval/harness.nix`). Verifies: assertions and throws fire when they should, required options stay required, deprecations warn, shell-active fleet values are encoded, Paimos literal/env URL output stays nested under `instances` without credential references, rollout/failure guards precede replacement, git include counts match declarations, and SSH authorization output and guards remain deterministic. Runs entirely at flake-eval time—no activation, real HM, or network. |
+| `aithema-workspace-package-proof` | Builds the immutable runtime package, checks installed `--help`, then starts a synthetic test-mode server outside its source tree and proves loopback health plus graceful SIGTERM shutdown. NixOS activation remains a Linux-side proof. |
+| `module-eval` (since INSPR-72) | 128 sub-tests across the Home Manager and NixOS modules, run via `lib.evalModules` + stub HM and NixOS harnesses (`tests/module-eval/harness.nix`). Verifies: assertions and throws fire when they should, required options stay required, deprecations warn, shell-active fleet values are encoded, Paimos literal/env URL output stays nested under `instances` without credential references, rollout/failure guards precede replacement, git include counts match declarations, SSH authorization stays deterministic, and the Aithema service remains disabled/fail-closed with protected config and durable ownership. Runs entirely at flake-eval time—no activation, real HM, or network. |
 
 ### Local dev (without nix sandbox)
 
