@@ -18,8 +18,7 @@ let
   sourceRev = "8a0b780a9361b1176b7a51d82b7c9eb90a9d70f3";
   lockDigest = "sha256:d5ad1d6e7504df4b001e655bcad15cf5c1b9b394a8efef4b1d0bff201386af5b";
 
-  npmLock = importNpmLock.override { nodejs = nodejs_24; };
-  npmDeps = npmLock {
+  npmDeps = importNpmLock {
     npmRoot = ./.;
   };
 in
@@ -35,8 +34,8 @@ stdenv.mkDerivation {
 
   sourceRoot = "package";
   nativeBuildInputs = [
+    importNpmLock.npmConfigHook
     makeWrapper
-    npmLock.npmConfigHook
     nodejs_24
   ];
 
