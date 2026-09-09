@@ -32,6 +32,7 @@ let
     ./paimos-config.test.nix
     ./ssh-authorized.test.nix
     ./nixos-ssh-authorized.test.nix
+    ./aithema-workspace.test.nix
     ./exports-importable.test.nix
     ./routing-edge.test.nix
   ];

@@ -44,6 +44,8 @@
 #   nixosModules.routing-edge          Prefix-preserving Traefik file-provider
 #                                       edge (disabled by default; managed or
 #                                       external-file-provider fragment mode).
+#   nixosModules.aithema-workspace      Aithema runtime service with protected
+#                                       operator config and durable state.
 #   nixosModules.default               Aggregate of all NixOS modules.
 #   packages.<system>.secrets-audit    Bash script: detect drift between
 #                                       secrets/*.age and secrets.nix
@@ -53,6 +55,8 @@
 #                                       Replaces the older inspr-doctor.sh probe.
 #   packages.<system>.routing-edge     Traefik file-provider compiler built from
 #                                       this flake (`insprSource = self`).
+#   packages.<system>.aithema-workspace Immutable public Aithema 0.5.0 runtime
+#                                       with lock-integrity-pinned dependencies.
 #
 # Consumer pattern (in your flake.nix):
 #   inputs.inspr-modules.url = "github:inspr-at/inspr-modules/v0.5.0";  # pin a tag; main moves
@@ -105,6 +109,7 @@
       nixosModules = {
         ssh-authorized = ./modules/nixos/ssh-authorized.nix;
         routing-edge = ./packages/routing-edge/nix/module.nix;
+        aithema-workspace = ./modules/nixos/aithema-workspace.nix;
         default = ./modules/nixos/default.nix;
       };
     }
@@ -119,6 +124,7 @@
           secrets-audit = pkgs.callPackage ./pkgs/secrets-audit { };
           inspr = pkgs.callPackage ./pkgs/inspr { };
           routing-edge = pkgs.callPackage ./packages/routing-edge/nix { insprSource = self; };
+          aithema-workspace = pkgs.callPackage ./packages/aithema-workspace { };
         };
 
         # ── Test suite (run via `nix flake check`) ───────────────────────
@@ -157,6 +163,8 @@
               inherit pkgs;
               insprSource = self;
             };
+
+            aithemaWorkspacePkg = pkgs.callPackage ./packages/aithema-workspace { };
           in
           {
             # The bundled design-frontier skill accepts five independently
@@ -472,6 +480,88 @@ EOF
 
             routing-edge-package-proof = routingEdgeChecks.packageProof;
             routing-edge-external-install-proof = routingEdgeChecks.externalInstallProof;
+
+            # Execute the installed Aithema CLI away from its source tree:
+            # help, synthetic loopback readiness under a non-root build user,
+            # and the CLI's own graceful SIGTERM path. Linux service activation
+            # remains a separate remote proof; this check is Darwin-safe.
+            aithema-workspace-package-proof = pkgs.runCommand "aithema-workspace-package-proof"
+              {
+                __darwinAllowLocalNetworking = true;
+                nativeBuildInputs = [
+                  pkgs.coreutils
+                  pkgs.gnugrep
+                  pkgs.gnused
+                  pkgs.nodejs_24
+                ];
+              }
+              ''
+                set -eu
+
+                test "${aithemaWorkspacePkg.passthru.release.sourceRev}" = \
+                  8a0b780a9361b1176b7a51d82b7c9eb90a9d70f3
+                test "${aithemaWorkspacePkg.passthru.release.runtimeSha256}" = \
+                  5157dd73c654a6276dfc3bec7022f5d18c922cb90bc42439e5caae3c833fd9aa
+                test "$(sha256sum ${./packages/aithema-workspace/package-lock.json} | cut -d' ' -f1)" = \
+                  d5ad1d6e7504df4b001e655bcad15cf5c1b9b394a8efef4b1d0bff201386af5b
+                ${aithemaWorkspacePkg}/bin/aithema-workspace --help \
+                  | grep -q 'Usage: aithema-workspace --config FILE'
+
+                run_dir="$TMPDIR/aithema-proof"
+                mkdir -p "$run_dir/state"
+                cd "$run_dir"
+                config_file="$run_dir/runtime-config.json"
+                log_file="$run_dir/service.log"
+                printf '%s\n' '{' \
+                  '  "mode": "test",' \
+                  '  "listenHost": "127.0.0.1",' \
+                  '  "listenPort": 0,' \
+                  '  "dataDir": "./state",' \
+                  '  "publicBasePath": "/proof",' \
+                  '  "defaultProvider": "mock",' \
+                  '  "identity": {' \
+                  '    "kind": "demo",' \
+                  '    "defaultSubject": "proof-reviewer",' \
+                  '    "memberships": [{' \
+                  '      "subject": "proof-reviewer",' \
+                  '      "party_ref": "party:proof-reviewer",' \
+                  '      "actor_kind": "human",' \
+                  '      "roles": ["requirements_approver"],' \
+                  '      "projects": []' \
+                  '    }]' \
+                  '  },' \
+                  '  "providers": { "mock": { "kind": "mock", "chunkDelayMs": 0 } }' \
+                  '}' > "$config_file"
+                chmod 600 "$config_file"
+
+                ${aithemaWorkspacePkg}/bin/aithema-workspace \
+                  --config "$config_file" --shutdown-grace-ms 1000 \
+                  > "$log_file" 2>&1 &
+                service_pid=$!
+
+                base_url=""
+                attempt=0
+                while [ "$attempt" -lt 100 ]; do
+                  base_url="$(sed -n 's/^Aithema workspace listening at \(http[^ ]*\)$/\1/p' "$log_file" | head -n 1)"
+                  [ -n "$base_url" ] && break
+                  kill -0 "$service_pid" 2>/dev/null || {
+                    sed -n '1,80p' "$log_file" >&2
+                    exit 1
+                  }
+                  attempt=$((attempt + 1))
+                  sleep 0.1
+                done
+                [ -n "$base_url" ]
+
+                node --input-type=module -e \
+                  'const response = await fetch(process.argv[1]); const body = await response.json(); if (response.status !== 200 || body.ok !== true || body.ready !== true) process.exit(1);' \
+                  "$base_url/health"
+
+                kill -TERM "$service_pid"
+                wait "$service_pid"
+                grep -q 'Aithema workspace stopped cleanly.' "$log_file"
+                touch $out
+              '';
 
             # Module-eval tests (INSPR-72): exercise HM module options +
             # assertions + eval-time throws via lib.evalModules + a stub
