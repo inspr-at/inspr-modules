@@ -117,8 +117,10 @@ python3 -m unittest discover -s tests -v
 ```
 
 Loopback Traefik process tests use `INSPR_TRAEFIK_BIN` and require version
-3.7.13. Temporary directories stay under `tests/.tmp/`. The binary is not
-vendored.
+3.7.13. The external TLS proof discovers OpenSSL on `PATH`, or accepts an
+explicit executable path through `INSPR_OPENSSL_BIN`; absence or an invalid
+explicit path fails the proof rather than skipping it. Temporary directories
+stay under `tests/.tmp/`. Neither binary is vendored.
 
 ## Nix package and NixOS module
 

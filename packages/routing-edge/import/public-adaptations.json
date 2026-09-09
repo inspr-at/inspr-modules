@@ -5,7 +5,7 @@
   "adapted_paths": [
     {
       "path": "packages/routing-edge/tests/test_traefik_process.py",
-      "reason": "Remove operator-local DEFAULT_TRAEFIK path; resolve Traefik only via INSPR_TRAEFIK_BIN or PATH; fail closed when the exact pinned process proof cannot run; admit only an exact 3.7.13 version line and cover encoded-path routing isolation."
+      "reason": "Remove operator-local binary paths; resolve Traefik via INSPR_TRAEFIK_BIN or PATH and OpenSSL via INSPR_OPENSSL_BIN or PATH; fail closed when either required process-proof binary is missing or invalid; admit only an exact 3.7.13 version line and cover encoded-path routing isolation."
     },
     {
       "path": "packages/routing-edge/nix/default.nix",
@@ -17,7 +17,7 @@
     },
     {
       "path": "packages/routing-edge/README.md",
-      "reason": "Document inspr-modules flake consumption and pending publication pin; replace private umbrella import examples; record the public 3.7.13 compatibility and exact OCI process-proof coordinates."
+      "reason": "Document inspr-modules flake consumption and pending publication pin; replace private umbrella import examples; record the public 3.7.13 compatibility, exact OCI process-proof coordinates, and explicit fail-closed OpenSSL test prerequisite."
     },
     {
       "path": "packages/routing-edge/generate.py",

@@ -55,6 +55,27 @@ def require_traefik() -> Path:
     return binary
 
 
+def require_openssl() -> Path:
+    configured = os.environ.get("INSPR_OPENSSL_BIN")
+    if configured:
+        candidate = Path(configured)
+        if candidate.is_file() and os.access(candidate, os.X_OK):
+            return candidate
+        raise RuntimeError(
+            "INSPR_OPENSSL_BIN must name an executable OpenSSL binary: "
+            f"{configured!r}"
+        )
+    discovered = shutil.which("openssl")
+    if discovered:
+        candidate = Path(discovered)
+        if candidate.is_file() and os.access(candidate, os.X_OK):
+            return candidate
+    raise RuntimeError(
+        "OpenSSL required for external TLS process proof: "
+        "set INSPR_OPENSSL_BIN or install openssl on PATH"
+    )
+
+
 def request(
     port: int,
     path: str,
@@ -295,6 +316,7 @@ class TraefikProcessTests(unittest.TestCase):
             self._stop(bundle)
 
     def test_external_fragment_loads_beside_consumer_file_on_existing_tls_edge(self) -> None:
+        openssl = require_openssl()
         contract = load_json(
             PACKAGE_ROOT.parents[1] / "contracts/routing/fixtures/valid/combined-connected.json"
         )
@@ -331,7 +353,7 @@ class TraefikProcessTests(unittest.TestCase):
         key_file = root / "synthetic.key"
         subprocess.run(
             [
-                "/usr/bin/openssl",
+                str(openssl),
                 "req",
                 "-x509",
                 "-newkey",
