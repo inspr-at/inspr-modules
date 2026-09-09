@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import http.client
 import os
+import re
 import shutil
 import ssl
 import subprocess
@@ -42,15 +43,37 @@ def require_traefik() -> Path:
     binary = traefik_binary()
     if binary is None:
         raise RuntimeError(
-            "Traefik 3.7.12 required for process integration proof: "
+            f"Traefik {PINNED_TRAEFIK_VERSION} required for process integration proof: "
             "set INSPR_TRAEFIK_BIN or install traefik on PATH"
         )
     output = subprocess.check_output([str(binary), "version"], text=True)
-    if PINNED_TRAEFIK_VERSION not in output.splitlines()[0] and PINNED_TRAEFIK_VERSION not in output:
+    version_line = re.search(r"(?m)^Version:\s*([^\s]+)\s*$", output)
+    if version_line is None or version_line.group(1) != PINNED_TRAEFIK_VERSION:
         raise RuntimeError(
             f"Traefik binary is not {PINNED_TRAEFIK_VERSION}: {output.strip()!r}"
         )
     return binary
+
+
+def require_openssl() -> Path:
+    configured = os.environ.get("INSPR_OPENSSL_BIN")
+    if configured:
+        candidate = Path(configured)
+        if candidate.is_file() and os.access(candidate, os.X_OK):
+            return candidate
+        raise RuntimeError(
+            "INSPR_OPENSSL_BIN must name an executable OpenSSL binary: "
+            f"{configured!r}"
+        )
+    discovered = shutil.which("openssl")
+    if discovered:
+        candidate = Path(discovered)
+        if candidate.is_file() and os.access(candidate, os.X_OK):
+            return candidate
+    raise RuntimeError(
+        "OpenSSL required for external TLS process proof: "
+        "set INSPR_OPENSSL_BIN or install openssl on PATH"
+    )
 
 
 def request(
@@ -225,6 +248,27 @@ class TraefikProcessTests(unittest.TestCase):
             status, _, _ = request(port, "/aithema/session/demo")
             self.assertEqual(status, 403)
 
+            # Security regression: encoded separators and dot segments must
+            # never turn a public app path into another app's route or expose
+            # an unpublished control endpoint after Traefik normalization.
+            before = {
+                app_id: len(item["state"].requests)
+                for app_id, item in bundle["backends"].items()
+            }
+            for hostile_path in (
+                "/paimos%2fapi%2fcontrol-commands%2f17",
+                "/paimos/%2e%2e/aithema/session/demo",
+            ):
+                status, _, _ = request(port, hostile_path)
+                self.assertIn(status, {400, 403, 404}, hostile_path)
+            self.assertEqual(
+                {
+                    app_id: len(item["state"].requests)
+                    for app_id, item in bundle["backends"].items()
+                },
+                before,
+            )
+
             first_at = _sse_first_byte_delay(port, "/paimos/api/intake/sessions/demo/stream")
             self.assertLess(first_at, 0.35)
         finally:
@@ -272,6 +316,7 @@ class TraefikProcessTests(unittest.TestCase):
             self._stop(bundle)
 
     def test_external_fragment_loads_beside_consumer_file_on_existing_tls_edge(self) -> None:
+        openssl = require_openssl()
         contract = load_json(
             PACKAGE_ROOT.parents[1] / "contracts/routing/fixtures/valid/combined-connected.json"
         )
@@ -308,7 +353,7 @@ class TraefikProcessTests(unittest.TestCase):
         key_file = root / "synthetic.key"
         subprocess.run(
             [
-                "/usr/bin/openssl",
+                str(openssl),
                 "req",
                 "-x509",
                 "-newkey",

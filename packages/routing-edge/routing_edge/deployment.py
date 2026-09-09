@@ -17,8 +17,16 @@ sys.path.insert(0, str(CONTRACT_ROOT))
 from validate import APP_IDS, Finding, HOSTNAME  # noqa: E402
 
 
-PINNED_TRAEFIK_VERSION = "3.7.12"
-PINNED_TRAEFIK_SYNTAX = "file-provider-v3.7.12"
+PINNED_TRAEFIK_VERSION = "3.7.13"
+PINNED_TRAEFIK_SYNTAX = "file-provider-v3.7.13"
+PINNED_TRAEFIK_RELEASE = "https://github.com/traefik/traefik/releases/tag/v3.7.13"
+PINNED_TRAEFIK_OCI_IMAGE = "docker.io/library/traefik"
+PINNED_TRAEFIK_OCI_INDEX_DIGEST = (
+    "sha256:f86a2cab1b5c649070c49f883c743dd32d8485a56e3368c5f93b9e91f1e91259"
+)
+PINNED_TRAEFIK_OCI_LINUX_AMD64_DIGEST = (
+    "sha256:96780238b1bbda5a9bb997f4307ce69e798ad1cf6eb7f2dcc0a440823467d199"
+)
 MANAGED_MODE = "managed"
 EXTERNAL_MODE = "external-file-provider"
 DEPLOYMENT_MODES = {MANAGED_MODE, EXTERNAL_MODE}

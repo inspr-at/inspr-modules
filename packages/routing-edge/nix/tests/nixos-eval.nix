@@ -20,6 +20,7 @@
 
 let
   evalConfig = import "${toString pkgs.path}/nixos/lib/eval-config.nix";
+  pinned = import ../pinned.nix;
 
   evalNixos =
     settings:
@@ -103,7 +104,7 @@ let
       certificateResolver = "existing-acme";
       resourceNamespace = "fixture-edge";
       providerFile = "traefik/dynamic/fixture-edge.yml";
-      existingTraefikVersion = "3.7.12";
+      existingTraefikVersion = pinned.traefikVersion;
     };
     upstreams = publicSettings.upstreams;
   };
