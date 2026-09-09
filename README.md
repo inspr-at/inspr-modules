@@ -31,7 +31,7 @@ Reusable Home Manager modules + utilities from the [INSPR](https://inspr.at) ini
 | Module | Namespace | What it does |
 |---|---|---|
 | `ssh-authorized` | `inspr.ssh.authorized` | System-side counterpart to the HM `ssh-authorized` (since INSPR-73). Same shared keyring (rich-key form, `status: active \| legacy \| revoked`) but renders into `users.users.<u>.openssh.authorizedKeys.keys` (which NixOS materializes as `/etc/ssh/authorized_keys.d/<u>`). **Multi-user**: `inspr.ssh.authorized.users.<name>.{trust, force, extraKeys}`. **`force = true`** wraps the rendered list in `lib.mkForce` to displace upstream-injected keys (e.g. server-home / hokage profiles); default `false` merges via list concatenation. Throws at eval time on undeclared alias OR revoked-in-trust. Define the `keys` keyring in a plain-Nix file imported at BOTH NixOS-module scope (for this module) AND HM scope (for the HM module) — single source of truth across both. |
-| `aithema-workspace` | `services.inspr.aithemaWorkspace` | Disabled-by-default service for the immutable public Aithema 0.5.0 runtime. Runs the actual Node 24+ CLI as a dedicated static user, keeps SQLite state in a systemd-owned persistent directory, and loads operator-owned runtime JSON through protected systemd credentials. It does not render auth/provider configuration, open a firewall port, provision TLS/OIDC, or weaken Aithema's production validation. |
+| `aithema-workspace` | `services.inspr.aithemaWorkspace` | Disabled-by-default service for the immutable public Aithema 0.6.0 runtime. Runs the actual Node 24+ CLI as a dedicated static user, keeps SQLite state in a systemd-owned persistent directory, and loads operator-owned runtime JSON through protected systemd credentials. It does not render auth/provider configuration, open a firewall port, provision TLS/OIDC, or weaken Aithema's production validation. |
 | `default` | (aggregate) | Imports all NixOS modules. |
 
 ### Packages
@@ -40,7 +40,7 @@ Reusable Home Manager modules + utilities from the [INSPR](https://inspr.at) ini
 |---|---|
 | `inspr` | The INSPR CLI (evolved from `inspr-doctor`, INSPR-195): `check` (read-only drift diagnosis, incl. the kernel byte-budget gate), `readiness` (read-only, machine-readable development-machine probe driven by an operator-owned project profile), `heal` (apply mapped fixes with verified-applied semantics), `onboard` (fresh-host walkthrough, optional Pharos registration), `post-deploy` (nixcfg → Pharos → HostDash validation). |
 | `secrets-audit` | Bash script: detects drift between `secrets/*.age` files and their declarations in `secrets/secrets.nix`. Three modes: human report, `--quiet`, `--json`. |
-| `aithema-workspace` | Actual `aithema-workspace` executable from the immutable public Aithema 0.5.0 runtime archive. Node 24 is part of the closure; every direct and transitive dependency is fetched from the release lockfile by its recorded integrity. |
+| `aithema-workspace` | Actual `aithema-workspace` executable from the immutable public Aithema 0.6.0 runtime archive. Node 24 is part of the closure; every direct and transitive dependency is fetched from the release lockfile by its recorded integrity. |
 
 ## Consumer pattern
 
@@ -54,7 +54,7 @@ In your `flake.nix`:
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
     # Pin to a tag. Tracking `main` means every `nix flake update`
     # can change doctrine and module behaviour under you.
-    inspr-modules.url = "github:inspr-at/inspr-modules/v0.6.0";
+    inspr-modules.url = "github:inspr-at/inspr-modules/v0.7.0";
     inspr-modules.inputs.nixpkgs.follows = "nixpkgs";
   };
 
@@ -152,7 +152,7 @@ eval fails on purpose:
 {
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    inspr-modules.url = "github:inspr-at/inspr-modules/v0.6.0";
+    inspr-modules.url = "github:inspr-at/inspr-modules/v0.7.0";
     inspr-modules.inputs.nixpkgs.follows = "nixpkgs";
   };
 
@@ -335,7 +335,7 @@ data, and third-party components retain their own licensing boundaries.
 
 ## Status
 
-**v0.6.0.** Extracted from a working NixOS + Home Manager fleet on 2026-05-02
+**v0.7.0.** Extracted from a working NixOS + Home Manager fleet on 2026-05-02
 and used in production since.
 
 ### Supported
@@ -505,7 +505,7 @@ create it. From your repository root:
 ```bash
 # 1. Vendor the doctrine as a submodule at ./doctrine, pinned to a tag.
 git submodule add https://github.com/inspr-at/inspr-modules.git doctrine
-git -C doctrine checkout v0.6.0
+git -C doctrine checkout v0.7.0
 git add doctrine .gitmodules
 
 # 2. Load the kernel from your agent instruction file. @-refs resolve from the

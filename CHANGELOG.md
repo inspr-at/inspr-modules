@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-09-09
+
 ### Changed
 
 - **Calendar versions are now `YYMMDDhhmmss.0.0` (`inspr-calendar-v2`, INSPR-395).**
@@ -26,6 +28,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the official SemVer regex, and lexical == numeric == SemVer-precedence
   ordering. `inspr-modules` itself remains on SemVer until a separate
   owner-approved migration passes.
+
+- Package the verified Aithema 0.6.0 runtime and locked Flow Shell 0.1.5
+  dependency, including requirement-impact review and explicit preview feedback.
+  Preserve the existing opt-in service and operator configuration boundaries.
+  [INSPR-396]
 
 ## [0.6.0] - 2026-09-09
 
