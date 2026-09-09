@@ -9,6 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-09-09
+
+### Added
+
+- Package the immutable Aithema 0.5.0 workspace runtime and locked dependencies
+  as `packages.<system>.aithema-workspace`. Its opt-in NixOS service uses a
+  dedicated persistent owner, protected runtime configuration credentials and
+  graceful shutdown. [INSPR-392]
+
+### Changed
+
+- Admit Traefik 3.7.13 with exact version, syntax and official OCI artifact
+  coordinates. Preserve the original routing import receipt while recording
+  subsequent public adaptations explicitly. [INSPR-393]
+
+### Fixed
+
+- Reject encoded paths that could cross application boundaries, verified
+  against the real Traefik process, and discover OpenSSL portably for TLS
+  proof on NixOS. Missing test prerequisites remain failures. [INSPR-393]
+
+
 ## [0.5.0] - 2026-09-09
 
 ### Added
