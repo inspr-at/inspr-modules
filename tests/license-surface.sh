@@ -23,8 +23,9 @@ legacy_license_pattern="(^|[^[:alnum:]_])${legacy_license_token}([^[:alnum:]_]|$
 # during recursion, so the scan followed result/result-1 build artifacts
 # into /nix/store (spurious hits, perf sink, machine-dependent outcome)
 # and would loop-warn on the doctrine -> . self-symlink. -r scans only
-# real files under the root.
-if grep -rEIn --exclude-dir=.git -- "$legacy_license_pattern" "$repo_root"; then
+# real files under the root. npm lockfiles truthfully inventory third-party
+# dependency licenses, so they are not declarations of this project's license.
+if grep -rEIn --exclude-dir=.git --exclude=package-lock.json -- "$legacy_license_pattern" "$repo_root"; then
   printf 'legacy project-license declaration remains\n' >&2
   exit 1
 fi
@@ -38,6 +39,7 @@ surfaces=(
   modules/home-manager/git-atelier-credentials.nix
   modules/home-manager/paimos-config.nix
   modules/home-manager/ssh-authorized.nix
+  modules/nixos/aithema-workspace.nix
   modules/nixos/ssh-authorized.nix
   tests/module-eval/harness.nix
 )
@@ -49,7 +51,7 @@ for surface in "${surfaces[@]}"; do
   }
 done
 
-for package in pkgs/inspr/default.nix pkgs/secrets-audit/default.nix packages/routing-edge/nix/default.nix; do
+for package in pkgs/inspr/default.nix pkgs/secrets-audit/default.nix packages/aithema-workspace/default.nix packages/routing-edge/nix/default.nix; do
   grep -qE 'license = (lib\.)?licenses\.agpl3Only;' "$repo_root/$package" || {
     printf '%s does not expose AGPL-3.0-only metadata\n' "$package" >&2
     exit 1
