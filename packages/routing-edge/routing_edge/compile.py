@@ -1,4 +1,4 @@
-"""Compile an inspr.routing contract plus deployment inputs into Traefik 3.7.12 config."""
+"""Compile an inspr.routing contract plus deployment inputs into Traefik 3.7.13 config."""
 
 from __future__ import annotations
 
@@ -31,6 +31,10 @@ from .deployment import (
     MANAGED_MODE,
     PINNED_TRAEFIK_SYNTAX,
     PINNED_TRAEFIK_VERSION,
+    PINNED_TRAEFIK_RELEASE,
+    PINNED_TRAEFIK_OCI_IMAGE,
+    PINNED_TRAEFIK_OCI_INDEX_DIGEST,
+    PINNED_TRAEFIK_OCI_LINUX_AMD64_DIGEST,
     DeploymentInput,
     parse_deployment,
     is_loopback_host,
@@ -551,8 +555,14 @@ def _wiring_report(
         "traefik": {
             "version": PINNED_TRAEFIK_VERSION,
             "syntax": PINNED_TRAEFIK_SYNTAX,
+            "release": PINNED_TRAEFIK_RELEASE,
             "provider": "file",
             "untested_versions_claimed": False,
+            "process_proof_oci": {
+                "image": PINNED_TRAEFIK_OCI_IMAGE,
+                "index_digest": PINNED_TRAEFIK_OCI_INDEX_DIGEST,
+                "linux_amd64_digest": PINNED_TRAEFIK_OCI_LINUX_AMD64_DIGEST,
+            },
         },
         "public_origin": {"scheme": origin["scheme"], "host": origin["host"]},
         "landing": contract["landing"],

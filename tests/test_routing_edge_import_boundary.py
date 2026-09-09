@@ -272,6 +272,26 @@ class PublicVerificationTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "source_commit"):
                 boundary.verify_public_boundary(workspace)
 
+    def test_duplicate_adaptation_path_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            workspace = clone_public_tree(Path(tmpdir))
+            path = workspace / "packages/routing-edge/import/public-adaptations.json"
+            adaptations = json.loads(path.read_text(encoding="utf-8"))
+            adaptations["adapted_paths"].append(dict(adaptations["adapted_paths"][0]))
+            path.write_text(json.dumps(adaptations, indent=2) + "\n", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "duplicate"):
+                boundary.verify_public_boundary(workspace)
+
+    def test_vague_adaptation_reason_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            workspace = clone_public_tree(Path(tmpdir))
+            path = workspace / "packages/routing-edge/import/public-adaptations.json"
+            adaptations = json.loads(path.read_text(encoding="utf-8"))
+            adaptations["adapted_paths"][0]["reason"] = "version bump"
+            path.write_text(json.dumps(adaptations, indent=2) + "\n", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "too vague"):
+                boundary.verify_public_boundary(workspace)
+
     def test_tampered_provenance_archive_sha256_fails(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             workspace = clone_public_tree(Path(tmpdir))

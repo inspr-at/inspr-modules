@@ -5,11 +5,11 @@
   "adapted_paths": [
     {
       "path": "packages/routing-edge/tests/test_traefik_process.py",
-      "reason": "Remove operator-local DEFAULT_TRAEFIK path; resolve Traefik only via INSPR_TRAEFIK_BIN or PATH; fail closed when the pinned process proof cannot run."
+      "reason": "Remove operator-local DEFAULT_TRAEFIK path; resolve Traefik only via INSPR_TRAEFIK_BIN or PATH; fail closed when the exact pinned process proof cannot run; admit only an exact 3.7.13 version line and cover encoded-path routing isolation."
     },
     {
       "path": "packages/routing-edge/nix/default.nix",
-      "reason": "Point package metadata homepage at the public inspr-modules location."
+      "reason": "Point package metadata homepage at the public inspr-modules location and check that Python and Nix agree on the 3.7.13 release and OCI proof digests."
     },
     {
       "path": "packages/routing-edge/nix/module.nix",
@@ -17,7 +17,31 @@
     },
     {
       "path": "packages/routing-edge/README.md",
-      "reason": "Document inspr-modules flake consumption and pending publication pin; replace private umbrella import examples."
+      "reason": "Document inspr-modules flake consumption and pending publication pin; replace private umbrella import examples; record the public 3.7.13 compatibility and exact OCI process-proof coordinates."
+    },
+    {
+      "path": "packages/routing-edge/generate.py",
+      "reason": "Update the public command description to the security-patched Traefik 3.7.13 compatibility target."
+    },
+    {
+      "path": "packages/routing-edge/nix/pinned.nix",
+      "reason": "Advance the public compatibility target to exact Traefik 3.7.13 and pin its official release URL, OCI index digest, and linux/amd64 manifest digest."
+    },
+    {
+      "path": "packages/routing-edge/nix/tests/nixos-eval.nix",
+      "reason": "Make the real NixOS external-provider evaluation consume the centralized 3.7.13 compatibility pin instead of retaining a stale literal."
+    },
+    {
+      "path": "packages/routing-edge/routing_edge/compile.py",
+      "reason": "Emit the 3.7.13 syntax marker and expose the exact official release and OCI process-proof coordinates in the generated wiring report."
+    },
+    {
+      "path": "packages/routing-edge/routing_edge/deployment.py",
+      "reason": "Advance the compiler compatibility constants to 3.7.13 and add exact official release and OCI process-proof coordinates."
+    },
+    {
+      "path": "packages/routing-edge/tests/test_compile.py",
+      "reason": "Assert the centralized 3.7.13 compatibility target and exact OCI index and linux/amd64 process-proof digests in generated evidence."
     }
   ]
 }

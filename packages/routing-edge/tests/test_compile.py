@@ -11,6 +11,12 @@ sys.path.insert(0, str(PACKAGE_ROOT))
 
 from routing_edge.compile import compile_edge, write_outputs  # noqa: E402
 from routing_edge.deny import deny_regexes_for_app, route_regex  # noqa: E402
+from routing_edge.deployment import (  # noqa: E402
+    PINNED_TRAEFIK_OCI_INDEX_DIGEST,
+    PINNED_TRAEFIK_OCI_LINUX_AMD64_DIGEST,
+    PINNED_TRAEFIK_RELEASE,
+    PINNED_TRAEFIK_VERSION,
+)
 from helpers import (  # noqa: E402
     DEPLOYMENTS,
     apply_fixture_patch,
@@ -37,7 +43,7 @@ class CompileTests(unittest.TestCase):
         )
         self.assertEqual(result.findings, [])
         yaml = result.dynamic_yaml
-        self.assertIn("3.7.12", yaml)
+        self.assertIn(PINNED_TRAEFIK_VERSION, yaml)
         self.assertNotIn("stripPrefix", yaml)
         self.assertNotIn("StripPrefix", yaml)
         self.assertNotIn("Access-Control-Allow-Origin", yaml)
@@ -52,6 +58,16 @@ class CompileTests(unittest.TestCase):
         self.assertEqual(result.report["strip_prefix"], False)
         self.assertEqual(result.report["sso_verified"], False)
         self.assertEqual(result.report["operator_secrets_exported"], False)
+        self.assertEqual(result.report["traefik"]["version"], PINNED_TRAEFIK_VERSION)
+        self.assertEqual(result.report["traefik"]["release"], PINNED_TRAEFIK_RELEASE)
+        self.assertEqual(
+            result.report["traefik"]["process_proof_oci"]["index_digest"],
+            PINNED_TRAEFIK_OCI_INDEX_DIGEST,
+        )
+        self.assertEqual(
+            result.report["traefik"]["process_proof_oci"]["linux_amd64_digest"],
+            PINNED_TRAEFIK_OCI_LINUX_AMD64_DIGEST,
+        )
         self.assertTrue(result.dynamic["http"]["routers"]["inspr-app-paimos"]["priority"] > 50)
         self.assertIn("tls", result.dynamic["http"]["routers"]["inspr-app-paimos"])
         self.assertEqual(contract["contract_version"], "inspr.routing/0.1-draft")

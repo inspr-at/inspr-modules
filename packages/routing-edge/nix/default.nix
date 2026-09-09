@@ -117,6 +117,14 @@ stdenv.mkDerivation {
       "$out/packages/routing-edge/routing_edge/deployment.py"
     grep -qx 'PINNED_TRAEFIK_SYNTAX = "${pinned.traefikSyntax}"' \
       "$out/packages/routing-edge/routing_edge/deployment.py"
+    grep -qx 'PINNED_TRAEFIK_RELEASE = "${pinned.traefikRelease}"' \
+      "$out/packages/routing-edge/routing_edge/deployment.py"
+    grep -qx 'PINNED_TRAEFIK_OCI_IMAGE = "${pinned.traefikOciImage}"' \
+      "$out/packages/routing-edge/routing_edge/deployment.py"
+    grep -q '${pinned.traefikOciIndexDigest}' \
+      "$out/packages/routing-edge/routing_edge/deployment.py"
+    grep -q '${pinned.traefikOciLinuxAmd64Digest}' \
+      "$out/packages/routing-edge/routing_edge/deployment.py"
 
     ( cd / && "$out/bin/inspr-routing-edge-compile" --help >/dev/null )
 

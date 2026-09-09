@@ -372,7 +372,20 @@ def verify_public_boundary(repo_root: Path) -> None:
     if adaptations.get("source_commit") != inventory["source_commit"]:
         raise ValueError("public adaptations source_commit does not match inventory")
 
-    adapted = {item["path"] for item in adaptations["adapted_paths"]}
+    adapted_entries = adaptations.get("adapted_paths")
+    if not isinstance(adapted_entries, list) or not adapted_entries:
+        raise ValueError("public adaptations must be a non-empty list")
+    adapted: set[str] = set()
+    for item in adapted_entries:
+        if not isinstance(item, dict) or set(item) != {"path", "reason"}:
+            raise ValueError("each public adaptation must contain only path and reason")
+        path = item["path"]
+        reason = item["reason"]
+        if not isinstance(path, str) or path in adapted:
+            raise ValueError(f"duplicate or invalid adapted path: {path!r}")
+        if not isinstance(reason, str) or len(reason.strip()) < 20:
+            raise ValueError(f"adaptation reason is missing or too vague: {path}")
+        adapted.add(path)
     if not adapted.issubset(set(paths)):
         raise ValueError("adapted path is outside the closed 48-file inventory")
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate Traefik 3.7.12 file-provider configuration from an INSPR routing contract."""
+"""Generate Traefik 3.7.13 file-provider configuration from an INSPR routing contract."""
 
 from __future__ import annotations
 

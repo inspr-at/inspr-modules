@@ -1,7 +1,7 @@
 # INSPR routing-edge
 
 Deterministic stdlib compiler that turns an `inspr.routing/0.1-draft` contract
-plus explicit operator deployment inputs into Traefik **3.7.12** file-provider
+plus explicit operator deployment inputs into Traefik **3.7.13** file-provider
 configuration. Native application paths are preserved. This is not live SSO
 proof and not a credential store.
 
@@ -29,8 +29,16 @@ When an external generation replaces managed output in the same staging
 directory, the compiler removes `static.yml` only when its INSPR-generated
 header proves ownership. It refuses to remove an unrelated `static.yml`.
 
-Pinned syntax: Traefik 3.7.12 `file-provider-v3.7.12`, verified with the official
-binary in isolated loopback tests. Untested versions are not claimed.
+Pinned syntax: Traefik 3.7.13 `file-provider-v3.7.13`; the
+[official release](https://github.com/traefik/traefik/releases/tag/v3.7.13)
+lists five security advisories. The process-proof
+artifact is the official `docker.io/library/traefik` OCI index
+`sha256:f86a2cab1b5c649070c49f883c743dd32d8485a56e3368c5f93b9e91f1e91259`;
+its linux/amd64 manifest is
+`sha256:96780238b1bbda5a9bb997f4307ce69e798ad1cf6eb7f2dcc0a440823467d199`.
+Registry digest verification and isolated loopback process tests are both
+required evidence; a matching version string alone is not artifact provenance.
+Untested versions are not claimed.
 
 ## Operator inputs
 
@@ -109,7 +117,7 @@ python3 -m unittest discover -s tests -v
 ```
 
 Loopback Traefik process tests use `INSPR_TRAEFIK_BIN` and require version
-3.7.12. Temporary directories stay under `tests/.tmp/`. The binary is not
+3.7.13. Temporary directories stay under `tests/.tmp/`. The binary is not
 vendored.
 
 ## Nix package and NixOS module
@@ -247,7 +255,7 @@ services.inspr.routingEdge = {
     certificateResolver = "existing-acme";
     resourceNamespace = "inspr-example";
     providerFile = "traefik/dynamic/inspr-example.yml";
-    existingTraefikVersion = "3.7.12";
+    existingTraefikVersion = "3.7.13";
   };
   upstreams = {
     aithema.url = "https://aithema.internal:8443";
@@ -285,7 +293,7 @@ bound to a public address, a malformed or out-of-range entrypoint port.
 
 #### Traefik compatibility
 
-The compiler emits Traefik **3.7.12** `file-provider-v3.7.12` syntax. The module
+The compiler emits Traefik **3.7.13** `file-provider-v3.7.13` syntax. The module
 reads the supplied package's `version` attribute — the one nixpkgs actually sets,
 not `meta.version` — and an assertion fails when it does not match, *including*
 when no version can be determined at all. Set `allowUnpinnedTraefik = true` to
