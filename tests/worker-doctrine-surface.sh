@@ -30,8 +30,10 @@ grep -Fq 'I work on this — session: <session-name> (<session-UUID>); role: <bu
   || fail 'SKILL.md lacks the canonical value-free worker marker'
 grep -Fq 'designated PPM or PMA tracker, never both' "$attribution" \
   || fail 'installed attribution reference lost the single tracker of record'
-grep -Fq 'inspr-calendar-v1' "$versioning" \
+grep -Fq 'inspr-calendar-v2' "$versioning" \
   || fail 'installed versioning reference lost the calendar scheme identifier'
+grep -Fq 'YYMMDDhhmmss.0.0' "$versioning" \
+  || fail 'installed versioning reference lost the canonical v2 grammar'
 grep -Fq 'Work already in flight MUST finish under the scheme in force' "$versioning" \
   || fail 'installed versioning reference lost the gradual-migration boundary'
 

@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Calendar versions are now `YYMMDDhhmmss.0.0` (`inspr-calendar-v2`, INSPR-395).**
+  The normative versioning doctrine replaces `YY.MM.DD[.hh.mm.ss]` (v1) with
+  a TrunkVer-derived coordinate: the UTC reservation timestamp as the SemVer
+  MAJOR segment, MINOR and PATCH fixed at `0.0`. The result is syntactically
+  valid SemVer 2.0.0, fixed-width and therefore string-sortable, safe in OCI
+  tags without mapping, and free of any human major/minor decision. v1 was
+  not SemVer-syntactic (zero-padded segments) and its variable segment count
+  let the first two adopters drift apart. v1 becomes a legacy scheme in the
+  mixed-era contract; no published v1 coordinate changes, and repositories on
+  v1 migrate through the unchanged per-repository gate instead of patching v1
+  in place. `tests/calendar-version-doctrine.sh` now asserts the v2 grammar,
+  real-date validation, rejection of v1/SemVer-legacy strings and suffixes,
+  the official SemVer regex, and lexical == numeric == SemVer-precedence
+  ordering. `inspr-modules` itself remains on SemVer until a separate
+  owner-approved migration passes.
+
 ## [0.6.0] - 2026-09-09
 
 ### Added

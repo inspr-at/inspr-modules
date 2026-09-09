@@ -238,7 +238,7 @@
               '';
 
             # The estate versioning policy is normative and linked from the
-            # doctrine index. Keep its calendar grammar, real-date validation,
+            # doctrine index. Keep its v2 calendar grammar, real-date validation,
             # normalized ordering, gradual transition contract, and README
             # boundary executable (INSPR-320).
             calendar-version-doctrine = pkgs.runCommand "calendar-version-doctrine"
