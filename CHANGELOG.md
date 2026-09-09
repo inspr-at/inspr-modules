@@ -26,10 +26,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Reject encoded paths that could cross application boundaries, verified
-  against the real Traefik process, and discover OpenSSL portably for TLS
-  proof on NixOS. Missing test prerequisites remain failures. [INSPR-393]
-
+- Discover OpenSSL portably for TLS proof on NixOS. Real Traefik process
+  tests also verify that encoded paths cannot cross application boundaries;
+  missing test prerequisites remain failures. [INSPR-393]
 
 ## [0.5.0] - 2026-09-09
 
