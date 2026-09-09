@@ -14,9 +14,9 @@
 }:
 
 let
-  version = "0.5.0";
-  sourceRev = "8a0b780a9361b1176b7a51d82b7c9eb90a9d70f3";
-  lockDigest = "sha256:d5ad1d6e7504df4b001e655bcad15cf5c1b9b394a8efef4b1d0bff201386af5b";
+  version = "0.6.0";
+  sourceRev = "902adaf2eb8e707f8e93c54f1c34f8688dbb54cd";
+  lockDigest = "sha256:acd386661ff0c54ba827082a3872593bc6f50204e72eaaa0a2aeb3c487d68f02";
 
   npmDeps = importNpmLock {
     npmRoot = ./.;
@@ -29,7 +29,7 @@ stdenv.mkDerivation {
   src = fetchurl {
     name = "inspr-aithema-core-${version}.tgz";
     url = "https://github.com/inspr-at/aithema/releases/download/v${version}/inspr-aithema-core-${version}.tgz";
-    hash = "sha256-UVfdc8ZUpidt/DvscCL10YySLLkLxCQ55cquPIM/2ao=";
+    hash = "sha256-E3dIlkW5fjpx3TDUbJ0ZPyYjfrmhQIT8WTB4ve/iLew=";
   };
 
   sourceRoot = "package";
@@ -56,7 +56,7 @@ stdenv.mkDerivation {
 
   passthru.release = {
     inherit sourceRev lockDigest;
-    runtimeSha256 = "5157dd73c654a6276dfc3bec7022f5d18c922cb90bc42439e5caae3c833fd9aa";
+    runtimeSha256 = "1377489645b97e3a71dd30d46c9d193f26237eb9a14084fc593078bdefe22dec";
   };
 
   meta = {
