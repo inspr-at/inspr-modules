@@ -1,0 +1,8 @@
+{
+  "fixture_version": "inspr.routing-invalid-patch/0.1-draft",
+  "base": "../valid/combined-connected.json",
+  "expected_codes": ["INVALID_PUBLIC_BASE_PATH"],
+  "operations": [
+    { "op": "replace", "path": "/apps/pharos/public_base_path", "value": "/pharos/" }
+  ]
+}

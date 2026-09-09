@@ -1,0 +1,63 @@
+{
+  "contract_version": "inspr.routing/0.1-draft",
+  "evaluated_at": "2026-09-07T12:00:00Z",
+  "authority_disclaimer": "Schema validity is not live proxy proof, SSO proof, or runtime authentication. Each app remains its own authority and OIDC client verifier.",
+  "public_origin": {
+    "scheme": "https",
+    "host": "apps.fixture.test"
+  },
+  "landing": {
+    "kind": "connected_default_app",
+    "app": "aithema"
+  },
+  "apps": {
+    "aithema": {
+      "enabled": true,
+      "public_base_path": "/aithema",
+      "oidc": {
+        "client_ref": "aithema:zitadel:client:connected",
+        "redirect_path": "/oidc/callback",
+        "post_logout_path": "/logout"
+      },
+      "deep_link_paths": ["/projects/demo/flow-intents"]
+    },
+    "paimos": {
+      "enabled": true,
+      "public_base_path": "/paimos",
+      "oidc": {
+        "client_ref": "paimos:zitadel:client:connected",
+        "redirect_path": "/api/auth/oidc/callback"
+      },
+      "deep_link_paths": ["/projects/demo/baseline-batches/flow-state"]
+    },
+    "pharos": {
+      "enabled": true,
+      "public_base_path": "/pharos",
+      "oidc": {
+        "client_ref": "pharos:zitadel:client:connected",
+        "redirect_path": "/auth/callback"
+      },
+      "deep_link_paths": ["/flow/shell-state.json"]
+    },
+    "janus": {
+      "enabled": true,
+      "public_base_path": "/janus",
+      "oidc": {
+        "client_ref": "janus:zitadel:client:connected",
+        "redirect_path": "/oidc/callback"
+      },
+      "deep_link_paths": ["/flow/shell-state.json"]
+    }
+  },
+  "edge": {
+    "mode": "prefix_preserving_proxy",
+    "trust": {
+      "html_response_rewrite": false,
+      "iframe_gateway": false,
+      "permissive_cors": false,
+      "forwarded_identity_trust": false,
+      "shared_session_fallback": false
+    },
+    "optional_diagnostic_headers": ["X-Forwarded-Prefix"]
+  }
+}

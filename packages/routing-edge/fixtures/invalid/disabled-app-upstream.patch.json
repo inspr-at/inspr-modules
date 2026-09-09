@@ -1,0 +1,11 @@
+{
+  "base": "../valid/combined-aithema-root.deployment.json",
+  "operations": [
+    {
+      "op": "replace",
+      "path": "/upstreams/janus",
+      "value": { "url": "https://janus.example.test:8443" }
+    }
+  ],
+  "expected_codes": ["UNSUPPORTED_WIRING"]
+}

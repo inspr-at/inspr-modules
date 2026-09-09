@@ -18,8 +18,8 @@
 let
   harness = import ./harness.nix { inherit lib pkgs; } // {
     # Exposed on the harness so no test signature changes; only
-    # exports-importable.test.nix reads them.
-    inherit homeManagerModules nixosModules;
+    # exports-importable.test.nix and routing-edge.test.nix read them.
+    inherit pkgs homeManagerModules nixosModules;
   };
 
   testFiles = [
@@ -33,6 +33,7 @@ let
     ./ssh-authorized.test.nix
     ./nixos-ssh-authorized.test.nix
     ./exports-importable.test.nix
+    ./routing-edge.test.nix
   ];
 
   results = map (f: import f { inherit harness lib; }) testFiles;

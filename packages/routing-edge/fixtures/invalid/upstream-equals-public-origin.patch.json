@@ -1,0 +1,11 @@
+{
+  "base": "../valid/combined-connected.deployment.json",
+  "operations": [
+    {
+      "op": "replace",
+      "path": "/upstreams/aithema/url",
+      "value": "https://apps.fixture.test"
+    }
+  ],
+  "expected_codes": ["UNSUPPORTED_WIRING"]
+}

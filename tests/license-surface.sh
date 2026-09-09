@@ -49,8 +49,8 @@ for surface in "${surfaces[@]}"; do
   }
 done
 
-for package in pkgs/inspr/default.nix pkgs/secrets-audit/default.nix; do
-  grep -q 'license = lib.licenses.agpl3Only;' "$repo_root/$package" || {
+for package in pkgs/inspr/default.nix pkgs/secrets-audit/default.nix packages/routing-edge/nix/default.nix; do
+  grep -qE 'license = (lib\.)?licenses\.agpl3Only;' "$repo_root/$package" || {
     printf '%s does not expose AGPL-3.0-only metadata\n' "$package" >&2
     exit 1
   }

@@ -41,6 +41,9 @@
 #                                       users.users.<u>.openssh.authorizedKeys.keys
 #                                       from the same keyring (multi-user,
 #                                       status-filtered, force-toggleable).
+#   nixosModules.routing-edge          Prefix-preserving Traefik file-provider
+#                                       edge (disabled by default; managed or
+#                                       external-file-provider fragment mode).
 #   nixosModules.default               Aggregate of all NixOS modules.
 #   packages.<system>.secrets-audit    Bash script: detect drift between
 #                                       secrets/*.age and secrets.nix
@@ -48,6 +51,8 @@
 #   packages.<system>.inspr            Bash CLI: INSPR onboarding diagnostic +
 #                                       heal + onboard + readiness sub-commands.
 #                                       Replaces the older inspr-doctor.sh probe.
+#   packages.<system>.routing-edge     Traefik file-provider compiler built from
+#                                       this flake (`insprSource = self`).
 #
 # Consumer pattern (in your flake.nix):
 #   inputs.inspr-modules.url = "github:inspr-at/inspr-modules/v0.4.4";  # pin a tag; main moves
@@ -99,6 +104,7 @@
       # configuration.nix or shared profile).
       nixosModules = {
         ssh-authorized = ./modules/nixos/ssh-authorized.nix;
+        routing-edge = ./packages/routing-edge/nix/module.nix;
         default = ./modules/nixos/default.nix;
       };
     }
@@ -112,6 +118,7 @@
         packages = {
           secrets-audit = pkgs.callPackage ./pkgs/secrets-audit { };
           inspr = pkgs.callPackage ./pkgs/inspr { };
+          routing-edge = pkgs.callPackage ./packages/routing-edge/nix { insprSource = self; };
         };
 
         # ── Test suite (run via `nix flake check`) ───────────────────────
@@ -144,6 +151,11 @@
               # Driven by the real export attrsets, not a hand-kept list —
               # a hand-kept list is how "default imports all seven" drifted.
               inherit (self) homeManagerModules nixosModules;
+            };
+
+            routingEdgeChecks = import ./packages/routing-edge/nix/tests {
+              inherit pkgs;
+              insprSource = self;
             };
           in
           {
@@ -406,6 +418,60 @@
             ssh-authorized-functional = import ./tests/ssh-authorized-functional.nix {
               inherit pkgs;
             };
+
+            # Closed Git-blob import boundary for routing-edge (INSPR-390).
+            routing-edge-import-boundary = pkgs.runCommand "routing-edge-import-boundary"
+              {
+                nativeBuildInputs = [ pkgs.python3 pkgs.git ];
+              }
+              ''
+                cd ${self}
+                python3 -m unittest discover -s tests -p 'test_routing_edge_import_boundary.py' -v
+                touch $out
+              '';
+
+            routing-edge-import-surface = pkgs.runCommand "routing-edge-import-surface"
+              {
+                nativeBuildInputs = [
+                  pkgs.bash
+                  pkgs.coreutils
+                  pkgs.gnugrep
+                  pkgs.python3
+                ];
+              }
+              ''
+                bash ${./tests/routing-edge-import-surface.sh} ${self}
+                touch $out
+              '';
+
+            # Python compiler + contract validator tests for routing-edge.
+            routing-edge-python = pkgs.runCommand "routing-edge-python"
+              {
+                nativeBuildInputs = [ pkgs.python3 ];
+              }
+              ''
+                cd ${self}/packages/routing-edge
+                PYTHONPATH=. python3 -m unittest discover -s tests -p 'test_compile.py' -v
+                cd ${self}/contracts/routing
+                PYTHONPATH=. python3 -m unittest discover -s tests -v
+                touch $out
+              '';
+
+            # Package build + installed-command proof and pure module/NixOS eval.
+            routing-edge-nix-eval = pkgs.runCommand "routing-edge-nix-eval"
+              { }
+              ''
+                cat <<'EOF' > $out
+${routingEdgeChecks.report}
+EOF
+                if [ "${toString routingEdgeChecks.ok}" != "1" ]; then
+                  echo "routing-edge nix eval failed" >&2
+                  exit 1
+                fi
+              '';
+
+            routing-edge-package-proof = routingEdgeChecks.packageProof;
+            routing-edge-external-install-proof = routingEdgeChecks.externalInstallProof;
 
             # Module-eval tests (INSPR-72): exercise HM module options +
             # assertions + eval-time throws via lib.evalModules + a stub

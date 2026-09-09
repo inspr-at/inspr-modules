@@ -1,0 +1,13 @@
+{
+  "loopback_http_fixture": true,
+  "entrypoint": {
+    "name": "web",
+    "address": ":18080"
+  },
+  "upstreams": {
+    "aithema": { "url": "http://127.0.0.1:19001" },
+    "paimos": { "url": "http://127.0.0.1:19002" },
+    "pharos": { "url": "http://127.0.0.1:19003" },
+    "janus": { "url": "http://127.0.0.1:19004" }
+  }
+}

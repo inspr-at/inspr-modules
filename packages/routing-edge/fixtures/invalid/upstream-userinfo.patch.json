@@ -1,0 +1,11 @@
+{
+  "base": "../valid/combined-connected.deployment.json",
+  "operations": [
+    {
+      "op": "replace",
+      "path": "/upstreams/paimos/url",
+      "value": "https://user:secret@paimos.example.test:8443"
+    }
+  ],
+  "expected_codes": ["UPSTREAM_USERINFO"]
+}

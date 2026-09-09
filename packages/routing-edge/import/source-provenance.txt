@@ -1,0 +1,15 @@
+inspr-routing-edge source provenance
+schema: inspr-routing-edge-source-provenance/0.2
+private_source_commit: 8fc7c093d4bb682b9804cfa7bf0f6e9480dd936a
+imported_file_count: 48
+source_tree_digest: sha256:9f627001f61543e78204cce9b17bb7acc43c396d8a9a5281c793a9aab4ecb054
+source_archive_sha256: sha256:e7caa9a863be2fbca7567cdb00db6d7ce56e45e6784da11ad8282be70e83cf6c
+archive_format: gnu-ustar-deterministic-v1
+archive_filename: routing-edge-source-8fc7c093.tar
+archive_shipped_in_public_repo: false
+archive_attestation_note: Public verification recomputes the tree digest and receipt file digests. Archive byte proof runs only during import against the pinned private git blobs.
+inventory: packages/routing-edge/import/closed-inventory.json
+metadata_inventory: packages/routing-edge/import/metadata-inventory.json
+receipt: packages/routing-edge/import/import-receipt.json
+public_adaptations: packages/routing-edge/import/public-adaptations.json
+note: Opaque commit ids and digests only. No private remote or host paths.

@@ -1,0 +1,173 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:inspr:contracts:routing:0.1-draft",
+  "title": "INSPR cross-app routing contract",
+  "description": "Pre-1.0 unreleased draft for a configurable public origin, optional native public base paths per app, prefix-preserving edge rules, and per-app OIDC client bindings. Schema validity is not live proxy proof, SSO proof, or runtime authentication.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "evaluated_at",
+    "authority_disclaimer",
+    "public_origin",
+    "landing",
+    "apps",
+    "edge"
+  ],
+  "properties": {
+    "contract_version": { "const": "inspr.routing/0.1-draft" },
+    "evaluated_at": { "$ref": "#/$defs/timestamp" },
+    "authority_disclaimer": {
+      "const": "Schema validity is not live proxy proof, SSO proof, or runtime authentication. Each app remains its own authority and OIDC client verifier."
+    },
+    "public_origin": { "$ref": "#/$defs/publicOrigin" },
+    "landing": { "$ref": "#/$defs/landing" },
+    "apps": { "$ref": "#/$defs/apps" },
+    "edge": { "$ref": "#/$defs/edge" }
+  },
+  "$defs": {
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "appId": {
+      "type": "string",
+      "enum": ["aithema", "paimos", "pharos", "janus"]
+    },
+    "opaqueRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160,
+      "pattern": "^[A-Za-z][A-Za-z0-9._:-]*$"
+    },
+    "publicOrigin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scheme", "host"],
+      "properties": {
+        "scheme": { "enum": ["http", "https"] },
+        "host": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 253,
+          "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?(?::[0-9]{1,5})?$"
+        }
+      }
+    },
+    "publicBasePath": {
+      "type": "string",
+      "maxLength": 240,
+      "pattern": "^(|(?:/[A-Za-z0-9_-]+)+)$"
+    },
+    "appRelativePath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 240,
+      "pattern": "^/(?:[A-Za-z0-9._~!$&'()*+,;=:@%-]+(?:/[A-Za-z0-9._~!$&'()*+,;=:@%-]+)*)?$"
+    },
+    "oidcClient": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["client_ref", "redirect_path"],
+      "properties": {
+        "client_ref": { "$ref": "#/$defs/opaqueRef" },
+        "redirect_path": { "$ref": "#/$defs/appRelativePath" },
+        "post_logout_path": { "$ref": "#/$defs/appRelativePath" }
+      }
+    },
+    "disconnectedMount": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["external_origin"],
+      "properties": {
+        "external_origin": { "$ref": "#/$defs/publicOrigin" }
+      }
+    },
+    "appMount": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "public_base_path", "oidc"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "public_base_path": { "$ref": "#/$defs/publicBasePath" },
+        "oidc": { "$ref": "#/$defs/oidcClient" },
+        "disconnected": { "$ref": "#/$defs/disconnectedMount" },
+        "deep_link_paths": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/appRelativePath" }
+        }
+      }
+    },
+    "apps": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["aithema", "paimos", "pharos", "janus"],
+      "properties": {
+        "aithema": { "$ref": "#/$defs/appMount" },
+        "paimos": { "$ref": "#/$defs/appMount" },
+        "pharos": { "$ref": "#/$defs/appMount" },
+        "janus": { "$ref": "#/$defs/appMount" }
+      }
+    },
+    "landingAithemaWorkspace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": { "const": "aithema_workspace" }
+      }
+    },
+    "landingConnectedApp": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "app"],
+      "properties": {
+        "kind": { "const": "connected_default_app" },
+        "app": { "$ref": "#/$defs/appId" }
+      }
+    },
+    "landing": {
+      "oneOf": [
+        { "$ref": "#/$defs/landingAithemaWorkspace" },
+        { "$ref": "#/$defs/landingConnectedApp" }
+      ]
+    },
+    "edgeTrust": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "html_response_rewrite",
+        "iframe_gateway",
+        "permissive_cors",
+        "forwarded_identity_trust",
+        "shared_session_fallback"
+      ],
+      "properties": {
+        "html_response_rewrite": { "const": false },
+        "iframe_gateway": { "const": false },
+        "permissive_cors": { "const": false },
+        "forwarded_identity_trust": { "const": false },
+        "shared_session_fallback": { "const": false }
+      }
+    },
+    "edge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "trust"],
+      "properties": {
+        "mode": { "const": "prefix_preserving_proxy" },
+        "trust": { "$ref": "#/$defs/edgeTrust" },
+        "optional_diagnostic_headers": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": ["X-Forwarded-Prefix"]
+          }
+        }
+      }
+    }
+  }
+}

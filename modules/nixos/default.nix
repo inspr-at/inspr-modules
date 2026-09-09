@@ -9,5 +9,6 @@
 {
   imports = [
     ./ssh-authorized.nix
+    ../../packages/routing-edge/nix/module.nix
   ];
 }
