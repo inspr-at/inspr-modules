@@ -121,15 +121,16 @@ Consumers import it with their **own pinned nixpkgs** and a pinned
 else at build time or at run time.
 
 **Publication prerequisite:** root review must publish this tree through
-`inspr-modules` before consumers pin an immutable coordinate. Until then, no
-release tag or tarball coordinate is claimed here.
+`inspr-modules` before consumers pin an immutable coordinate. The consumer example below targets `v0.5.0`; use it after the matching
+GitHub Release is published. A prepared source branch alone is not release
+availability.
 
 ### Package
 
 From a consuming flake after publication:
 
 ```nix
-inputs.inspr-modules.url = "github:inspr-at/inspr-modules/<published-tag>";
+inputs.inspr-modules.url = "github:inspr-at/inspr-modules/v0.5.0";
 
 let
   routingEdge = inputs.inspr-modules.packages.${pkgs.system}.routing-edge;

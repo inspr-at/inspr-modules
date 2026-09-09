@@ -9,7 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-09-09
+
 ### Added
+
+- `packages.<system>.routing-edge` and opt-in `nixosModules.routing-edge`
+  provide reusable shared-origin routing for the delivery applications. A
+  closed 48-file import records separate source-tree and archive digests;
+  the public package builds without the original private checkout. Existing
+  default-module consumers remain unchanged until enabled. [INSPR-390]
+- Install the worker-attribution and gradual versioning doctrine from the
+  same immutable Home Manager input, with focused multipath checks and the
+  design-frontier skill available to consumers.
 
 - `inspr readiness` — a read-only, machine-readable development-machine
   probe driven by an operator-owned JSON profile (`inspr.readiness.v1`).
