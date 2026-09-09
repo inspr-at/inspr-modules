@@ -14,8 +14,10 @@ material work or versioning decisions:
   `I work on this — session: <session-name> (<session-UUID>); role: <builder|reviewer|operator>; started: <ISO-8601>`
   marker before any participating worker makes a state change.
 - [Versioning doctrine](references/AGENTS-VERSIONING.md):
-  `YY.MM.DD[.hh.mm.ss]` is the gradual INSPR default, but every repository
-  remains on its current scheme until its own approved migration is complete.
+  `YYMMDDhhmmss.0.0` (`inspr-calendar-v2`, SemVer-syntactic, fixed-width)
+  is the gradual INSPR default; `YY.MM.DD[.hh.mm.ss]` (v1) is superseded.
+  Every repository remains on its current scheme until its own approved
+  migration is complete.
 
 These references are normative. A worker marker identifies ownership; it does
 not grant approval, acceptance, merge, release, deployment, or secret access.
