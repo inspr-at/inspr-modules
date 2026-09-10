@@ -59,7 +59,7 @@
 #                                       with lock-integrity-pinned dependencies.
 #
 # Consumer pattern (in your flake.nix):
-#   inputs.inspr-modules.url = "github:inspr-at/inspr-modules/v0.7.0";  # pin a tag; main moves
+#   inputs.inspr-modules.url = "github:inspr-at/inspr-modules/v0.8.0";  # pin a tag; main moves
 #   inputs.inspr-modules.inputs.nixpkgs.follows = "nixpkgs";
 #
 #   home.imports = [

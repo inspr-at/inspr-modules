@@ -131,7 +131,7 @@ Consumers import it with their **own pinned nixpkgs** and a pinned
 else at build time or at run time.
 
 **Publication prerequisite:** root review must publish this tree through
-`inspr-modules` before consumers pin an immutable coordinate. The consumer example below targets `v0.7.0`; use it after the matching
+`inspr-modules` before consumers pin an immutable coordinate. The consumer example below targets `v0.8.0`; use it after the matching
 GitHub Release is published. A prepared source branch alone is not release
 availability.
 
@@ -140,7 +140,7 @@ availability.
 From a consuming flake after publication:
 
 ```nix
-inputs.inspr-modules.url = "github:inspr-at/inspr-modules/v0.7.0";
+inputs.inspr-modules.url = "github:inspr-at/inspr-modules/v0.8.0";
 
 let
   routingEdge = inputs.inspr-modules.packages.${pkgs.system}.routing-edge;
