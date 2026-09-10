@@ -139,20 +139,35 @@ their vendored `doctrine/` submodule or from the `inspr-modules` flake
 MUST NOT fetch it at runtime and MUST carry a drift test that compares the
 values they ship against the pinned file.
 
+The file carries an explicit `design_revision`. The current authoritative
+design is **display design revision 3**. A design revision is a presentation
+change only: it is not a version scheme, the scheme stays
+`inspr-calendar-v2`, the data schema stays `inspr.calendar-version-display.v1`,
+and no coordinate, tag, manifest, or published artifact changes because of it.
+Revision 3 supersedes the visual defaults of revisions 1 and 2 as the
+authoritative design; those earlier numbers have no remaining normative force.
+
+Because consumers pin bytes rather than track this file, a revision landing
+upstream does NOT mean the fleet renders it. Every consumer stays on the
+revision it has pinned until its own pin is upgraded deliberately, and each
+such upgrade is its own reviewed change in the consumer's repository. An
+upstream edit MUST NOT be reported as a fleet-wide visual rollout.
+
 - The segments are the optional `v` prefix, `YY`, `MM`, `DD`, `hh`, `mm`,
   `ss`, and the constant `.0.0`. Weight is opacity (CSS `opacity`, or the
   equivalent alpha in a non-web toolkit) applied to the segment's inherited
   text colour. It is never a different glyph, size, spacing, or separator.
-- Default weights, in percent: `v` 20, `YY` 100, `MM` 70, `DD` 70, `hh` 90,
-  `mm` 60, `ss` 20, `.0.0` 10. A project MAY raise any weight; it MUST NOT
+- Default weights, in percent: `v` 20, `YY` 100, `MM` 80, `DD` 100, `hh` 60,
+  `mm` 40, `ss` 20, `.0.0` 20. A project MAY raise any weight; it MUST NOT
   lower `YY` below 100.
-- If the project's design system defines a dark highlight colour
-  (Schmuckfarbe), `YY`, `MM`, and `DD` take it as a 50 percent colour mix into
-  the current text colour, for example
-  `color-mix(in oklab, currentColor, <highlight> 50%)`. The time segments and
-  the suffix keep the plain text colour. A colour that carries state meaning
-  in the project (live, stale, down, error) MUST NOT be used as the tint.
-  Without such a highlight colour the date stays untinted.
+- `YY`, `MM`, and `DD` take the shared default Schmuckfarbe `#d69b31` as an
+  80 percent colour mix into the current text colour,
+  `color-mix(in oklab, currentColor, <highlight> 80%)`. This tint is the
+  default, not an opt-in: the date is tinted unless a project deliberately
+  overrides `--cv2-tint`. A project whose design system defines its own dark
+  highlight colour MAY substitute it. The time segments and the suffix keep
+  the plain text colour. A colour that carries state meaning in the project
+  (live, stale, down, error) MUST NOT be used as the tint.
 - The rendered element's text content and every machine-facing surface
   (clipboard, logs, JSON, CLI output, tags, manifests) carry the plain
   canonical string only. Weighting MUST NOT split, reorder, or annotate the
@@ -168,8 +183,9 @@ values they ship against the pinned file.
 Reference implementation for the web, rendered from the data file:
 
 ```css
-:root{--o-v:.2;--o-yy:1;--o-mm:.7;--o-dd:.7;--o-hh:.9;--o-mi:.6;--o-ss:.2;--o-tail:.1;
-      --cv2-tint:currentColor;--cv2-mix:50%}          /* set --cv2-tint to the Schmuckfarbe */
+/* inspr-calendar-v2 display, design revision 3 — generated from lib/calendar-version-display.json, do not edit by hand */
+:root{--o-v:.2;--o-yy:1;--o-mm:.8;--o-dd:1;--o-hh:.6;--o-mi:.4;--o-ss:.2;--o-tail:.2;
+      --cv2-tint:#d69b31;--cv2-mix:80%}   /* --cv2-tint is the shared default Schmuckfarbe; a project MAY override it */
 .cv2{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums;white-space:nowrap}
 .cv2>b{font-weight:inherit}
 .cv2 .v{opacity:var(--o-v)} .cv2 .yy{opacity:var(--o-yy)} .cv2 .mm{opacity:var(--o-mm)}

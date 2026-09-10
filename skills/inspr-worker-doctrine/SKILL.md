@@ -19,11 +19,12 @@ material work or versioning decisions:
   Every repository remains on its current scheme until its own approved
   migration is complete.
   User interfaces render v2 coordinates with the doctrine's display
-  weights (per-segment opacity, optional Schmuckfarbe tint on the date);
-  the canonical string itself never changes.
+  weights (per-segment opacity plus the shared default Schmuckfarbe tint on
+  the date); the canonical string itself never changes.
 - [Display weights data](references/calendar-version-display.json): the
-  normative weights, tinted segments and mix; consumers read it at build
-  time and never edit the numbers by hand.
+  normative weights, tinted segments, mix, default tint and the explicit
+  `design_revision`; consumers read it at build time, never edit the numbers
+  by hand, and upgrade their own pin deliberately when a revision lands.
 
 These references are normative. A worker marker identifies ownership; it does
 not grant approval, acceptance, merge, release, deployment, or secret access.

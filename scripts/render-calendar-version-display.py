@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Render the calendar v2 display-weights data as CSS (INSPR-400).
+"""Render the calendar v2 display data as CSS (INSPR-400).
 
 Usage: render-calendar-version-display.py [--format css|json-flat] [path/to/calendar-version-display.json]
 
-The JSON file is the single normative source for the weights. This renderer is
-deterministic so consumers and the doctrine's reference block can be compared
-byte for byte.
+The JSON file is the single normative source for the weights, the tint and the
+display design revision; no weight table is duplicated anywhere else in this
+repository's production surfaces. This renderer is deterministic so consumers
+and the doctrine's reference block can be compared byte for byte.
 """
 import json
 import pathlib
@@ -26,6 +27,9 @@ def validate(data):
         raise SystemExit("unsupported schema: %r" % data.get("schema"))
     if data.get("scheme") != "inspr-calendar-v2":
         raise SystemExit("display weights apply to inspr-calendar-v2 only")
+    revision = data.get("design_revision")
+    if not isinstance(revision, int) or isinstance(revision, bool) or revision < 1:
+        raise SystemExit("design_revision must be a positive integer")
     if data.get("segments") != SEGMENTS:
         raise SystemExit("segments must be exactly %r" % SEGMENTS)
     weights = data["weights"]
@@ -46,6 +50,14 @@ def validate(data):
     unknown = set(tint["segments"]) - set(SEGMENTS)
     if unknown:
         raise SystemExit("unknown tint segments: %s" % sorted(unknown))
+    default = tint.get("default")
+    if not isinstance(default, str) or not default.strip():
+        raise SystemExit("tint default must be a non-empty colour value")
+    # The default lands verbatim in a CSS declaration; keep it a single value.
+    if any(ch in default for ch in ";{}/\\\"'"):
+        raise SystemExit("tint default must be a bare CSS colour value")
+    if not isinstance(tint.get("space"), str) or not tint["space"].strip():
+        raise SystemExit("tint space must be a non-empty colour space")
     props = data["css"]["properties"]
     for key in SEGMENTS + ["tint", "mix"]:
         if key not in props:
@@ -66,10 +78,15 @@ def render_css(data):
     tint = data["tint"]
     typo = data["typography"]
     lines = []
+    lines.append(
+        "/* inspr-calendar-v2 display, design revision %d "
+        "— generated from lib/calendar-version-display.json, do not edit by hand */"
+        % data["design_revision"]
+    )
     root = ";".join("%s:%s" % (props[seg], num(weights[seg])) for seg in SEGMENTS)
     lines.append(":root{%s;" % root)
     lines.append(
-        "      %s:%s;%s:%s%%}          /* set %s to the Schmuckfarbe */"
+        "      %s:%s;%s:%s%%}   /* %s is the shared default Schmuckfarbe; a project MAY override it */"
         % (props["tint"], tint["default"], props["mix"], int(round(tint["mix"] * 100)), props["tint"])
     )
     lines.append(
@@ -92,8 +109,10 @@ def render_css(data):
 
 def render_flat(data):
     flat = {seg: data["weights"][seg] for seg in SEGMENTS}
+    flat["design_revision"] = data["design_revision"]
     flat["tint_segments"] = data["tint"]["segments"]
     flat["tint_mix"] = data["tint"]["mix"]
+    flat["tint_default"] = data["tint"]["default"]
     return json.dumps(flat, indent=2, sort_keys=True) + "\n"
 
 
