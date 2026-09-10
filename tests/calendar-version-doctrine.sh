@@ -43,7 +43,13 @@ for required in \
   'Generic utilities such as `sort -V` are not acceptable' \
   '## Ecosystem exceptions' \
   '## Value-free estate inventory' \
-  'trunkver.org'
+  'trunkver.org' \
+  '### Display weights' \
+  '`v` 20, `YY` 100, `MM` 70, `DD` 70, `hh` 90' \
+  'lower `YY` below 100' \
+  'color-mix(in oklab, currentColor, <highlight> 50%)' \
+  'Weighting MUST NOT split, reorder, or annotate the' \
+  'never from the shape of the string'
 do
   grep -Fq "$required" "$policy" || fail "missing normative surface: $required"
 done
