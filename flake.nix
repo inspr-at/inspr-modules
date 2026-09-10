@@ -110,6 +110,9 @@
       # Calendar v2 display weights as data (INSPR-400). `data` is the parsed
       # JSON, `source` the path consumers copy or read at build time. The
       # rendered CSS lives in packages.<system>.calendar-version-display-css.
+      # `data.design_revision` names the authoritative display design revision
+      # (3 since INSPR-414). Consumers pin bytes, so a new revision here only
+      # reaches a consumer when that consumer upgrades its own pin.
       lib = {
         calendarVersionDisplay = {
           source = ./lib/calendar-version-display.json;

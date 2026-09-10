@@ -9,6 +9,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Calendar v2 display design revision 3 (INSPR-414).** The operator-approved
+  final display design replaces the revision 2 visual defaults.
+  `lib/calendar-version-display.json` stays the single normative source and
+  now carries an explicit `design_revision` (3): weights in percent are `v` 20,
+  `YY` 100, `MM` 80, `DD` 100, `hh` 60, `mm` 40, `ss` 20, `.0.0` 20, and the
+  date segments (`YY`, `MM`, `DD`) take the shared default Schmuckfarbe
+  `#d69b31` as an 80 percent `oklab` mix. The tint is now a shipped default
+  rather than an opt-in that fell back to `currentColor`; a project may still
+  override `--cv2-tint` with its own highlight colour. The doctrine prose and
+  the reference CSS are regenerated from the data,
+  `scripts/render-calendar-version-display.py` validates the revision and the
+  tint value, and `tests/calendar-version-display.sh` pins the approved
+  settings and asserts that invalid shapes are rejected.
+
+  This is a **display design revision, not a version-scheme migration**: the
+  scheme stays `inspr-calendar-v2`, the data schema stays
+  `inspr.calendar-version-display.v1`, the canonical version string, legacy v1
+  handling and every published tag, release and coordinate are untouched.
+
+  Consumers pin these bytes, so this upstream change renders nowhere until
+  each consumer upgrades its own pin. Follow-up per consumer (nixcfg, inspr,
+  agm-com, ops and any other repository shipping the weights): bump the
+  `doctrine/` submodule or flake input, re-render the CSS, and update the
+  local drift test to the revision 3 values.
+
 ## [0.9.0] - 2026-09-10
 
 ### Added

@@ -45,9 +45,10 @@ for required in \
   '## Value-free estate inventory' \
   'trunkver.org' \
   '### Display weights' \
-  '`v` 20, `YY` 100, `MM` 70, `DD` 70, `hh` 90' \
+  '`v` 20, `YY` 100, `MM` 80, `DD` 100, `hh` 60' \
   'lower `YY` below 100' \
-  'color-mix(in oklab, currentColor, <highlight> 50%)' \
+  'color-mix(in oklab, currentColor, <highlight> 80%)' \
+  'display design revision 3' \
   'Weighting MUST NOT split, reorder, or annotate the' \
   'never from the shape of the string'
 do
