@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Display weights for calendar v2 coordinates.** `docs/AGENTS-VERSIONING.md`
+  gains a normative "Display weights" subsection: a UI MAY render an
+  `inspr-calendar-v2` coordinate with per-segment opacity (defaults `v` 20,
+  `YY` 100, `MM` 70, `DD` 70, `hh` 90, `mm` 60, `ss` 20, `.0.0` 10 percent) and,
+  where the design system has a dark highlight colour, a 50 percent colour mix
+  of that colour into the date segments. The rendered text and every
+  machine-facing surface keep the plain canonical string; v1 and SemVer-legacy
+  versions render plain; the scheme comes from the release record, never from
+  the string's shape. The reference CSS ships with the doctrine, the worker
+  skill points at the rule, and `tests/calendar-version-doctrine.sh` asserts
+  the new surface.
+
 ## [0.7.0] - 2026-09-09
 
 ### Changed

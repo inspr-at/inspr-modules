@@ -18,6 +18,9 @@ material work or versioning decisions:
   is the gradual INSPR default; `YY.MM.DD[.hh.mm.ss]` (v1) is superseded.
   Every repository remains on its current scheme until its own approved
   migration is complete.
+  User interfaces render v2 coordinates with the doctrine's display
+  weights (per-segment opacity, optional Schmuckfarbe tint on the date);
+  the canonical string itself never changes.
 
 These references are normative. A worker marker identifies ownership; it does
 not grant approval, acceptance, merge, release, deployment, or secret access.

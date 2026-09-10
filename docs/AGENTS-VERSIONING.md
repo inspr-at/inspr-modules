@@ -121,6 +121,56 @@ would reserve the same second, the later reservation waits for the next
 second; inventing a hidden tie-breaker or overwriting the first coordinate is
 forbidden.
 
+### Display weights
+
+A user interface MAY render a v2 coordinate with per-segment weight so that
+the twelve digits read as date, time, and suffix instead of one number.
+Display weighting is presentation only and changes nothing about the
+coordinate.
+
+- The segments are the optional `v` prefix, `YY`, `MM`, `DD`, `hh`, `mm`,
+  `ss`, and the constant `.0.0`. Weight is opacity (CSS `opacity`, or the
+  equivalent alpha in a non-web toolkit) applied to the segment's inherited
+  text colour. It is never a different glyph, size, spacing, or separator.
+- Default weights, in percent: `v` 20, `YY` 100, `MM` 70, `DD` 70, `hh` 90,
+  `mm` 60, `ss` 20, `.0.0` 10. A project MAY raise any weight; it MUST NOT
+  lower `YY` below 100.
+- If the project's design system defines a dark highlight colour
+  (Schmuckfarbe), `YY`, `MM`, and `DD` take it as a 50 percent colour mix into
+  the current text colour, for example
+  `color-mix(in oklab, currentColor, <highlight> 50%)`. The time segments and
+  the suffix keep the plain text colour. A colour that carries state meaning
+  in the project (live, stale, down, error) MUST NOT be used as the tint.
+  Without such a highlight colour the date stays untinted.
+- The rendered element's text content and every machine-facing surface
+  (clipboard, logs, JSON, CLI output, tags, manifests) carry the plain
+  canonical string only. Weighting MUST NOT split, reorder, or annotate the
+  string.
+- Weighted coordinates use a monospace face with tabular numerals so segments
+  align across rows.
+- Weighting applies to `inspr-calendar-v2` only. Legacy v1 and SemVer-legacy
+  versions render plain, and the scheme MUST come from the release record,
+  never from the shape of the string.
+- Each project implements exactly one helper that emits the weighted markup
+  and uses it everywhere a version is displayed.
+
+Reference implementation for the web:
+
+```css
+:root{--o-v:.2;--o-yy:1;--o-mm:.7;--o-dd:.7;--o-hh:.9;--o-mi:.6;--o-ss:.2;--o-tail:.1;
+      --cv2-tint:currentColor;--cv2-mix:50%}          /* set --cv2-tint to the Schmuckfarbe */
+.cv2{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums;white-space:nowrap}
+.cv2>b{font-weight:inherit}
+.cv2 .v{opacity:var(--o-v)}   .cv2 .yy{opacity:var(--o-yy)} .cv2 .mm{opacity:var(--o-mm)}
+.cv2 .dd{opacity:var(--o-dd)} .cv2 .hh{opacity:var(--o-hh)} .cv2 .mi{opacity:var(--o-mi)}
+.cv2 .ss{opacity:var(--o-ss)} .cv2 .tail{opacity:var(--o-tail)}
+.cv2 .yy,.cv2 .mm,.cv2 .dd{color:color-mix(in oklab,currentColor,var(--cv2-tint) var(--cv2-mix))}
+```
+
+```html
+<span class="cv2"><b class="v">v</b><b class="yy">26</b><b class="mm">09</b><b class="dd">09</b><b class="hh">20</b><b class="mi">25</b><b class="ss">06</b><b class="tail">.0.0</b></span>
+```
+
 ## Ordering, immutability, and rollback
 
 Within `inspr-calendar-v2`, compare the first segment as one integer. Because
