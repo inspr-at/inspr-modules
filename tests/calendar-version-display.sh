@@ -115,3 +115,155 @@ rejects(lambda d: d["tint"].update(segments=["yy", "zz"]), "unknown tint segment
 
 print("calendar-version-display: ok")
 PY
+
+python3 - "$data" "$policy" "$repo_root/scripts/check-calendar-version-display-pin.sh" <<'PY'
+import hashlib
+import os
+import pathlib
+import subprocess
+import sys
+import tempfile
+
+data_path = pathlib.Path(sys.argv[1])
+policy_path = pathlib.Path(sys.argv[2])
+checker = pathlib.Path(sys.argv[3])
+source = data_path.read_bytes()
+
+policy = policy_path.read_text(encoding="utf-8")
+for required in (
+    "tracked in-repository copy",
+    "exact byte count and its lowercase SHA256 digest",
+    "checkout MAY skip only that additional comparison",
+    "scripts/check-calendar-version-display-pin.sh",
+):
+    if required not in policy:
+        sys.exit("calendar-version-display: copy-pin doctrine is missing %r" % required)
+
+
+def command(*args, cwd, check=False):
+    return subprocess.run(
+        ["bash", str(checker), *map(str, args)],
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        check=check,
+        env=fixture_env,
+    )
+
+
+def expect(result, success, label):
+    if (result.returncode == 0) != success:
+        sys.exit(
+            "calendar-version-display: pin check %s unexpectedly %s\nstdout: %s\nstderr: %s"
+            % (label, "passed" if result.returncode == 0 else "failed", result.stdout, result.stderr)
+        )
+
+
+with tempfile.TemporaryDirectory(prefix="calendar-version-display-pin-") as fixture:
+    consumer = pathlib.Path(fixture)
+    fixture_home = consumer / "fixture-home"
+    fixture_home.mkdir()
+    fixture_env = {
+        key: value for key, value in os.environ.items()
+        if not key.startswith("GIT_")
+    }
+    fixture_env.update({
+        "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "HOME": str(fixture_home),
+        "XDG_CONFIG_HOME": str(fixture_home / "xdg"),
+    })
+    subprocess.run(
+        ["git", "-c", "init.defaultBranch=main", "init", "-q"],
+        cwd=consumer,
+        check=True,
+        env=fixture_env,
+    )
+    copy = consumer / "calendar-version-display.json"
+    copy.write_bytes(source)
+    subprocess.run(
+        ["git", "add", "--", copy.name], cwd=consumer, check=True, env=fixture_env
+    )
+
+    size = len(source)
+    digest = hashlib.sha256(source).hexdigest()
+    offline_revision = "a" * 40
+
+    expect(command(copy.name, size, digest, offline_revision, cwd=consumer), True,
+           "rejected a clean copy without a doctrine checkout")
+
+    altered = bytearray(source)
+    altered[-2] = ord(" ") if altered[-2] != ord(" ") else ord("x")
+    copy.write_bytes(altered)
+    expect(command(copy.name, size, digest, offline_revision, cwd=consumer), False,
+           "accepted altered same-size bytes without a doctrine checkout")
+    copy.write_bytes(source)
+
+    expect(command(copy.name, size + 1, digest, offline_revision, cwd=consumer), False,
+           "accepted an incorrect size pin without a doctrine checkout")
+    expect(command(copy.name, size, "0" * 64, offline_revision, cwd=consumer), False,
+           "accepted an incorrect digest pin without a doctrine checkout")
+    expect(command(copy.name, size, digest, "main", cwd=consumer), False,
+           "accepted a mutable doctrine revision")
+
+    untracked = consumer / "untracked-display.json"
+    untracked.write_bytes(source)
+    expect(command(untracked.name, size, digest, offline_revision, cwd=consumer), False,
+           "accepted an untracked copy")
+
+    doctrine = consumer / "doctrine"
+    doctrine.mkdir()
+    expect(command(copy.name, size, digest, offline_revision, doctrine.name, cwd=consumer), True,
+           "rejected a clean copy with an uninitialized doctrine directory")
+    subprocess.run(
+        ["git", "-c", "init.defaultBranch=main", "init", "-q"],
+        cwd=doctrine,
+        check=True,
+        env=fixture_env,
+    )
+    doctrine_source = doctrine / "lib" / "calendar-version-display.json"
+    doctrine_source.parent.mkdir()
+    doctrine_source.write_bytes(source)
+    subprocess.run(
+        ["git", "add", "--", "lib/calendar-version-display.json"],
+        cwd=doctrine,
+        check=True,
+        env=fixture_env,
+    )
+    subprocess.run(
+        ["git", "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
+         "-c", "commit.gpgSign=false", "commit", "-qm", "fixture doctrine"],
+        cwd=doctrine,
+        check=True,
+        env=fixture_env,
+    )
+    doctrine_revision = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=doctrine, capture_output=True,
+        text=True, check=True, env=fixture_env
+    ).stdout.strip()
+
+    expect(command(copy.name, size, digest, doctrine_revision, doctrine.name, cwd=consumer), True,
+           "rejected a copy matching initialized doctrine")
+
+    doctrine_source.write_bytes(bytes(altered))
+    expect(command(copy.name, size, digest, doctrine_revision, doctrine.name, cwd=consumer), False,
+           "accepted initialized doctrine content drift")
+    doctrine_source.write_bytes(source)
+
+    marker = doctrine / "revision-drift"
+    marker.write_text("new revision\n", encoding="utf-8")
+    subprocess.run(
+        ["git", "add", "--", marker.name], cwd=doctrine, check=True, env=fixture_env
+    )
+    subprocess.run(
+        ["git", "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
+         "-c", "commit.gpgSign=false", "commit", "-qm", "revision drift"],
+        cwd=doctrine,
+        check=True,
+        env=fixture_env,
+    )
+    expect(command(copy.name, size, digest, doctrine_revision, doctrine.name, cwd=consumer), False,
+           "accepted initialized doctrine revision drift")
+
+print("calendar-version-display-pin: tests ok")
+PY

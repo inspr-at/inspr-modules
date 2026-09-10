@@ -134,10 +134,35 @@ The normative source of the weights is the data file
 are rendered from that file by `scripts/render-calendar-version-display.py`
 and MUST NOT be edited by hand; `tests/calendar-version-display.sh` fails when
 prose, CSS, and data disagree. Consumers read the file at build time from
-their vendored `doctrine/` submodule or from the `inspr-modules` flake
-(`lib.calendarVersionDisplay`, package `calendar-version-display-css`); they
-MUST NOT fetch it at runtime and MUST carry a drift test that compares the
-values they ship against the pinned file.
+their vendored `doctrine/` submodule, from the `inspr-modules` flake
+(`lib.calendarVersionDisplay`, package `calendar-version-display-css`), or
+from a tracked in-repository copy. They MUST NOT fetch it at runtime.
+
+An in-repository copy is allowed only when its consumer-owned CI check pins
+the copy to one immutable, full doctrine commit object ID and verifies both
+its exact byte count and its lowercase SHA256 digest. Those three literals
+(revision, size, and digest) are one reviewed pin: changing any of them is a
+consumer upgrade. The check MUST reject an untracked copy or a byte mismatch.
+When the `doctrine/` checkout is initialized, it MUST additionally require
+that checkout's `HEAD` to equal the pinned revision and compare the copy
+byte-for-byte with `doctrine/lib/calendar-version-display.json`. An absent
+checkout MAY skip only that additional comparison; it does not relax the
+committed size and digest checks. `scripts/check-calendar-version-display-pin.sh`
+is the reusable reference check:
+
+```sh
+scripts/check-calendar-version-display-pin.sh \
+  path/to/calendar-version-display.json \
+  "$PINNED_DISPLAY_SIZE" \
+  "$PINNED_DISPLAY_SHA256" \
+  "$PINNED_DOCTRINE_REVISION" \
+  doctrine
+```
+
+The three `PINNED_*` values above MUST be checked-in literals in the
+consumer's test, not values calculated from the candidate copy at test time.
+Every consumer path, including direct submodule and flake reads, MUST carry a
+drift test that compares the values it ships against its pinned source.
 
 The file carries an explicit `design_revision`. The current authoritative
 design is **display design revision 3**. A design revision is a presentation

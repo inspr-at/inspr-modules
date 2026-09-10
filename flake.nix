@@ -282,6 +282,8 @@
                 nativeBuildInputs = [
                   pkgs.bash
                   pkgs.coreutils
+                  pkgs.gawk
+                  pkgs.git
                   pkgs.gnugrep
                   pkgs.python3
                 ];
