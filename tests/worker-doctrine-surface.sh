@@ -12,10 +12,14 @@ fail() {
 skill="$installed_root/SKILL.md"
 attribution="$installed_root/references/AGENTS.md"
 versioning="$installed_root/references/AGENTS-VERSIONING.md"
+display="$installed_root/references/calendar-version-display.json"
 
 test -f "$skill" || fail 'SKILL.md is missing'
 test -f "$attribution" || fail 'worker-attribution reference is missing'
 test -f "$versioning" || fail 'calendar-version reference is missing'
+test -f "$display" || fail 'calendar-version display data is missing'
+cmp -s "$repo_root/lib/calendar-version-display.json" "$display" \
+  || fail 'installed display-weights data drifted from canonical lib/calendar-version-display.json'
 
 cmp -s "$repo_root/AGENTS.md" "$attribution" \
   || fail 'installed worker-attribution mirror drifted from canonical AGENTS.md'
@@ -26,6 +30,8 @@ grep -Fq '[Worker attribution](references/AGENTS.md)' "$skill" \
   || fail 'SKILL.md does not link the installed worker-attribution reference'
 grep -Fq '[Versioning doctrine](references/AGENTS-VERSIONING.md)' "$skill" \
   || fail 'SKILL.md does not link the installed calendar-version reference'
+grep -Fq '[Display weights data](references/calendar-version-display.json)' "$skill" \
+  || fail 'SKILL.md does not link the installed display-weights data'
 grep -Fq 'I work on this — session: <session-name> (<session-UUID>); role: <builder|reviewer|operator>; started: <ISO-8601>' "$skill" \
   || fail 'SKILL.md lacks the canonical value-free worker marker'
 grep -Fq 'designated PPM or PMA tracker, never both' "$attribution" \

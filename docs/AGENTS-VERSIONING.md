@@ -128,6 +128,17 @@ the twelve digits read as date, time, and suffix instead of one number.
 Display weighting is presentation only and changes nothing about the
 coordinate.
 
+The normative source of the weights is the data file
+`lib/calendar-version-display.json` in `inspr-modules`
+(schema `inspr.calendar-version-display.v1`). The numbers and the CSS below
+are rendered from that file by `scripts/render-calendar-version-display.py`
+and MUST NOT be edited by hand; `tests/calendar-version-display.sh` fails when
+prose, CSS, and data disagree. Consumers read the file at build time from
+their vendored `doctrine/` submodule or from the `inspr-modules` flake
+(`lib.calendarVersionDisplay`, package `calendar-version-display-css`); they
+MUST NOT fetch it at runtime and MUST carry a drift test that compares the
+values they ship against the pinned file.
+
 - The segments are the optional `v` prefix, `YY`, `MM`, `DD`, `hh`, `mm`,
   `ss`, and the constant `.0.0`. Weight is opacity (CSS `opacity`, or the
   equivalent alpha in a non-web toolkit) applied to the segment's inherited
@@ -154,14 +165,14 @@ coordinate.
 - Each project implements exactly one helper that emits the weighted markup
   and uses it everywhere a version is displayed.
 
-Reference implementation for the web:
+Reference implementation for the web, rendered from the data file:
 
 ```css
 :root{--o-v:.2;--o-yy:1;--o-mm:.7;--o-dd:.7;--o-hh:.9;--o-mi:.6;--o-ss:.2;--o-tail:.1;
       --cv2-tint:currentColor;--cv2-mix:50%}          /* set --cv2-tint to the Schmuckfarbe */
 .cv2{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums;white-space:nowrap}
 .cv2>b{font-weight:inherit}
-.cv2 .v{opacity:var(--o-v)}   .cv2 .yy{opacity:var(--o-yy)} .cv2 .mm{opacity:var(--o-mm)}
+.cv2 .v{opacity:var(--o-v)} .cv2 .yy{opacity:var(--o-yy)} .cv2 .mm{opacity:var(--o-mm)}
 .cv2 .dd{opacity:var(--o-dd)} .cv2 .hh{opacity:var(--o-hh)} .cv2 .mi{opacity:var(--o-mi)}
 .cv2 .ss{opacity:var(--o-ss)} .cv2 .tail{opacity:var(--o-tail)}
 .cv2 .yy,.cv2 .mm,.cv2 .dd{color:color-mix(in oklab,currentColor,var(--cv2-tint) var(--cv2-mix))}

@@ -21,6 +21,9 @@ material work or versioning decisions:
   User interfaces render v2 coordinates with the doctrine's display
   weights (per-segment opacity, optional Schmuckfarbe tint on the date);
   the canonical string itself never changes.
+- [Display weights data](references/calendar-version-display.json): the
+  normative weights, tinted segments and mix; consumers read it at build
+  time and never edit the numbers by hand.
 
 These references are normative. A worker marker identifies ownership; it does
 not grant approval, acceptance, merge, release, deployment, or secret access.

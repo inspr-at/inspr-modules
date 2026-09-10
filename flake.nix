@@ -106,6 +106,17 @@
       # option spots (e.g. `users.users.<u>.openssh.authorizedKeys.keys`).
       # Consumers import at NixOS-module scope (top-level
       # configuration.nix or shared profile).
+      # ── Doctrine data ──────────────────────────────────────────────────
+      # Calendar v2 display weights as data (INSPR-400). `data` is the parsed
+      # JSON, `source` the path consumers copy or read at build time. The
+      # rendered CSS lives in packages.<system>.calendar-version-display-css.
+      lib = {
+        calendarVersionDisplay = {
+          source = ./lib/calendar-version-display.json;
+          data = builtins.fromJSON (builtins.readFile ./lib/calendar-version-display.json);
+        };
+      };
+
       nixosModules = {
         ssh-authorized = ./modules/nixos/ssh-authorized.nix;
         routing-edge = ./packages/routing-edge/nix/module.nix;
@@ -125,6 +136,10 @@
           inspr = pkgs.callPackage ./pkgs/inspr { };
           routing-edge = pkgs.callPackage ./packages/routing-edge/nix { insprSource = self; };
           aithema-workspace = pkgs.callPackage ./packages/aithema-workspace { };
+          calendar-version-display-css =
+            pkgs.runCommand "calendar-version-display.css" { nativeBuildInputs = [ pkgs.python3 ]; } ''
+              python3 ${./scripts/render-calendar-version-display.py} ${./lib/calendar-version-display.json} > $out
+            '';
         };
 
         # ── Test suite (run via `nix flake check`) ───────────────────────
@@ -139,6 +154,7 @@
               skillSource = ./skills/inspr-worker-doctrine/SKILL.md;
               attributionSource = ./AGENTS.md;
               versioningSource = ./docs/AGENTS-VERSIONING.md;
+              displaySource = ./lib/calendar-version-display.json;
             };
 
             # Module-eval suite results (INSPR-267). Evaluation is lazy —
@@ -252,6 +268,23 @@
               }
               ''
                 bash ${./tests/calendar-version-doctrine.sh} ${self}
+                touch $out
+              '';
+
+            # The display weights are data (INSPR-400): the JSON validates, the
+            # doctrine's CSS block and prose numbers equal the rendered data,
+            # and the flake package renders the same bytes.
+            calendar-version-display = pkgs.runCommand "calendar-version-display"
+              {
+                nativeBuildInputs = [
+                  pkgs.bash
+                  pkgs.coreutils
+                  pkgs.gnugrep
+                  pkgs.python3
+                ];
+              }
+              ''
+                bash ${./tests/calendar-version-display.sh} ${self}
                 touch $out
               '';
 

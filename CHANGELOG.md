@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Declarative display weights (INSPR-400).** `lib/calendar-version-display.json`
+  is now the single normative source for the calendar v2 display weights, the
+  tinted segments and the mix percentage. `scripts/render-calendar-version-display.py`
+  renders it to CSS deterministically; the doctrine's reference CSS block is
+  generated from it and `tests/calendar-version-display.sh` (flake check
+  `calendar-version-display`) fails when prose, CSS and data disagree. The
+  flake exposes `lib.calendarVersionDisplay` (data + source path) and a
+  per-system `calendar-version-display-css` package; the installed
+  `inspr-worker-doctrine` skill carries the file under `references/`.
+  Consumers read the file at build time from their vendored `doctrine/`
+  submodule or the flake input and carry a drift test; nothing is fetched at
+  runtime.
+
 ## [0.8.0] - 2026-09-10
 
 ### Added
