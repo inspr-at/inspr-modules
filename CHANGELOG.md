@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-09-10
+
+### Added
+
+- **Verified offline display-data copies (INSPR-403).** Consumers may check in
+  the calendar display JSON when its immutable doctrine revision, exact byte
+  count and SHA256 digest form a reviewed pin. The reusable
+  `scripts/check-calendar-version-display-pin.sh` rejects altered or untracked
+  copies without fetching anything; an initialized doctrine checkout must
+  also match the pinned revision and bytes. Regression checks cover missing
+  checkouts, empty submodule directories, incorrect pins and source drift.
+
 ### Changed
 
 - **Calendar v2 display design revision 3 (INSPR-414).** The operator-approved
