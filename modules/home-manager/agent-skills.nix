@@ -63,6 +63,7 @@ let
     skillSource = ../../skills/inspr-worker-doctrine/SKILL.md;
     attributionSource = ../../AGENTS.md;
     versioningSource = ../../docs/AGENTS-VERSIONING.md;
+    displaySource = ../../lib/calendar-version-display.json;
   };
   # Home Manager accepts an immutable store path here. Keep the option value
   # shallow: the module-eval harness deep-sequences home.file and should not

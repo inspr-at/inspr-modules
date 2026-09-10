@@ -52,7 +52,7 @@ Phase 4 (synthesized 2026-05-14) produced **521 canonical rules across 12 layer 
 
 | File | Applies when | Description |
 |---|---|---|
-| [AGENTS-VERSIONING.md](AGENTS-VERSIONING.md) | Creating, publishing, consuming, comparing, pinning, deploying, or migrating any version-bearing artifact | INSPR Calendar Version v2 (`YYMMDDhhmmss.0.0`, SemVer-syntactic and fixed-width sortable; v1 `YY.MM.DD[.hh.mm.ss]` superseded), display weights for UIs, gradual per-repository adoption, mixed-era behavior, supply-chain gates, ecosystem exceptions, and the value-free estate inventory. |
+| [AGENTS-VERSIONING.md](AGENTS-VERSIONING.md) | Creating, publishing, consuming, comparing, pinning, deploying, or migrating any version-bearing artifact | INSPR Calendar Version v2 (`YYMMDDhhmmss.0.0`, SemVer-syntactic and fixed-width sortable; v1 `YY.MM.DD[.hh.mm.ss]` superseded), display weights for UIs (data: `lib/calendar-version-display.json`), gradual per-repository adoption, mixed-era behavior, supply-chain gates, ecosystem exceptions, and the value-free estate inventory. |
 
 **Phase-4 baseline rule count: 521 canonical rules** (Phase 4 synthesis, 2026-05-14) — every rule lands in exactly one Phase-4 layer. Phase 6 (2026-05-15) carved CORE into kernel + 5 domain packs WITHOUT adding new rules; the same 521 entries are now distributed across more files, optimized for on-demand loading.
 
