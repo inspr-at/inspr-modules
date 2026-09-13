@@ -48,6 +48,10 @@ Kernel: scan diff + status before every commit; never amend; never destructive o
 - 🟡 In PR replies cite fix and file/line. Resolve threads only after the fix lands.
 - 🟡 On CI red: `gh run list/view`, rerun, fix, push, repeat to green.
 
+## Pattern: Calendar Versioning adoption
+
+Before project bootstrap or release/deployment, read [AGENTS-VERSIONING.md](AGENTS-VERSIONING.md) and record the applicable adoption outcome. Existing adoption tickets belong in the next deployment; without one, propose the standard and track it. Already-adopted projects review the current saved presentation bundle pin before building. Use immutable offline inputs, preserve historical releases and report actual active coverage.
+
 ## Pattern: Build / test / docs gates
 
 - 🟡 Before handoff, run the full gate: lint, typecheck, tests, docs.
