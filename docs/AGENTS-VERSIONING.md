@@ -133,7 +133,16 @@ migration completes. No runtime configuration fetch to the editor is allowed:
 existing deployed artifacts keep their bundled bytes until their next release.
 Saving in the editor makes data available for the next reviewed consumer build;
 it does not prove that any product has consumed it. A named template is an
-explicit product choice, pinned with the same provenance and verification.
+explicit product choice, with separate provenance: the current bundle CLI
+packages only global `display.json`, not `templates.json` or a selected template.
+For a named-template consumer, pin the catalog at the same source commit,
+the template ID and the exact selected config bytes with their own independently
+reviewed SHA256 digest. Store and verify that selected configuration separately
+from the unchanged renderer/global bundle; pass it explicitly to the adapter.
+Its normal build checks MUST verify both pins and reject a missing template or
+mismatched config. The global bundle digest alone does not verify a template.
+Refreshing such a consumer must retain its template selection, never silently
+replace it with global defaults.
 
 ## Calendar coordinate
 

@@ -68,7 +68,7 @@ for outcome in ('New project', 'Existing adoption ticket (explicit)', 'No adopti
 for requirement in ('next normal deployment', 'proactively propose', 'recorded owner', 'never follow a mutable branch', 'designated PPM or PMA', 'trust context'):
     assert requirement in adoption, requirement
 presentation = policy.split('## Shared presentation from INSPR Calendar Versioning\n', 1)[1].split('## Calendar coordinate', 1)[0]
-for requirement in ('packages/versioning/config/display.json', 'scripts/versioning-bundle.mjs', 'independently reviewed', 'every\nnormal build', '0.7 + 0.3 * configuredOpacity', 'reduced-motion', 'including the year', 'No runtime configuration fetch'):
+for requirement in ('packages/versioning/config/display.json', 'scripts/versioning-bundle.mjs', 'independently reviewed', 'every\nnormal build', '0.7 + 0.3 * configuredOpacity', 'reduced-motion', 'including the year', 'No runtime configuration fetch', 'current bundle CLI', 'global bundle digest alone does not verify a template'):
     assert requirement in presentation, requirement
 for surface in (kernel, mirror):
     assert '**Version-bearing work:**' in surface
