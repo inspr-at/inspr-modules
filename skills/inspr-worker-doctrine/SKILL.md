@@ -1,6 +1,6 @@
 ---
 name: inspr-worker-doctrine
-description: "Mandatory INSPR worker-start and versioning doctrine. Read before material work, worker delegation, or changing any version-bearing artifact."
+description: "Mandatory INSPR worker-start and versioning doctrine. Read before material work, worker delegation, project bootstrap, and every release or deployment."
 ---
 
 # INSPR Worker Doctrine
@@ -18,13 +18,20 @@ material work or versioning decisions:
   is the gradual INSPR default; `YY.MM.DD[.hh.mm.ss]` (v1) is superseded.
   Every repository remains on its current scheme until its own approved
   migration is complete.
-  User interfaces render v2 coordinates with the doctrine's display
-  weights (per-segment opacity plus the shared default Schmuckfarbe tint on
-  the date); the canonical string itself never changes.
-- [Display weights data](references/calendar-version-display.json): the
-  normative weights, tinted segments, mix, default tint and the explicit
-  `design_revision`; consumers read it at build time, never edit the numbers
-  by hand, and upgrade their own pin deliberately when a revision lands.
+  At project bootstrap and before every release/deployment, apply the
+  adoption outcomes in that reference: new-project default; existing adoption
+  ticket with the next deployment; absent ticket requires an explicit standard
+  proposal; adopted projects review the current saved presentation pin.
+  Record the outcome in the owning tracker. Never silently skip or declare an
+  inactive bundle adopted; blocked explicit adoption needs owner deferral.
+  INSPR Calendar Versioning's saved config and shared Pretty/SemVer renderer
+  in `inspr-at/inspr` are the default for new presentation adoptions. Vendor
+  the exact source and verified complete bundle offline at release preparation;
+  runtime never fetches mutable settings. Preserve historical versions.
+- [Display weights data](references/calendar-version-display.json): legacy
+  display-v1 compatibility data, not the new editor's saved defaults. Existing
+  consumers preserve their pin until the reviewed presentation upgrade. Its
+  year floor does not restrict presentation-v2, where all weights are adjustable.
 
 These references are normative. A worker marker identifies ownership; it does
 not grant approval, acceptance, merge, release, deployment, or secret access.

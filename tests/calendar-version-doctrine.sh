@@ -59,6 +59,26 @@ if grep -Fq 'same version MUST NOT identify different bytes' "$policy"; then
   fail "over-broad byte identity would forbid multi-platform release sets"
 fi
 
+python3 - "$policy" "$repo_root/docs/AGENTS-KERNEL.md" "$repo_root/AGENTS.md" <<'PY_ADOPTION'
+import pathlib, sys
+policy, kernel, mirror = [pathlib.Path(p).read_text() for p in sys.argv[1:]]
+adoption = policy.split('## Adoption at project start and before deployment\n', 1)[1].split('## Shared presentation', 1)[0]
+for outcome in ('New project', 'Existing adoption ticket (explicit)', 'No adoption ticket (implicit)', 'Already adopted', 'Blocked or excepted'):
+    assert '**' + outcome + ':**' in adoption, outcome
+for requirement in ('next normal deployment', 'proactively propose', 'recorded owner', 'never follow a mutable branch', 'designated PPM or PMA', 'trust context'):
+    assert requirement in adoption, requirement
+presentation = policy.split('## Shared presentation from INSPR Calendar Versioning\n', 1)[1].split('## Calendar coordinate', 1)[0]
+for requirement in ('packages/versioning/config/display.json', 'scripts/versioning-bundle.mjs', 'independently reviewed', 'every\nnormal build', '0.7 + 0.3 * configuredOpacity', 'reduced-motion', 'including the year', 'No runtime configuration fetch', 'current bundle CLI', 'global bundle digest alone does not verify a template'):
+    assert requirement in presentation, requirement
+for surface in (kernel, mirror):
+    assert '**Version-bearing work:**' in surface
+    assert 'without one, propose and track adoption' in surface
+legacy = policy.split('#### Legacy display-v1 compatibility contract', 1)[1]
+assert 'do not apply to the shared presentation-v2 bundle above' in legacy
+assert 'Legacy display-v1' not in presentation
+print('calendar-version-adoption: routing, five outcomes and compatibility boundary ok')
+PY_ADOPTION
+
 python3 - <<'PY'
 import datetime
 import re

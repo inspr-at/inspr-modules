@@ -43,4 +43,15 @@ grep -Fq 'YYMMDDhhmmss.0.0' "$versioning" \
 grep -Fq 'Work already in flight MUST finish under the scheme in force' "$versioning" \
   || fail 'installed versioning reference lost the gradual-migration boundary'
 
+for required in \
+  'before every release/deployment' \
+  'absent ticket requires an explicit standard' \
+  'blocked explicit adoption needs owner deferral' \
+  'runtime never fetches mutable settings' \
+  'legacy' \
+  'all weights are adjustable'
+do
+  grep -Fq "$required" "$skill" || fail "worker adoption routing is missing: $required"
+done
+
 printf '%s\n' 'worker-doctrine-surface: ok'

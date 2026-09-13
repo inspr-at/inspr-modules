@@ -4,6 +4,13 @@ Reusable Home Manager modules + utilities from the [INSPR](https://inspr.at) ini
 
 > *"Where your inspirations live."* — democratize software development by giving anyone the same primitives Markus uses on his own fleet.
 
+INSPR Calendar Versioning is the standard for new projects and a required
+adoption decision before existing projects deploy. The worker doctrine exposes
+explicit-ticket, implicit-proposal and adopted-consumer refresh outcomes.
+The shared editor/Pretty bundle is pinned from `inspr-at/inspr`; the older
+`lib/calendar-version-display.json` remains a compatibility API. See the
+[Versioning Doctrine](docs/AGENTS-VERSIONING.md) for gates and rollout evidence.
+
 ## What's here
 > **About `INSPR-nnn` references.** Ticket keys like these appear throughout
 > the docs and changelog. They point at the maintainer's **private** tracker —

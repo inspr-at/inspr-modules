@@ -43,6 +43,107 @@ Until a repository completes its own migration, its established release
 policy remains authoritative. There is no implicit migration merely because a
 dependency, sibling repository, or deployment target has migrated.
 
+## Adoption at project start and before deployment
+
+**INSPR Calendar Versioning** is the default for new and existing projects.
+The machine scheme remains `inspr-calendar-v2`; the product name is not a new
+scheme. This is an automatic agent workflow requirement, not a claim that
+publishing this document migrated every consumer.
+
+At project bootstrap, at worker start for release-bearing work, and before
+every normal release/deployment, the harness agent MUST read this policy and
+record one of these outcomes in the owning project's designated PPM or PMA
+tracker (never both), reusing existing adoption work rather than duplicating it:
+
+- **New project:** include `inspr-calendar-v2` in the initial version source,
+  release pipeline, explicit scheme metadata and applicable UI surfaces. Use
+  the shared presentation bundle below. Record the initial release anchor;
+  do not invent a legacy release for a project without one.
+- **Existing adoption ticket (explicit):** pick up that ticket as part of the
+  next normal deployment. Owner approval already recorded for that scope
+  remains valid. Complete the relevant migration and consumer gates before
+  claiming adoption; ticket existence alone is not approval to bypass gates.
+- **No adoption ticket (implicit):** proactively propose INSPR Calendar
+  Versioning as the standard next-deployment change and create/reuse an owning
+  adoption ticket with the concrete inventory and scope. The agent MUST NOT
+  silently omit the proposal merely because the user requested another change.
+  Implement when authorized; otherwise record the pending proposal. An implicit
+  recommendation does not authorize rewriting a release or foreign source.
+- **Already adopted:** during release preparation resolve the current approved
+  shared display configuration and renderer to one exact source commit and
+  digest closure, review the pin change and include it in the next release.
+  An unchanged upstream pin requires no artificial update. Build and runtime
+  never follow a mutable branch. Explicitly selected named templates remain
+  selected; a global-default consumer follows saved global defaults.
+- **Blocked or excepted:** identify the missing gate or supported ecosystem
+  exception, owning ticket, retained scheme/pin and next action. An existing
+  explicit adoption commitment may be deferred only by a recorded owner
+  decision. An unrelated emergency rollback uses its immutable prior artifact;
+  it does not silently migrate or erase the outstanding adoption work.
+
+Report the outcome, adoption ticket, declared scheme, presentation source pin
+and verified active surfaces in release evidence. A pinned but inactive bundle
+is not adoption. Re-check an outstanding proposal on the next deployment.
+Existing published artifacts stay unchanged under the transition rules above.
+These rules apply within each project's own trust context and review path.
+
+## Shared presentation from INSPR Calendar Versioning
+
+The editor at `https://inspr.at/versioning/` saves approved presentation data
+in `inspr-at/inspr`, `packages/versioning/config/display.json`, with schema
+`inspr.calendar-version-display.v2`. Shared named templates live alongside it
+in `packages/versioning/config/templates.json`. This saved configuration and
+its shared renderer are the default presentation source for new adoptions;
+the legacy display-v1 data later in this document is compatibility material.
+A presentation schema upgrade is not a change of version scheme.
+
+During release preparation, resolve the approved source once, then vendor an
+immutable offline bundle using the source repository's
+`scripts/versioning-bundle.mjs <full-source-commit> <expected-config-sha256> <new-directory>`.
+The source checkout and requested Git objects must already be available. Pin
+the full source commit, expected config digest and independently reviewed
+manifest digest. Verify the complete file set, sizes and hashes on every
+normal build, including builds outside CI; reject missing, extra, altered or
+untracked payloads. Do not calculate expected pins from candidate bytes in the
+same validation step. Keep renderer, presentation, interaction, animation
+library and license together as listed by the manifest. Do not substitute the
+legacy doctrine-file checker for this different source/closure contract.
+
+Use one thin product adapter around the shared renderer and interaction helper
+at all applicable version surfaces. Do not reimplement separator geometry or
+copy display settings into handwritten CSS. Web products default to **Pretty**
+with **SemVer** available as the reduced display. Auto colors resolve from the
+product's actual branding. Native/CLI-only surfaces retain canonical text and
+implement equivalent presentation only where supported; record applicability.
+
+All eight segment opacities, including the year, may range from 0 to 100 percent
+according to the saved configuration. Pretty may use independent Unicode
+separators, colors, size, spacing, raised/lowered placement and optical offsets.
+Hover or keyboard focus reveals the usable version and reverses on exit, using
+the shared roughly one-second ease-in/ease-out animation and reduced-motion
+support. Revealed segment opacity is `0.7 + 0.3 * configuredOpacity`, retaining
+the rhythm within 70–100 percent. Click and keyboard activation copy the exact
+canonical version, without a decorative `v` or Pretty separators; `.0.0` stays.
+Preserve surrounding navigation/button behavior and accessible feedback.
+
+Machine versions, logs, tags, manifests, APIs and clipboard values remain
+canonical. Never parse Pretty text or derive a calendar version from a commit
+hash. Legacy versions stay explicitly discriminated and render plain until
+migration completes. No runtime configuration fetch to the editor is allowed:
+existing deployed artifacts keep their bundled bytes until their next release.
+Saving in the editor makes data available for the next reviewed consumer build;
+it does not prove that any product has consumed it. A named template is an
+explicit product choice, with separate provenance: the current bundle CLI
+packages only global `display.json`, not `templates.json` or a selected template.
+For a named-template consumer, pin the catalog at the same source commit,
+the template ID and the exact selected config bytes with their own independently
+reviewed SHA256 digest. Store and verify that selected configuration separately
+from the unchanged renderer/global bundle; pass it explicitly to the adapter.
+Its normal build checks MUST verify both pins and reject a missing template or
+mismatched config. The global bundle digest alone does not verify a template.
+Refreshing such a consumer must retain its template selection, never silently
+replace it with global defaults.
+
 ## Calendar coordinate
 
 ### Syntax
@@ -123,12 +224,19 @@ forbidden.
 
 ### Display weights
 
+#### Legacy display-v1 compatibility contract
+
+The remainder of this section applies only to consumers still pinned to the
+legacy `inspr-modules` display-v1 bundle. Its fixed defaults, year floor and
+markup constraints do not apply to the shared presentation-v2 bundle above.
+Retain these bytes and checks for compatibility until each consumer upgrades.
+
 A user interface MAY render a v2 coordinate with per-segment weight so that
 the twelve digits read as date, time, and suffix instead of one number.
 Display weighting is presentation only and changes nothing about the
 coordinate.
 
-The normative source of the weights is the data file
+For legacy display-v1 consumers, the normative source of the weights is the data file
 `lib/calendar-version-display.json` in `inspr-modules`
 (schema `inspr.calendar-version-display.v1`). The numbers and the CSS below
 are rendered from that file by `scripts/render-calendar-version-display.py`
@@ -164,7 +272,7 @@ consumer's test, not values calculated from the candidate copy at test time.
 Every consumer path, including direct submodule and flake reads, MUST carry a
 drift test that compares the values it ships against its pinned source.
 
-The file carries an explicit `design_revision`. The current authoritative
+The file carries an explicit `design_revision`. The legacy authoritative
 design is **display design revision 3**. A design revision is a presentation
 change only: it is not a version scheme, the scheme stays
 `inspr-calendar-v2`, the data schema stays `inspr.calendar-version-display.v1`,

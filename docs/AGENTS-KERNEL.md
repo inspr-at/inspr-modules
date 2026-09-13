@@ -43,6 +43,8 @@ _Auto-loaded. Universal hard-safety + identity + router. Carries ONLY rules wher
 
 `/inspr` map · `/nix` nix-darwin + HM + NixOS modules · `/dev` code + tests + git workflow · `/push`
 
+**Version-bearing work:** load `AGENTS-VERSIONING.md` (or the installed `inspr-worker-doctrine` reference) at project bootstrap and before release/deployment. INSPR Calendar Versioning is the default: pick up existing adoption tickets for the next deployment; without one, propose and track adoption; adopted projects review their saved presentation pin. Preserve migration/review gates and historical artifacts.
+
 Studio repos also load a private kernel, which adds `/ppm` `/ops` `/iac` `/secrets` `/style` `/incident`.
 
 Budget before loading — heavy: `/style` ≈46k · `/ppm` ≈22k · `/incident` ≈20k · `/ops` ≈18k. The rest are 9–11k. nixcfg adds repo-local `/ocbots`, `/modelhelp`, `/oc-modelupdate`.
