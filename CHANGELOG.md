@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-09-15
+
+### Changed
+
+- Update the immutable Aithema workspace package to 0.8.0 (INSPR-428),
+  with verified public runtime/source digests and the exact release lockfile.
+  Aithema adds an opt-in Paimos conversation provider alongside direct API
+  providers. Service activation, credential enrollment and configured-account
+  acceptance remain separate; the service stays disabled by default.
+
 ## [0.11.0] - 2026-09-14
 
 ### Changed
