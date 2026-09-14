@@ -38,7 +38,7 @@ The shared editor/Pretty bundle is pinned from `inspr-at/inspr`; the older
 | Module | Namespace | What it does |
 |---|---|---|
 | `ssh-authorized` | `inspr.ssh.authorized` | System-side counterpart to the HM `ssh-authorized` (since INSPR-73). Same shared keyring (rich-key form, `status: active \| legacy \| revoked`) but renders into `users.users.<u>.openssh.authorizedKeys.keys` (which NixOS materializes as `/etc/ssh/authorized_keys.d/<u>`). **Multi-user**: `inspr.ssh.authorized.users.<name>.{trust, force, extraKeys}`. **`force = true`** wraps the rendered list in `lib.mkForce` to displace upstream-injected keys (e.g. server-home / hokage profiles); default `false` merges via list concatenation. Throws at eval time on undeclared alias OR revoked-in-trust. Define the `keys` keyring in a plain-Nix file imported at BOTH NixOS-module scope (for this module) AND HM scope (for the HM module) — single source of truth across both. |
-| `aithema-workspace` | `services.inspr.aithemaWorkspace` | Disabled-by-default service for the immutable public Aithema 0.6.0 runtime. Runs the actual Node 24+ CLI as a dedicated static user, keeps SQLite state in a systemd-owned persistent directory, and loads operator-owned runtime JSON through protected systemd credentials. It does not render auth/provider configuration, open a firewall port, provision TLS/OIDC, or weaken Aithema's production validation. |
+| `aithema-workspace` | `services.inspr.aithemaWorkspace` | Disabled-by-default service for the immutable public Aithema 0.7.0 runtime. Runs the actual Node 24+ CLI as a dedicated static user, keeps SQLite state in a systemd-owned persistent directory, and loads operator-owned runtime JSON through protected systemd credentials. It does not render auth/provider configuration, open a firewall port, provision TLS/OIDC, or weaken Aithema's production validation. |
 | `default` | (aggregate) | Imports all NixOS modules. |
 
 ### Packages
@@ -47,7 +47,7 @@ The shared editor/Pretty bundle is pinned from `inspr-at/inspr`; the older
 |---|---|
 | `inspr` | The INSPR CLI (evolved from `inspr-doctor`, INSPR-195): `check` (read-only drift diagnosis, incl. the kernel byte-budget gate), `readiness` (read-only, machine-readable development-machine probe driven by an operator-owned project profile), `heal` (apply mapped fixes with verified-applied semantics), `onboard` (fresh-host walkthrough, optional Pharos registration), `post-deploy` (nixcfg → Pharos → HostDash validation). |
 | `secrets-audit` | Bash script: detects drift between `secrets/*.age` files and their declarations in `secrets/secrets.nix`. Three modes: human report, `--quiet`, `--json`. |
-| `aithema-workspace` | Actual `aithema-workspace` executable from the immutable public Aithema 0.6.0 runtime archive. Node 24 is part of the closure; every direct and transitive dependency is fetched from the release lockfile by its recorded integrity. |
+| `aithema-workspace` | Actual `aithema-workspace` executable from the immutable public Aithema 0.7.0 runtime archive. Node 24 is part of the closure; every direct and transitive dependency is fetched from the release lockfile by its recorded integrity. |
 
 ## Consumer pattern
 

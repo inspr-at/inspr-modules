@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Update the immutable Aithema workspace package to 0.7.0 (INSPR-425),
+  including its verified release lockfile and runtime/source digests. The
+  existing executable proof covers the updated package; service activation
+  and operator-owned authentication/provider configuration remain separate.
+
 ## [0.10.0] - 2026-09-10
 
 ### Added
