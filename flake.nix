@@ -55,7 +55,7 @@
 #                                       Replaces the older inspr-doctor.sh probe.
 #   packages.<system>.routing-edge     Traefik file-provider compiler built from
 #                                       this flake (`insprSource = self`).
-#   packages.<system>.aithema-workspace Immutable public Aithema 0.6.0 runtime
+#   packages.<system>.aithema-workspace Immutable public Aithema 0.7.0 runtime
 #                                       with lock-integrity-pinned dependencies.
 #
 # Consumer pattern (in your flake.nix):
@@ -537,11 +537,11 @@ EOF
                 set -eu
 
                 test "${aithemaWorkspacePkg.passthru.release.sourceRev}" = \
-                  902adaf2eb8e707f8e93c54f1c34f8688dbb54cd
+                  981e4d49b9360c430ae944afa4df29a37d536c76
                 test "${aithemaWorkspacePkg.passthru.release.runtimeSha256}" = \
-                  1377489645b97e3a71dd30d46c9d193f26237eb9a14084fc593078bdefe22dec
+                  38565dd4e312aef0e9a6b1eeb8f06132bb33e82c36408ec37095ea1c0c2325f4
                 test "$(sha256sum ${./packages/aithema-workspace/package-lock.json} | cut -d' ' -f1)" = \
-                  acd386661ff0c54ba827082a3872593bc6f50204e72eaaa0a2aeb3c487d68f02
+                  15a01b79899ad211a41e958c81bc728350967f81ad9a3f199477aea959f7f8b5
                 ${aithemaWorkspacePkg}/bin/aithema-workspace --help \
                   | grep -q 'Usage: aithema-workspace --config FILE'
 
