@@ -18,26 +18,30 @@
   var VERSION = "1";
   var DEFAULT_COOKIE = "consent";
   var DEFAULT_PERMISSION_DAYS = 180;
-  var MIN_REFUSAL_DAYS = 183; // at least six calendar months
+  var MIN_REFUSAL_MONTHS = 6; // six UTC calendar months, whatever the day count
   var REVOKE_SUFFIX = "_revoked";
+  var REVOKE_HASH = "consent-revoked";
   var FIRED_PREFIX = "consent_fired_";
   var BOT = /bot|crawl|spider|slurp|headless|lighthouse|pagespeed|preview/i;
   var CONSENT_MODE_KEYS = ["ad_storage", "ad_user_data", "ad_personalization", "analytics_storage", "functionality_storage", "personalization_storage", "security_storage"];
   var GTAG_HOSTS = ["www.googletagmanager.com", "googleads.g.doubleclick.net", "www.google.com", "www.google-analytics.com", "pagead2.googlesyndication.com"];
   var ID = /^[a-z][a-z0-9-]{0,31}$/;
+  var ENTRY = /^([a-z][a-z0-9-]{0,31})@([0-9]{1,12})\.([0-9]{1,9})$/;
   var TAG_ID = /^[A-Z]{1,4}-[A-Za-z0-9_-]{1,40}$/;
   var HOSTNAME = /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
   var COOKIE_NAME = /^[A-Za-z0-9_.-]{1,64}\*?$/;
   var INT = /^[0-9]{1,12}$/;
+  var HEX8 = /^[0-9a-f]{8}$/;
 
   // ---------------------------------------------------------------- core --
 
   function isObject(v) { return v !== null && typeof v === "object" && !Array.isArray(v); }
   function isNonEmptyString(v, max) { return typeof v === "string" && v.length > 0 && v.length <= (max || 200); }
+  function isHost(v) { return typeof v === "string" && (HOSTNAME.test(v.toLowerCase()) || v === "localhost"); }
 
   // safeUrl: absolute https URL or a same-origin path. Anything else is inert.
   function safeUrl(value) {
-    if (!isNonEmptyString(value, 2048)) return null;
+    if (!isNonEmptyString(value, 2048) || /[\\\x00-\x1f\s]/.test(value)) return null;
     if (/^\/(?!\/)/.test(value)) return value;
     var m = /^https:\/\/([^\/?#]+)([\/?#].*)?$/i.exec(value);
     if (!m) return null;
@@ -45,10 +49,21 @@
     return HOSTNAME.test(host) ? value : null;
   }
   function urlHost(value) {
-    var m = /^https?:\/\/([^\/?#]+)/i.exec(String(value || ""));
-    return m ? m[1].toLowerCase().replace(/:\d+$/, "") : null;
+    var v = String(value || "").trim();
+    var m = /^(?:https?:)?\/\/([^\/?#\\]+)/i.exec(v);
+    return m ? m[1].toLowerCase().replace(/^[^@]*@/, "").replace(/:\d+$/, "") : null;
   }
   function hostMatches(host, declared) { return host === declared || (host && host.slice(-(declared.length + 1)) === "." + declared); }
+
+  // fingerprint: FNV-1a over a string. Used to bind a stored decision to the
+  // manifest's controller and scope; it is a property of the surface, never
+  // of the visitor.
+  function fingerprint(str) {
+    var h = 0x811c9dc5;
+    for (var i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = (h + ((h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24))) >>> 0; }
+    return ("0000000" + h.toString(16)).slice(-8);
+  }
+  function binding(m) { return fingerprint(String(m.controller) + "|" + String(m.scope).toLowerCase() + "|" + ((m.cookieName) || DEFAULT_COOKIE)); }
 
   // validateManifest returns { ok, errors }. An invalid manifest closes the
   // gate: nothing optional ever loads, nothing is rendered.
@@ -59,10 +74,10 @@
     if (!(Number.isInteger(m.revision) && m.revision >= 1 && m.revision < 1e9)) errors.push("revision must be a positive integer");
     if (!(Number.isInteger(m.textVersion) && m.textVersion >= 1 && m.textVersion < 1e9)) errors.push("textVersion must be a positive integer");
     if (!isNonEmptyString(m.controller, 200)) errors.push("controller must name the controller");
-    if (!(isNonEmptyString(m.scope, 253) && HOSTNAME.test(m.scope.toLowerCase()) || m.scope === "localhost")) errors.push("scope must be the surface's host name");
+    if (!isHost(m.scope)) errors.push("scope must be the surface's host name");
     if (m.cookieName !== undefined && !/^[A-Za-z0-9_-]{1,64}$/.test(String(m.cookieName))) errors.push("cookieName must be a short token");
     if (m.permissionDays !== undefined && !(Number.isInteger(m.permissionDays) && m.permissionDays >= 1 && m.permissionDays <= 365)) errors.push("permissionDays must be 1..365");
-    if (m.refusalDays !== undefined && !(Number.isInteger(m.refusalDays) && m.refusalDays >= MIN_REFUSAL_DAYS && m.refusalDays <= 730)) errors.push("refusalDays must be at least " + MIN_REFUSAL_DAYS);
+    if (m.refusalMonths !== undefined && !(Number.isInteger(m.refusalMonths) && m.refusalMonths >= MIN_REFUSAL_MONTHS && m.refusalMonths <= 24)) errors.push("refusalMonths must be at least " + MIN_REFUSAL_MONTHS);
     if (m.language !== undefined && !/^[a-z]{2}$/.test(String(m.language))) errors.push("language must be a two-letter code");
     if (m.privacyUrl !== undefined && !safeUrl(m.privacyUrl)) errors.push("privacyUrl must be an https URL or a same-origin path");
     if (!Array.isArray(m.categories) || !m.categories.length) errors.push("categories must be a non-empty array");
@@ -74,6 +89,7 @@
       if (ids[c.id]) errors.push("duplicate category id " + c.id);
       ids[c.id] = c;
       if (c.required === true) requiredCount++;
+      if (c.revision !== undefined && !(Number.isInteger(c.revision) && c.revision >= 1 && c.revision < 1e9)) errors.push("category " + c.id + " revision must be a positive integer");
     });
     if (requiredCount !== 1) errors.push("exactly one category must be required (the necessary one)");
     if (!Array.isArray(m.services)) errors.push("services must be an array");
@@ -98,9 +114,12 @@
           if (d.linkerAcceptIncoming !== undefined && typeof d.linkerAcceptIncoming !== "boolean") errors.push("service " + s.id + " destination.linkerAcceptIncoming must be boolean");
           if (d.conversion !== undefined) {
             var c = d.conversion;
-            if (!isObject(c) || !isNonEmptyString(c.sendTo, 120) || typeof d.tagId !== "string" || c.sendTo.indexOf(d.tagId + "/") !== 0 || !/^[A-Za-z0-9_-]+$/.test(c.sendTo.slice(d.tagId.length + 1))) errors.push("service " + s.id + " conversion.sendTo must be <tagId>/<label> of this destination");
-            if (c.value !== undefined && !(typeof c.value === "number" && isFinite(c.value) && c.value >= 0)) errors.push("service " + s.id + " conversion.value must be a non-negative number");
-            if (c.currency !== undefined && !/^[A-Z]{3}$/.test(String(c.currency))) errors.push("service " + s.id + " conversion.currency must be an ISO code");
+            if (!isObject(c)) errors.push("service " + s.id + " conversion must be an object");
+            else {
+              if (!isNonEmptyString(c.sendTo, 120) || typeof d.tagId !== "string" || c.sendTo.indexOf(d.tagId + "/") !== 0 || !/^[A-Za-z0-9_-]+$/.test(c.sendTo.slice(d.tagId.length + 1))) errors.push("service " + s.id + " conversion.sendTo must be <tagId>/<label> of this destination");
+              if (c.value !== undefined && !(typeof c.value === "number" && isFinite(c.value) && c.value >= 0)) errors.push("service " + s.id + " conversion.value must be a non-negative number");
+              if (c.currency !== undefined && !/^[A-Z]{3}$/.test(String(c.currency))) errors.push("service " + s.id + " conversion.currency must be an ISO code");
+            }
           }
         }
       }
@@ -118,8 +137,8 @@
           if (st.days !== undefined && !(Number.isInteger(st.days) && st.days >= 0 && st.days <= 3650)) errors.push(label + " days invalid");
           if (st.kind === "cookie") {
             if (st.path !== undefined && !/^\/[A-Za-z0-9_\/.-]{0,200}$/.test(String(st.path))) errors.push(label + " path invalid");
-            if (st.domain !== undefined && !(typeof st.domain === "string" && (HOSTNAME.test(st.domain.toLowerCase()) || st.domain === "localhost"))) errors.push(label + " domain invalid");
-            if (st.domain !== undefined && typeof m.scope === "string" && !hostMatches(m.scope.toLowerCase(), String(st.domain).toLowerCase())) errors.push(label + " domain must be the scope host or one of its parents");
+            if (st.domain !== undefined && !isHost(st.domain)) errors.push(label + " domain invalid");
+            if (st.domain !== undefined && isHost(st.domain) && typeof m.scope === "string" && !hostMatches(m.scope.toLowerCase(), String(st.domain).toLowerCase())) errors.push(label + " domain must be the scope host or one of its parents");
           } else if (st.path !== undefined || st.domain !== undefined) errors.push(label + " path/domain apply to cookies only");
         });
       }
@@ -144,6 +163,8 @@
 
   function optionalCategories(m) { return m.categories.filter(function (c) { return c.required !== true; }).map(function (c) { return c.id; }); }
   function requiredCategory(m) { return m.categories.filter(function (c) { return c.required === true; })[0].id; }
+  function categoryById(m, id) { return m.categories.filter(function (c) { return c.id === id; })[0] || null; }
+  function categoryRevision(m, id) { var c = categoryById(m, id); return c && c.revision !== undefined ? c.revision : 1; }
   function servicesIn(m, categoryId) { return m.services.filter(function (s) { return s.category === categoryId; }); }
   function serviceById(m, id) { return m.services.filter(function (s) { return s.id === id; })[0] || null; }
 
@@ -155,17 +176,31 @@
     return onlyEmbeds ? "contextual" : "bar";
   }
 
-  // Stored decision: "v1;r=<revision>;v=<textVersion>;g=<categories>;s=<services>;t=<unix>".
-  // g = granted optional categories, s = individually remembered services
-  // (an embed's "always allow"). No identifier of any kind. Parsing is
-  // strict: every field exactly once, valid tokens only, safe integers.
+  // Stored decision:
+  //   "v1;b=<binding>;r=<revision>;v=<textVersion>;g=<cat@at.rev,…>;s=<svc@at.rev,…>;t=<unix>"
+  // b binds the record to controller/scope/cookie name; every granted
+  // category and remembered service carries its own grant time and the
+  // category revision it was given under; t is the time of the last change.
+  // No identifier of any kind. Parsing is strict.
+  function serializeEntries(list) { return list.slice().sort(function (a, b) { return a.id < b.id ? -1 : 1; }).map(function (e) { return e.id + "@" + e.at + "." + e.rev; }).join(","); }
   function serialize(rec) {
-    return "v1;r=" + rec.revision + ";v=" + rec.textVersion + ";g=" + rec.granted.slice().sort().join(",") + ";s=" + (rec.services || []).slice().sort().join(",") + ";t=" + Math.floor(rec.at);
+    return "v1;b=" + rec.binding + ";r=" + rec.revision + ";v=" + rec.textVersion + ";g=" + serializeEntries(rec.granted) + ";s=" + serializeEntries(rec.services) + ";t=" + Math.floor(rec.at);
+  }
+  function parseEntries(v) {
+    if (v === "") return [];
+    var out = [];
+    var list = v.split(",");
+    for (var i = 0; i < list.length; i++) {
+      var m = ENTRY.exec(list[i]);
+      if (!m) return null;
+      out.push({ id: m[1], at: parseInt(m[2], 10), rev: parseInt(m[3], 10) });
+    }
+    return out;
   }
   function parse(raw) {
-    if (typeof raw !== "string" || !raw || raw.length > 1024) return null;
+    if (typeof raw !== "string" || !raw || raw.length > 2048) return null;
     var parts = raw.split(";");
-    if (parts[0] !== "v1" || parts.length !== 6) return null;
+    if (parts[0] !== "v1" || parts.length !== 7) return null;
     var seen = {};
     var out = {};
     for (var i = 1; i < parts.length; i++) {
@@ -176,46 +211,64 @@
       if (seen[k]) return null;
       seen[k] = true;
       if (k === "r" || k === "v" || k === "t") { if (!INT.test(v)) return null; out[k] = parseInt(v, 10); }
-      else if (k === "g" || k === "s") {
-        if (v === "") { out[k] = []; continue; }
-        var list = v.split(",");
-        if (!list.every(function (x) { return ID.test(x); })) return null;
-        out[k] = list;
-      } else return null;
+      else if (k === "b") { if (!HEX8.test(v)) return null; out.b = v; }
+      else if (k === "g" || k === "s") { var e = parseEntries(v); if (!e) return null; out[k] = e; }
+      else return null;
     }
-    if (!(seen.r && seen.v && seen.g && seen.s && seen.t)) return null;
-    return { revision: out.r, textVersion: out.v, granted: out.g, services: out.s, at: out.t };
+    if (!(seen.b && seen.r && seen.v && seen.g && seen.s && seen.t)) return null;
+    return { binding: out.b, revision: out.r, textVersion: out.v, granted: out.g, services: out.s, at: out.t };
   }
 
   function permissionSeconds(m) { return ((m && m.permissionDays) || DEFAULT_PERMISSION_DAYS) * 86400; }
-  function refusalSeconds(m) { return Math.max((m && m.refusalDays) || MIN_REFUSAL_DAYS, MIN_REFUSAL_DAYS) * 86400; }
+  // refusalExpiry: the unix second at which a refusal stored at `at` may be
+  // asked again — `refusalMonths` (at least six) UTC calendar months later.
+  function refusalExpiry(m, at) {
+    var months = Math.max((m && m.refusalMonths) || MIN_REFUSAL_MONTHS, MIN_REFUSAL_MONTHS);
+    var d = new Date(at * 1000);
+    var target = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + months, 1, d.getUTCHours(), d.getUTCMinutes(), d.getUTCSeconds()));
+    var lastDay = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
+    target.setUTCDate(Math.min(d.getUTCDate(), lastDay));
+    return Math.floor(target.getTime() / 1000);
+  }
 
   function emptyGrant(m) { var g = {}; optionalCategories(m).forEach(function (id) { g[id] = false; }); return g; }
 
+  // liveEntries: the stored entries that are still valid right now — bound
+  // to the current category revision, not future-dated, not expired.
+  function liveEntries(m, entries, now, resolveCategory) {
+    return entries.filter(function (e) {
+      var cat = resolveCategory(e.id);
+      return !!cat && e.rev === categoryRevision(m, cat) && e.at <= now && now - e.at < permissionSeconds(m);
+    });
+  }
+
   // decide: what the page may do right now. `granted` covers optional
-  // categories, `services` the individually remembered services.
+  // categories, `services` the individually remembered services, `entries`
+  // the surviving stored entries (kept verbatim on the next persist).
   function decide(input) {
     var m = input.manifest;
     var tier = input.invalid ? "none" : tierOf(m);
     var none = input.invalid ? {} : emptyGrant(m);
-    var closed = { tier: tier, prompt: false, granted: none, services: [], persist: "none" };
-    if (input.invalid || input.blocked || input.bot || input.revoked) return closed;
+    var closed = { tier: tier, prompt: false, granted: none, services: [], entries: { granted: [], services: [] }, persist: "none" };
+    if (input.invalid || input.blocked || input.bot) return closed;
     if (input.signal) { closed.persist = "refuse"; return closed; }
+    if (input.revoked) return closed;
     var now = input.now;
     if (!(typeof now === "number" && isFinite(now) && now > 0)) return closed;
     var stored = input.stored || null;
-    if (stored && stored.revision === m.revision && stored.at <= now) {
-      var age = now - stored.at;
-      var anyGrant = stored.granted.length > 0 || stored.services.length > 0;
-      if (anyGrant && age < permissionSeconds(m)) {
-        var granted = {};
-        optionalCategories(m).forEach(function (id) { granted[id] = stored.granted.indexOf(id) >= 0; });
-        var services = stored.services.filter(function (id) { var s = serviceById(m, id); return !!s && !granted[s.category]; });
-        return { tier: tier, prompt: false, granted: granted, services: services, persist: "none" };
-      }
-      if (!anyGrant && age < refusalSeconds(m)) return { tier: tier, prompt: false, granted: none, services: [], persist: "none" };
+    var open = { tier: tier, prompt: tier === "bar", granted: none, services: [], entries: { granted: [], services: [] }, persist: "none" };
+    if (!stored || stored.binding !== binding(m) || stored.revision !== m.revision || stored.at > now) return open;
+    var optional = optionalCategories(m);
+    var g = liveEntries(m, stored.granted, now, function (id) { return optional.indexOf(id) >= 0 ? id : null; });
+    var s = liveEntries(m, stored.services, now, function (id) { var sv = serviceById(m, id); return sv && sv.embed ? sv.category : null; });
+    if (!g.length && !s.length) {
+      if (!stored.granted.length && !stored.services.length && now < refusalExpiry(m, stored.at)) return closed;
+      return open;
     }
-    return { tier: tier, prompt: tier === "bar", granted: none, services: [], persist: "none" };
+    var granted = {};
+    optional.forEach(function (id) { granted[id] = g.some(function (e) { return e.id === id; }); });
+    var services = s.filter(function (e) { return !granted[serviceById(m, e.id).category]; }).map(function (e) { return e.id; });
+    return { tier: tier, prompt: false, granted: granted, services: services, entries: { granted: g, services: s }, persist: "none" };
   }
 
   // consentModeSignals: Google Consent Mode v2 defaults (all denied) and the
@@ -242,25 +295,47 @@
     return hosts;
   }
 
+  // decodeEntities: enough of HTML character references to see through
+  // obfuscated attribute values.
+  function decodeEntities(s) {
+    return String(s).replace(/&(#x[0-9a-f]+|#[0-9]+|amp|lt|gt|quot|apos|sol|colon);/gi, function (_, e) {
+      var l = e.toLowerCase();
+      if (l === "amp") return "&"; if (l === "lt") return "<"; if (l === "gt") return ">"; if (l === "quot") return '"'; if (l === "apos") return "'"; if (l === "sol") return "/"; if (l === "colon") return ":";
+      var code = l.charAt(1) === "x" ? parseInt(l.slice(2), 16) : parseInt(l.slice(1), 10);
+      return isFinite(code) && code > 0 && code < 0x110000 ? String.fromCodePoint(code) : "";
+    });
+  }
+
   // guardServedHtml: the reusable pre-consent guard. Given served HTML and the
   // requests captured before any choice, it reports every active resource
-  // (script/iframe/img/link/video/audio/source/object/embed with a live URL
-  // attribute) and every request that touches a declared host. Inert
+  // (script/iframe/img/link/video/audio/source/object/embed/track with a live
+  // URL attribute, srcset candidates included, protocol-relative and
+  // entity-encoded URLs decoded, comments ignored), every gated embed served
+  // with srcdoc, and every request that touches a declared host. Inert
   // references — the manifest JSON, data-src, plain anchors — do not count.
   function guardServedHtml(input) {
     var m = input.manifest;
     var hosts = declaredHosts(m);
     var violations = [];
-    var html = String(input.html || "");
+    var html = String(input.html || "").replace(/<!--[\s\S]*?-->/g, "");
     var tag = /<(script|iframe|img|link|video|audio|source|object|embed|track)\b([^>]*)>/gi;
+    var attr = /(?:^|\s)(src|href|data|srcset|poster|srcdoc)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi;
     var match;
+    function flag(element, attribute, url) {
+      var host = urlHost(decodeEntities(url));
+      if (host && hosts.some(function (h) { return hostMatches(host, h); })) violations.push({ kind: "markup", element: element, attribute: attribute, url: url });
+    }
     while ((match = tag.exec(html)) !== null) {
+      var element = match[1].toLowerCase();
       var attrs = match[2];
-      var attr = /(?:^|\s)(src|href|data|srcset|poster)\s*=\s*["']?([^"'\s>]+)/gi;
       var a;
+      attr.lastIndex = 0;
       while ((a = attr.exec(attrs)) !== null) {
-        var host = urlHost(a[2]);
-        if (host && hosts.some(function (h) { return hostMatches(host, h); })) violations.push({ kind: "markup", element: match[1].toLowerCase(), attribute: a[1].toLowerCase(), url: a[2] });
+        var name = a[1].toLowerCase();
+        var value = a[2] !== undefined ? a[2] : a[3] !== undefined ? a[3] : a[4];
+        if (name === "srcdoc") { if (element === "iframe" && /data-consent-embed\s*=/i.test(attrs)) violations.push({ kind: "markup", element: element, attribute: "srcdoc", url: "" }); continue; }
+        if (name === "srcset") decodeEntities(value).split(",").forEach(function (cand) { var u = cand.trim().split(/\s+/)[0]; if (u) flag(element, "srcset", u); });
+        else flag(element, name, value);
       }
     }
     (input.requests || []).forEach(function (u) {
@@ -271,16 +346,16 @@
   }
 
   // createCore binds the policy to an environment (cookie jar, storages,
-  // signals, clock). Every accessor is exception-safe. A failing accessor
-  // never authorises anything: a failing cookie or clock reads as "no
-  // decision", a failing revocation read or signal read as "blocked".
+  // signals, clock, host). Every accessor is exception-safe. A failing
+  // accessor never authorises anything: a failing cookie or clock reads as
+  // "no decision", a failing revocation, signal or host read as "blocked".
   function createCore(manifest, env) {
     var validation = validateManifest(manifest);
     var invalid = !validation.ok;
     var m = invalid ? { categories: [], services: [] } : manifest;
     var cookieName = (!invalid && manifest.cookieName) || DEFAULT_COOKIE;
     var revokeKey = cookieName + REVOKE_SUFFIX;
-    var revoked = false;
+    var revoked = false; // in-page revocation; latched by a privacy signal too
     var onceInstances = [];
     var listeners = [];
     var teardowns = {};
@@ -290,19 +365,27 @@
     function now() { return attempt(function () { return env.now(); }, NaN); }
     function stored() { return attempt(function () { return parse(env.readCookie(cookieName)); }, null); }
     function sessionRevoked() { return attempt(function () { return env.readSession(revokeKey) === "1"; }, BLOCKED); }
-    function signal() { return attempt(function () { return env.signal() === true; }, BLOCKED); }
+    function signal() { var v = attempt(function () { return env.signal() === true; }, BLOCKED); if (v === true) revoked = true; return v; }
     function bot() { return attempt(function () { return env.bot() === true; }, BLOCKED); }
-
-    function record(granted, services) {
-      return { revision: manifest.revision, textVersion: manifest.textVersion, granted: granted, services: services, at: now() };
+    function hostOk() {
+      if (invalid || typeof env.host !== "function") return true;
+      var h = attempt(function () { return String(env.host()).toLowerCase(); }, BLOCKED);
+      return h !== BLOCKED && (h === String(manifest.scope).toLowerCase() || h === "localhost" || h === "127.0.0.1");
+    }
+    function blockedNow() {
+      var rev = sessionRevoked();
+      var sig = signal();
+      var b = bot();
+      return rev === BLOCKED || sig === BLOCKED || b === BLOCKED || !hostOk();
     }
 
     function persist(granted, services) {
       if (invalid) return false;
-      var rec = record(granted, services);
-      if (!(isFinite(rec.at) && rec.at > 0)) return false;
+      var at = now();
+      if (!(isFinite(at) && at > 0)) return false;
+      var rec = { binding: binding(manifest), revision: manifest.revision, textVersion: manifest.textVersion, granted: granted, services: services, at: at };
       var value = serialize(rec);
-      var maxAge = granted.length || services.length ? permissionSeconds(m) : refusalSeconds(m);
+      var maxAge = granted.length || services.length ? permissionSeconds(m) : Math.max(refusalExpiry(m, at) - at, 1);
       var written = attempt(function () { return env.writeCookie(cookieName, value, maxAge) !== false; }, false);
       if (!written) return false;
       var back = stored();
@@ -311,22 +394,24 @@
 
     function current() {
       if (invalid) return decide({ manifest: m, invalid: true });
-      var rev = sessionRevoked();
-      var sig = signal();
-      var b = bot();
-      if (rev === BLOCKED || sig === BLOCKED || b === BLOCKED) return decide({ manifest: m, blocked: true });
-      return decide({ manifest: m, stored: stored(), now: now(), signal: sig, bot: b, revoked: revoked || rev });
+      if (blockedNow()) return decide({ manifest: m, blocked: true });
+      return decide({ manifest: m, stored: stored(), now: now(), signal: signal(), bot: bot(), revoked: revoked || sessionRevoked() === true });
     }
 
     function emit() { listeners.forEach(function (fn) { attempt(function () { fn(current()); }, null); }); }
 
-    // cleanup removes exactly the storage the given services declare, at the
-    // declared path and domain, plus the adapter's own session markers.
+    // cleanupServices removes exactly the storage the given services declare
+    // — exact cookie names unconditionally at the declared path and domain,
+    // wildcards for every visible match — plus the adapter's own markers,
+    // and runs registered teardowns. One-time instance permissions of those
+    // services are dropped.
     function cleanupServices(services) {
+      var ids = services.map(function (s) { return s.id; });
+      onceInstances = onceInstances.filter(function (o) { return ids.indexOf(o.service) < 0; });
       services.forEach(function (s) {
         (Array.isArray(s.storage) ? s.storage : []).forEach(function (st) {
           attempt(function () {
-            if (st.kind === "cookie") env.clearCookie({ name: st.name, path: st.path || "/", domain: st.domain || null });
+            if (st.kind === "cookie") env.clearCookie({ name: st.name, path: st.path || "/", domain: st.domain || null, exact: st.name.slice(-1) !== "*" });
             else if (st.kind === "local") env.removeLocal(st.name);
             else env.removeSession(st.name);
           }, null);
@@ -351,26 +436,37 @@
       return persisted;
     }
 
-    function applyGrant(granted, services) {
+    // applyGrant persists the wanted categories and services, keeping the
+    // grant time and revision of entries that survive unchanged, and cleans
+    // up everything that was dropped. ok means "authorised now".
+    function applyGrant(wantedCats, wantedSvcs) {
       var before = current();
-      var dropCats = optionalCategories(m).filter(function (id) { return before.granted[id] && granted.indexOf(id) < 0; });
-      var dropSvcs = before.services.filter(function (id) { return services.indexOf(id) < 0 && !(serviceById(m, id) && granted.indexOf(serviceById(m, id).category) >= 0); });
-      cleanupServices(servicesOfCategories(dropCats).concat(dropSvcs.map(function (id) { return serviceById(m, id); }).filter(Boolean)));
-      if (!granted.length && !services.length) { var p = refuseAll(); return { ok: p, decision: current() }; }
-      if (!persist(granted, services)) { refuseAll(); return { ok: false, decision: current() }; }
+      var at = now();
+      var dropCats = optionalCategories(m).filter(function (id) { return before.granted[id] && wantedCats.indexOf(id) < 0; });
+      var dropSvcs = before.services.filter(function (id) { return wantedSvcs.indexOf(id) < 0 && wantedCats.indexOf(serviceById(m, id).category) < 0; });
+      cleanupServices(servicesOfCategories(dropCats).concat(dropSvcs.map(function (id) { return serviceById(m, id); })));
+      if (!wantedCats.length && !wantedSvcs.length) { var p = refuseAll(); return { ok: p, persisted: p, decision: current() }; }
+      var granted = wantedCats.map(function (id) {
+        var kept = before.entries.granted.filter(function (e) { return e.id === id; })[0];
+        return kept ? kept : { id: id, at: Math.floor(at), rev: categoryRevision(m, id) };
+      });
+      var services = wantedSvcs.filter(function (id) { return wantedCats.indexOf(serviceById(m, id).category) < 0; }).map(function (id) {
+        var kept = before.entries.services.filter(function (e) { return e.id === id; })[0];
+        return kept ? kept : { id: id, at: Math.floor(at), rev: categoryRevision(m, serviceById(m, id).category) };
+      });
+      if (!persist(granted, services)) { var p2 = refuseAll(); return { ok: false, persisted: p2, decision: current() }; }
       revoked = false;
       attempt(function () { env.removeSession(revokeKey); }, null);
-      // ok means "authorised now": the persisted grant must read back
-      // through the full policy, or it is treated as a failed grant.
       var after = current();
-      var effective = granted.every(function (id) { return after.granted[id] === true; }) &&
-        services.every(function (id) { var sv = serviceById(m, id); return after.services.indexOf(id) >= 0 || (sv && after.granted[sv.category] === true); });
-      if (!effective) { refuseAll(); return { ok: false, decision: current() }; }
+      var effective = wantedCats.every(function (id) { return after.granted[id] === true; }) &&
+        wantedSvcs.every(function (id) { return after.services.indexOf(id) >= 0 || after.granted[serviceById(m, id).category] === true; });
+      if (!effective) { var p3 = refuseAll(); return { ok: false, persisted: p3, decision: current() }; }
       emit();
-      return { ok: true, decision: after };
+      return { ok: true, persisted: true, decision: after };
     }
 
-    function canGrant() { return !invalid && signal() === false && bot() === false && sessionRevoked() !== BLOCKED && isFinite(now()); }
+    function canGrant() { return !invalid && !blockedNow() && signal() === false && bot() === false && isFinite(now()); }
+    function validServiceIds(ids) { return (ids || []).filter(function (id) { var s = serviceById(m, id); return s && s.embed; }); }
 
     var core = {
       valid: !invalid,
@@ -379,27 +475,31 @@
       tier: invalid ? "none" : tierOf(m),
       cookieName: cookieName,
       revokeKey: revokeKey,
+      binding: invalid ? null : binding(manifest),
       boot: function () {
         var d = current();
         if (d.persist === "refuse") refuseAll();
         return current();
       },
       current: current,
-      // grant persists exactly the given optional categories; individually
-      // remembered services outside those categories are kept.
-      grant: function (ids) {
-        if (!canGrant()) return { ok: false, decision: current() };
-        var optional = optionalCategories(m);
+      // grant persists exactly the given optional categories plus the given
+      // remembered services (embed services outside those categories).
+      // An empty grant is a refusal and is processed even while a privacy
+      // signal or a broken accessor would refuse a new grant.
+      grant: function (ids, serviceIds) {
+        var optional = invalid ? [] : optionalCategories(m);
         var wanted = (ids || []).filter(function (id) { return optional.indexOf(id) >= 0; });
-        var keepServices = current().services.filter(function (id) { var s = serviceById(m, id); return s && wanted.indexOf(s.category) < 0; });
-        return applyGrant(wanted, keepServices);
+        var svcs = serviceIds === undefined ? (invalid ? [] : current().services.filter(function (id) { return wanted.indexOf(serviceById(m, id).category) < 0; })) : validServiceIds(serviceIds);
+        if (!wanted.length && !svcs.length) { var p = refuseAll(); return { ok: p, persisted: p, decision: current() }; }
+        if (!canGrant()) return { ok: false, persisted: false, decision: current() };
+        return applyGrant(wanted, svcs);
       },
       // grantService remembers one embed service (its declared purposes) for
       // the permission lifetime without granting its whole category.
       grantService: function (serviceId) {
-        if (!canGrant()) return { ok: false, decision: current() };
+        if (!canGrant()) return { ok: false, persisted: false, decision: current() };
         var s = serviceById(m, serviceId);
-        if (!s || !s.embed) return { ok: false, decision: current() };
+        if (!s || !s.embed) return { ok: false, persisted: false, decision: current() };
         var d = current();
         var granted = optionalCategories(m).filter(function (id) { return d.granted[id]; });
         var services = d.services.slice();
@@ -410,10 +510,11 @@
       withdraw: function () { return refuseAll(); },
       authorized: function (categoryId) {
         if (invalid) return false;
-        if (categoryId === requiredCategory(m)) return true;
+        if (categoryId === requiredCategory(m)) return !blockedNow();
         return current().granted[categoryId] === true;
       },
-      // loadOnce authorises one embed instance for this page view only.
+      // loadOnce authorises one embed instance for this page view only; the
+      // permission dies with its service's category or an explicit refusal.
       loadOnce: function (serviceId, instance) {
         if (!canGrant() || instance === undefined || instance === null) return false;
         var s = serviceById(m, serviceId);
@@ -422,7 +523,7 @@
         return true;
       },
       authorizedInstance: function (serviceId, instance) {
-        if (invalid || signal() !== false || bot() !== false) return false;
+        if (invalid || blockedNow() || signal() !== false || bot() !== false || !isFinite(now()) || revoked) return false;
         if (onceInstances.some(function (o) { return o.service === serviceId && o.instance === instance; })) return true;
         return this.authorizedService(serviceId);
       },
@@ -440,12 +541,13 @@
       registerTeardown: function (serviceId, fn) { (teardowns[serviceId] = teardowns[serviceId] || []).push(fn); },
       optionalCategories: function () { return invalid ? [] : optionalCategories(m); },
       requiredCategory: function () { return invalid ? null : requiredCategory(m); },
+      embedServices: function () { return invalid ? [] : m.services.filter(function (s) { return s.embed; }); },
       service: function (id) { return invalid ? null : serviceById(m, id); }
     };
     return core;
   }
 
-  root.insprConsentCore = { VERSION: VERSION, validateManifest: validateManifest, tierOf: tierOf, parse: parse, serialize: serialize, decide: decide, consentModeSignals: consentModeSignals, declaredHosts: declaredHosts, guardServedHtml: guardServedHtml, createCore: createCore, safeUrl: safeUrl, BOT: BOT, MIN_REFUSAL_DAYS: MIN_REFUSAL_DAYS };
+  root.insprConsentCore = { VERSION: VERSION, validateManifest: validateManifest, tierOf: tierOf, parse: parse, serialize: serialize, decide: decide, consentModeSignals: consentModeSignals, declaredHosts: declaredHosts, guardServedHtml: guardServedHtml, createCore: createCore, safeUrl: safeUrl, binding: binding, refusalExpiry: refusalExpiry, decodeEntities: decodeEntities, BOT: BOT, MIN_REFUSAL_MONTHS: MIN_REFUSAL_MONTHS, REVOKE_HASH: REVOKE_HASH };
 
   if (typeof document === "undefined") return;
 
@@ -466,6 +568,7 @@
 
   var env = {
     now: function () { return Date.now() / 1000; },
+    host: function () { return location.hostname; },
     readCookie: function (name) {
       var raw = document.cookie;
       var parts = raw ? raw.split("; ") : [];
@@ -477,15 +580,16 @@
       document.cookie = name + "=" + encodeURIComponent(value) + "; Max-Age=" + maxAge + "; Path=/; SameSite=Lax" + secure;
       return true;
     },
-    // clearCookie deletes matching names at exactly the declared path and
-    // domain (host-only when no domain is declared).
+    // clearCookie deletes at exactly the declared path and domain (host-only
+    // when no domain is declared): exact names unconditionally — the
+    // current document may not even see a cookie scoped to another path —
+    // and wildcards for every visible match.
     clearCookie: function (st) {
+      var suffix = "=; Max-Age=0; Path=" + st.path + (st.domain ? "; Domain=" + st.domain : "");
+      if (st.exact) { document.cookie = st.name + suffix; return; }
       var names = (document.cookie ? document.cookie.split("; ") : []).map(function (c) { return c.split("=")[0]; });
-      var re = new RegExp("^" + st.name.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*$/, ".*") + "$");
-      names.forEach(function (n) {
-        if (!re.test(n)) return;
-        document.cookie = n + "=; Max-Age=0; Path=" + st.path + (st.domain ? "; Domain=" + st.domain : "");
-      });
+      var re = new RegExp("^" + st.name.slice(0, -1).replace(/[.+^${}()|[\]\\]/g, "\\$&") + ".*$");
+      names.forEach(function (n) { if (re.test(n)) document.cookie = n + suffix; });
     },
     readSession: function (k) { return sessionStorage.getItem(k); },
     writeSession: function (k, v) { sessionStorage.setItem(k, v); return true; },
@@ -501,6 +605,7 @@
   var bar = null;
   var sheet = null;
   var boxes = {};
+  var svcBoxes = {};
   var loadedDestinations = {};
 
   function pickLanguage() {
@@ -595,14 +700,17 @@
     node.hidden = false;
   }
 
-  // deactivate tears the browsing context down: the src goes, the document
-  // is replaced by about:blank, the placeholder returns.
+  // deactivate tears the browsing context down whether the gate or the
+  // served markup started it: src and srcdoc go, the document is replaced,
+  // the placeholder returns.
   function deactivate(s, node) {
-    if (node.getAttribute("data-consent-active") === "1") {
+    var live = node.getAttribute("data-consent-active") === "1" || node.hasAttribute("src") || node.hasAttribute("srcdoc");
+    if (live) {
+      if (node.getAttribute("data-consent-active") !== "1") warn("integration error: embed " + s.id + " served with a live src or srcdoc; remove it from the markup");
       node.removeAttribute("data-consent-active");
-      try { if (node.contentWindow) node.contentWindow.location.replace("about:blank"); } catch (_) { /* cross-origin: src removal suffices */ }
       node.removeAttribute("src");
       node.removeAttribute("srcdoc");
+      try { if (node.contentWindow) node.contentWindow.location.replace("about:blank"); } catch (_) { /* cross-origin: attribute removal suffices */ }
     }
     node.hidden = true;
     var prev = node.previousElementSibling;
@@ -615,7 +723,7 @@
     var always = el("button", { type: "button", class: "ic-btn", text: T.embed.always });
     var open = el("a", { class: "ic-link", href: "https://" + s.embed.host + "/", rel: "noopener noreferrer", target: "_blank", text: T.embed.open + " " + s.embed.host });
     once.addEventListener("click", function () { if (core.loadOnce(s.id, node)) activate(s, node); });
-    always.addEventListener("click", function () { if (core.grantService(s.id).ok) renderState(); });
+    always.addEventListener("click", function () { settle(core.grantService(s.id), false); });
     return el("div", { class: "ic-embed", role: "group", "aria-label": st.label || s.provider }, [
       el("p", { class: "ic-embed-title", text: st.label || s.provider }),
       el("p", { class: "ic-embed-text", text: st.description || "" }),
@@ -627,9 +735,6 @@
     manifest.services.forEach(function (s) {
       if (!s.embed) return;
       embedNodes(s).forEach(function (node) {
-        // Served markup must not carry a live src: deferred script cannot
-        // undo the request such an attribute already started.
-        if (node.getAttribute("src") && node.getAttribute("data-consent-active") !== "1") { warn("integration error: embed " + s.id + " served with a live src; remove it from the markup"); node.removeAttribute("src"); node.removeAttribute("srcdoc"); }
         if (core.authorizedInstance(s.id, node)) activate(s, node); else deactivate(s, node);
       });
     });
@@ -643,28 +748,31 @@
   }
   function onEscape(e) { if (e.key === "Escape" && bar) refuse(); }
 
-  // settle applies a decision change: destinations that lost authorisation
-  // are denied and, once the refusal is persisted, the page reloads (a
-  // loaded tag has no reliable teardown); embeds are torn down in place.
+  // settle applies a decision change. Destinations that lost authorisation
+  // are denied; because a loaded tag has no reliable teardown the page
+  // reloads — carrying a revocation marker in the URL when the refusal
+  // could not be persisted, so the next document closes the gate before it
+  // consults any surviving grant. Embeds are torn down in place.
   function settle(result, dropping) {
     renderState();
-    if (dropping) denyDestinations();
-    if (dropping && anyDestinationLoaded()) {
-      if (result.ok) location.reload();
-      else warn("refusal could not be persisted; loaded destinations were denied but the page keeps running");
+    var lost = dropping || result.ok === false;
+    if (!lost || !anyDestinationLoaded()) return;
+    denyDestinations();
+    if (result.persisted === false) {
+      warn("refusal could not be persisted; reloading with a revocation marker");
+      try { history.replaceState(null, "", location.pathname + location.search + "#" + REVOKE_HASH); } catch (_) { location.hash = REVOKE_HASH; }
     }
+    location.reload();
   }
 
   function acceptAll() {
     removeBar();
-    var r = core.grant(core.optionalCategories());
-    if (!r.ok) { settle(r, true); return; }
-    settle(r, false);
+    settle(core.grant(core.optionalCategories(), core.embedServices().map(function (s) { return s.id; })), false);
   }
   function refuse() {
     removeBar();
     var persisted = core.refuse();
-    settle({ ok: persisted }, true);
+    settle({ ok: persisted, persisted: persisted }, true);
   }
 
   function renderBar() {
@@ -696,6 +804,16 @@
         boxes[id] = box;
         var label = el("label", { for: "ic-cat-" + id }); label.appendChild(labelled(catText(id).label, catText(id).description));
         rows.push(el("div", { class: "ic-row" }, [box, label]));
+        // Remembered embed services show as their own rows under the
+        // category, so a single provider can be revoked without touching
+        // its siblings.
+        core.embedServices().filter(function (s) { return s.category === id; }).forEach(function (s) {
+          var sbox = el("input", { type: "checkbox", id: "ic-svc-" + s.id });
+          svcBoxes[s.id] = sbox;
+          var slabel = el("label", { for: "ic-svc-" + s.id }); slabel.appendChild(labelled(svcText(s.id).label || s.provider, svcText(s.id).description));
+          rows.push(el("div", { class: "ic-row ic-row-service" }, [sbox, slabel]));
+          box.addEventListener("change", function () { if (box.checked) sbox.checked = true; });
+        });
       });
       var save = el("button", { type: "button", class: "ic-btn", text: T.sheet.save });
       var cancel = el("button", { type: "button", class: "ic-btn", text: T.sheet.cancel });
@@ -705,11 +823,11 @@
       save.addEventListener("click", function () {
         sheet.close();
         var ids = core.optionalCategories().filter(function (id) { return boxes[id].checked; });
+        var svcs = core.embedServices().filter(function (s) { return svcBoxes[s.id].checked && ids.indexOf(s.category) < 0; }).map(function (s) { return s.id; });
         var d = core.current();
         var dropping = core.optionalCategories().some(function (id) { return d.granted[id] && ids.indexOf(id) < 0; });
         removeBar();
-        var r = core.grant(ids);
-        settle(r, dropping || !r.ok);
+        settle(core.grant(ids, svcs), dropping);
       });
       // Cancel keeps an existing decision; during the first prompt there is
       // none, and dismissing counts as refusal.
@@ -720,6 +838,7 @@
     var d2 = core.current();
     var blocked = env.signal();
     core.optionalCategories().forEach(function (id) { boxes[id].checked = d2.granted[id] === true; boxes[id].disabled = blocked; });
+    core.embedServices().forEach(function (s) { svcBoxes[s.id].checked = d2.granted[s.category] === true || d2.services.indexOf(s.id) >= 0; svcBoxes[s.id].disabled = blocked; });
     if (typeof sheet.showModal === "function") sheet.showModal(); else sheet.setAttribute("open", "");
   }
 
@@ -742,6 +861,12 @@
 
   function boot() {
     if (!core.valid) { warn("manifest invalid, gate closed", core.errors); return; }
+    // A revocation marker carried by the URL (a refusal that could not be
+    // stored on the previous page) closes the gate before any grant is read.
+    if (location.hash.indexOf(REVOKE_HASH) >= 0) {
+      core.refuse();
+      try { history.replaceState(null, "", location.pathname + location.search); } catch (_) { /* keep the hash */ }
+    }
     var d = core.boot();
     renderState();
     if (d.prompt && !env.bot()) renderBar();

@@ -6,7 +6,7 @@
   "scope": "www.example.invalid",
   "cookieName": "consent",
   "permissionDays": 180,
-  "refusalDays": 183,
+  "refusalMonths": 6,
   "language": "en",
   "privacyUrl": "/privacy",
   "categories": [

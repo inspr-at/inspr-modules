@@ -50,6 +50,11 @@
           },
           "required": {
             "type": "boolean"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Bump when this category's purposes change; invalidates only its grants."
           }
         }
       }
@@ -350,11 +355,11 @@
       "maximum": 365,
       "description": "Lifetime of a grant (default 180)."
     },
-    "refusalDays": {
+    "refusalMonths": {
       "type": "integer",
-      "minimum": 183,
-      "maximum": 730,
-      "description": "Retention of a refusal, at least six months (default 183)."
+      "minimum": 6,
+      "maximum": 24,
+      "description": "Retention of a refusal in UTC calendar months, at least six (default 6)."
     }
   },
   "$defs": {

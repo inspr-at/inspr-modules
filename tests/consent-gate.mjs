@@ -18,10 +18,14 @@ const core = sandbox.insprConsentCore;
 assert.ok(core, "core exported without a DOM");
 const plain = (v) => JSON.parse(JSON.stringify(v));
 const example = JSON.parse(readFileSync(join(pkg, "example", "manifest.json"), "utf8"));
-const embedded = JSON.parse(/<script type="application\/json" id="consent-manifest">\s*([\s\S]*?)\s*<\/script>/.exec(readFileSync(join(pkg, "example", "example.html"), "utf8"))[1]);
+const exampleHtml = readFileSync(join(pkg, "example", "example.html"), "utf8");
+const embedded = JSON.parse(/<script type="application\/json" id="consent-manifest">\s*([\s\S]*?)\s*<\/script>/.exec(exampleHtml)[1]);
 assert.deepEqual(embedded, example, "example.html embeds the example manifest verbatim");
 const now = 1_800_000_000;
-const rec = (granted, extra = {}) => ({ revision: 1, textVersion: 1, granted, services: [], at: now - 10, ...extra });
+const B = core.binding(example);
+const entry = (id, at = now - 10, rev = 1) => ({ id, at, rev });
+const rec = (granted, extra = {}) => ({ binding: B, revision: 1, textVersion: 1, granted: granted.map((g) => (typeof g === "string" ? entry(g) : g)), services: [], at: now - 10, ...extra });
+const DAY = 86400;
 
 // ---- manifest validation --------------------------------------------------
 assert.deepEqual(plain(core.validateManifest(example)), { ok: true, errors: [] }, "example manifest is valid");
@@ -35,11 +39,13 @@ const invalidCases = [
   [{ ...example, services: undefined }, /services must be an array/],
   [{ ...example, services: {} }, /services must be an array/],
   [{ ...example, categories: example.categories.map((c) => ({ ...c, required: false })) }, /exactly one category must be required/],
+  [{ ...example, categories: [{ id: "necessary", required: true, revision: 0 }, ...example.categories.slice(1)] }, /category necessary revision/],
   [{ ...example, services: [{ ...example.services[0], category: "necessary" }] }, /required category/],
   [{ ...example, services: [{ ...example.services[0], destination: { ...example.services[0].destination, consent: ["ad_storage", "bogus"] } }] }, /Consent Mode keys/],
   [{ ...example, services: [{ ...example.services[0], destination: { ...example.services[0].destination, tagId: "" } }] }, /tagId invalid/],
   [{ ...example, services: [{ ...example.services[1], destination: { ...example.services[1].destination, conversion: { sendTo: "AW-999999999/undeclared" } } }] }, /conversion\.sendTo must be <tagId>/],
-  [{ ...example, services: [{ ...example.services[1], destination: { ...example.services[1].destination, conversion: "x" } }] }, /conversion\.sendTo/],
+  [{ ...example, services: [{ ...example.services[1], destination: { ...example.services[1].destination, conversion: "x" } }] }, /conversion must be an object/],
+  [{ ...example, services: [{ ...example.services[1], destination: { ...example.services[1].destination, conversion: null } }] }, /conversion must be an object/],
   [{ ...example, services: [{ ...example.services[0], purposes: [] }] }, /purposes/],
   [{ ...example, services: [{ ...example.services[0], embed: { host: "x.example" } }] }, /exactly one of destination or embed/],
   [{ ...example, services: [{ ...example.services[2], embed: { host: "not a host" } }] }, /embed\.host/],
@@ -47,7 +53,8 @@ const invalidCases = [
   [{ ...example, services: [{ ...example.services[1], storage: [{ kind: "local", name: "x", path: "/" }] }] }, /apply to cookies only/],
   [{ ...example, privacyUrl: "javascript:alert(1)" }, /privacyUrl/],
   [{ ...example, privacyUrl: "http://plain.example/" }, /privacyUrl/],
-  [{ ...example, refusalDays: 30 }, /refusalDays must be at least 183/],
+  [{ ...example, privacyUrl: "/\\evil.example/path" }, /privacyUrl/],
+  [{ ...example, refusalMonths: 3 }, /refusalMonths must be at least 6/],
   [{ ...example, permissionDays: 0 }, /permissionDays/],
   [{ ...example, text: { en: { ...example.text.en, bar: { ...example.text.en.bar, reject: undefined } } } }, /bar\.reject missing/],
   [{ ...example, text: { en: { ...example.text.en, services: {} } } }, /services\.video\.label missing/],
@@ -60,9 +67,7 @@ for (const [m, re] of invalidCases) {
 }
 
 // ---- URL safety -----------------------------------------------------------
-assert.equal(core.safeUrl("javascript:alert(1)"), null);
-assert.equal(core.safeUrl("http://plain.example/"), null);
-assert.equal(core.safeUrl("//evil.example/"), null);
+for (const bad of ["javascript:alert(1)", "http://plain.example/", "//evil.example/", "/\\evil.example/path", "/path with space", "https://evil.example\\@x/"]) assert.equal(core.safeUrl(bad), null, `unsafe: ${bad}`);
 assert.equal(core.safeUrl("/privacy"), "/privacy");
 assert.equal(core.safeUrl("https://video.example.invalid/embed/1"), "https://video.example.invalid/embed/1");
 
@@ -76,40 +81,77 @@ assert.equal(core.tierOf(example), "bar");
 }
 
 // ---- storage format -------------------------------------------------------
-const value = core.serialize({ revision: 3, textVersion: 2, granted: ["marketing", "measurement"], services: ["video"], at: now });
-assert.equal(value, "v1;r=3;v=2;g=marketing,measurement;s=video;t=1800000000");
-assert.deepEqual(plain(core.parse(value)), { revision: 3, textVersion: 2, granted: ["marketing", "measurement"], services: ["video"], at: now });
-assert.deepEqual(plain(core.parse("v1;r=1;v=1;g=;s=;t=5")), { revision: 1, textVersion: 1, granted: [], services: [], at: 5 });
-for (const bad of ["garbage", "", "v1;r=1garbage;v=1;g=;s=;t=1800000000garbage", "v1;r=1;v=1;g=;s=;t=1800000000;t=1", "v1;r=1;v=1;g=Bad Token;s=;t=1", "v1;r=1;v=1;g=;t=1", "v2;r=1;v=1;g=;s=;t=1", "v1;r=99999999999999;v=1;g=;s=;t=1"]) {
+assert.match(B, /^[0-9a-f]{8}$/, "binding is a manifest fingerprint");
+assert.equal(core.binding({ ...example, controller: "Other" }) === B, false, "binding changes with the controller");
+assert.equal(core.binding({ ...example, scope: "other.example.invalid" }) === B, false, "binding changes with the scope");
+const value = core.serialize({ binding: B, revision: 3, textVersion: 2, granted: [entry("marketing", now - 5, 2), entry("measurement", now - 9, 1)], services: [entry("video", now - 1, 1)], at: now });
+assert.equal(value, `v1;b=${B};r=3;v=2;g=marketing@${now - 5}.2,measurement@${now - 9}.1;s=video@${now - 1}.1;t=${now}`);
+assert.deepEqual(plain(core.parse(value)), { binding: B, revision: 3, textVersion: 2, granted: [entry("marketing", now - 5, 2), entry("measurement", now - 9, 1)], services: [entry("video", now - 1, 1)], at: now });
+assert.deepEqual(plain(core.parse(`v1;b=${B};r=1;v=1;g=;s=;t=5`)), { binding: B, revision: 1, textVersion: 1, granted: [], services: [], at: 5 });
+for (const bad of ["garbage", "", `v1;b=${B};r=1garbage;v=1;g=;s=;t=1800000000garbage`, `v1;b=${B};r=1;v=1;g=;s=;t=1800000000;t=1`, `v1;b=${B};r=1;v=1;g=Bad Token;s=;t=1`, `v1;b=${B};r=1;v=1;g=marketing;s=;t=1`, `v1;r=1;v=1;g=;s=;t=1`, `v1;b=nothex!;r=1;v=1;g=;s=;t=1`, `v2;b=${B};r=1;v=1;g=;s=;t=1`, `v1;b=${B};r=99999999999999;v=1;g=;s=;t=1`]) {
   assert.equal(core.parse(bad), null, `strict parse rejects ${JSON.stringify(bad)}`);
 }
 assert.ok(!/uuid|random/i.test(value), "no generated identifier in the stored value");
 
+// ---- refusal retention: six UTC calendar months -----------------------------
+{
+  const march1 = Date.UTC(2026, 2, 1, 12, 0, 0) / 1000;
+  assert.equal(core.refusalExpiry(example, march1), Date.UTC(2026, 8, 1, 12, 0, 0) / 1000, "1 March → 1 September");
+  const aug31 = Date.UTC(2026, 7, 31, 0, 0, 0) / 1000;
+  assert.equal(core.refusalExpiry(example, aug31), Date.UTC(2027, 1, 28, 0, 0, 0) / 1000, "31 August → 28 February (clamped)");
+  const m = plain(example); m.refusalMonths = 12;
+  assert.equal(core.refusalExpiry(m, march1), Date.UTC(2027, 2, 1, 12, 0, 0) / 1000, "refusalMonths extends the minimum");
+}
+
 // ---- decide ---------------------------------------------------------------
 const d = (extra) => plain(core.decide({ manifest: example, now, signal: false, bot: false, stored: null, ...extra }));
 const noneGranted = { measurement: false, marketing: false, embeds: false };
-assert.deepEqual(d({}), { tier: "bar", prompt: true, granted: noneGranted, services: [], persist: "none" }, "fresh visitor: prompt, nothing granted");
+assert.deepEqual(d({}), { tier: "bar", prompt: true, granted: noneGranted, services: [], entries: { granted: [], services: [] }, persist: "none" }, "fresh visitor: prompt, nothing granted");
 assert.deepEqual(d({ stored: rec(["measurement"]) }).granted, { measurement: true, marketing: false, embeds: false }, "partial grant honoured");
 assert.deepEqual(d({ stored: rec(["measurement", "marketing"]) }).granted, { measurement: true, marketing: true, embeds: false });
-assert.deepEqual(d({ stored: rec([], { services: ["video"] }) }).services, ["video"], "a remembered service is honoured without its category");
-assert.deepEqual(d({ stored: rec(["embeds"], { services: ["video"] }) }).services, [], "a remembered service folds into its granted category");
+assert.deepEqual(d({ stored: rec([], { services: [entry("video")] }) }).services, ["video"], "a remembered service is honoured without its category");
+assert.deepEqual(d({ stored: rec(["embeds"], { services: [entry("video")] }) }).services, [], "a remembered service folds into its granted category");
 assert.equal(d({ stored: rec([]) }).prompt, false, "stored refusal: no prompt");
-assert.deepEqual(d({ stored: rec(["marketing"]), signal: true }), { tier: "bar", prompt: false, granted: noneGranted, services: [], persist: "refuse" }, "GPC/DNT overrides an older grant and persists a refusal");
+assert.deepEqual(d({ stored: rec(["marketing"]), signal: true }).persist, "refuse", "GPC/DNT overrides an older grant and persists a refusal");
+assert.equal(d({ stored: rec(["marketing"]), signal: true }).granted.marketing, false);
 assert.equal(d({ bot: true }).prompt, false);
 assert.equal(d({ bot: true }).granted.marketing, false);
 assert.equal(d({ blocked: true }).prompt, false, "a blocked accessor closes the gate silently");
-assert.equal(d({ stored: rec(["marketing"], { at: now - 181 * 86400 }) }).prompt, true, "expired permission re-asks");
-assert.equal(d({ stored: rec([], { at: now - 181 * 86400 }) }).prompt, false, "a refusal outlives the permission lifetime");
-assert.equal(d({ stored: rec([], { at: now - 184 * 86400 }) }).prompt, true, "a refusal expires after at least six months");
-assert.equal(d({ stored: rec(["marketing"], { revision: 0 }) }).prompt, true, "a material purpose revision re-asks");
-assert.equal(d({ stored: rec(["marketing"], { at: now + 60 }) }).granted.marketing, false, "a future-dated decision authorises nothing");
-assert.equal(d({ stored: rec(["marketing"], { at: now + 60 }) }).prompt, true);
+assert.equal(d({ stored: rec(["marketing"], { binding: "deadbeef" }) }).granted.marketing, false, "a record bound to another controller/scope is no decision");
+assert.equal(d({ stored: rec(["marketing"], { binding: "deadbeef" }) }).prompt, true);
+assert.equal(d({ stored: rec([entry("marketing", now - 181 * DAY)]) }).prompt, true, "expired permission re-asks");
+assert.equal(d({ stored: rec([], { at: now - 181 * DAY }) }).prompt, false, "a refusal outlives the permission lifetime");
+{
+  const march1 = Date.UTC(2026, 2, 1, 12, 0, 0) / 1000;
+  const aug31 = Date.UTC(2026, 7, 31, 12, 0, 0) / 1000;
+  const sep1 = Date.UTC(2026, 8, 1, 12, 0, 1) / 1000;
+  assert.equal(plain(core.decide({ manifest: example, now: aug31, signal: false, bot: false, stored: rec([], { at: march1 }) })).prompt, false, "a 1 March refusal is still respected on 31 August");
+  assert.equal(plain(core.decide({ manifest: example, now: sep1, signal: false, bot: false, stored: rec([], { at: march1 }) })).prompt, true, "…and may be asked again after six calendar months");
+}
+assert.equal(d({ stored: rec(["marketing"], { revision: 0 }) }).prompt, true, "a global purpose revision re-asks everything");
+{
+  // per-category revision: bumping ads leaves measurement intact
+  const m = plain(example); m.categories.find((c) => c.id === "marketing").revision = 2;
+  const out = plain(core.decide({ manifest: m, now, signal: false, bot: false, stored: { ...rec(["measurement", "marketing"]), binding: core.binding(m) } }));
+  assert.deepEqual(out.granted, { measurement: true, marketing: false, embeds: false }, "a category revision invalidates only that category");
+  assert.equal(out.prompt, false);
+}
+{
+  // per-entry expiry: an unrelated later grant does not extend an older one
+  const stored = rec([entry("measurement", now - 179 * DAY)], { services: [entry("video", now - DAY)], at: now - DAY });
+  const later = now + 2 * DAY;
+  const out = plain(core.decide({ manifest: example, now: later, signal: false, bot: false, stored }));
+  assert.equal(out.granted.measurement, false, "measurement expires on its own day 180");
+  assert.deepEqual(out.services, ["video"], "…while the newer service permission lives on");
+}
+assert.equal(d({ stored: rec([entry("marketing", now + 60)]) }).granted.marketing, false, "a future-dated entry authorises nothing");
+assert.equal(d({ stored: rec(["marketing"], { at: now + 60 }) }).prompt, true, "a future-dated record is no decision");
 assert.equal(d({ stored: rec(["marketing"]), now: NaN }).granted.marketing, false, "a broken clock authorises nothing");
 assert.equal(d({ stored: rec(["marketing"]), revoked: true }).granted.marketing, false, "a revocation outranks a surviving grant");
 {
   const m = plain(example); m.permissionDays = 7;
-  assert.equal(core.decide({ manifest: m, now, signal: false, bot: false, stored: rec(["marketing"], { at: now - 8 * 86400 }) }).prompt, true, "short permission lifetime expires");
-  assert.equal(core.decide({ manifest: m, now, signal: false, bot: false, stored: rec([], { at: now - 100 * 86400 }) }).prompt, false, "…while the refusal keeps its six months");
+  assert.equal(core.decide({ manifest: m, now, signal: false, bot: false, stored: { ...rec([entry("marketing", now - 8 * DAY)]), binding: core.binding(m) } }).prompt, true, "short permission lifetime expires");
+  assert.equal(core.decide({ manifest: m, now, signal: false, bot: false, stored: { ...rec([], { at: now - 100 * DAY }), binding: core.binding(m) } }).prompt, false, "…while the refusal keeps its six months");
 }
 {
   const m = plain(example); m.services = m.services.filter((s) => s.embed);
@@ -133,28 +175,32 @@ assert.equal(d({ stored: rec(["marketing"]), revoked: true }).granted.marketing,
 
 // ---- pre-consent guard ----------------------------------------------------
 {
-  const inert = readFileSync(join(pkg, "example", "example.html"), "utf8");
+  const inert = exampleHtml;
   const g1 = core.guardServedHtml({ manifest: example, html: inert, requests: ["https://self.example/assets/consent-gate.js", "https://self.example/"] });
   assert.deepEqual(plain(g1.violations), [], "inert manifest, data-src and the gate script pass");
   assert.equal(g1.ok, true);
   const active = inert.replace('data-src="https://video.example.invalid/embed/1"', 'src="https://video.example.invalid/embed/1"');
   const g2 = core.guardServedHtml({ manifest: example, html: active, requests: [] });
-  assert.equal(g2.ok, false);
   assert.deepEqual(plain(g2.violations), [{ kind: "markup", element: "iframe", attribute: "src", url: "https://video.example.invalid/embed/1" }], "a live embed src fails");
-  const tracker = inert + '<script async src="https://www.googletagmanager.com/gtag/js?id=AW-000000000"></script>';
-  assert.equal(core.guardServedHtml({ manifest: example, html: tracker, requests: [] }).violations[0].element, "script", "a tag loader in served HTML fails");
-  const g4 = core.guardServedHtml({ manifest: example, html: inert, requests: ["https://googleads.g.doubleclick.net/pagead/viewthroughconversion/1"] });
-  assert.deepEqual(plain(g4.violations), [{ kind: "request", url: "https://googleads.g.doubleclick.net/pagead/viewthroughconversion/1" }], "a pre-consent request to a declared host fails");
+  assert.equal(core.guardServedHtml({ manifest: example, html: inert + '<script async src="https://www.googletagmanager.com/gtag/js?id=AW-000000000"></script>', requests: [] }).violations[0].element, "script", "a tag loader in served HTML fails");
+  assert.deepEqual(plain(core.guardServedHtml({ manifest: example, html: inert, requests: ["https://googleads.g.doubleclick.net/pagead/viewthroughconversion/1"] }).violations), [{ kind: "request", url: "https://googleads.g.doubleclick.net/pagead/viewthroughconversion/1" }], "a pre-consent request to a declared host fails");
   assert.equal(core.guardServedHtml({ manifest: example, html: '<img src="https://sub.video.example.invalid/t.png">', requests: [] }).ok, false, "subdomains of a declared host count");
+  assert.equal(core.guardServedHtml({ manifest: example, html: '<iframe src="//video.example.invalid/embed/1"></iframe>', requests: [] }).ok, false, "protocol-relative URLs count");
+  assert.equal(core.guardServedHtml({ manifest: example, html: '<img srcset="/local.png 1x, https://video.example.invalid/a.png 2x">', requests: [] }).violations[0].attribute, "srcset", "every srcset candidate counts");
+  assert.equal(core.guardServedHtml({ manifest: example, html: '<iframe src="https:&#47;&#47;video.example.invalid/embed/1"></iframe>', requests: [] }).ok, false, "entity-encoded URLs count");
+  assert.equal(core.guardServedHtml({ manifest: example, html: "<iframe src='https:&#x2F;&#x2F;video.example.invalid/e'></iframe>", requests: [] }).ok, false, "hex entities and single quotes count");
+  assert.deepEqual(plain(core.guardServedHtml({ manifest: example, html: '<iframe data-consent-embed="video" srcdoc="<p>hi</p>"></iframe>', requests: [] }).violations), [{ kind: "markup", element: "iframe", attribute: "srcdoc", url: "" }], "srcdoc on a gated embed fails");
+  assert.equal(core.guardServedHtml({ manifest: example, html: '<!-- <img src="https://video.example.invalid/t.png"> --><p>ok</p>', requests: [] }).ok, true, "commented-out markup is inert");
   assert.equal(core.guardServedHtml({ manifest: example, html: '<a href="https://video.example.invalid/">watch</a><link rel="stylesheet" href="/style.css">', requests: [] }).ok, true, "plain anchors and same-origin links are inert");
 }
 
 // ---- createCore with a fake environment -----------------------------------
 function fakeEnv(opts = {}) {
-  const state = { cookies: {}, session: {}, local: { _gcl_ls: "seeded" }, signal: false, bot: false, now, cleared: [] };
+  const state = { cookies: {}, session: {}, local: { _gcl_ls: "seeded" }, signal: false, bot: false, now, host: example.scope, cleared: [] };
   return {
     state,
     now: () => { if (opts.clockThrows) throw new Error("clock"); return state.now; },
+    host: () => { if (opts.hostThrows) throw new Error("host"); return state.host; },
     readCookie: (n) => { if (opts.readThrows) throw new Error("jar"); return state.cookies[n] ?? null; },
     writeCookie: (n, v) => { if (opts.writeThrows) throw new Error("jar"); if (opts.writeDrops) return true; state.cookies[n] = v; return true; },
     clearCookie: (st) => { state.cleared.push(st); Object.keys(state.cookies).forEach((k) => { if (new RegExp("^" + st.name.replace(/\*$/, ".*") + "$").test(k)) delete state.cookies[k]; }); },
@@ -180,17 +226,32 @@ function fakeEnv(opts = {}) {
   assert.equal(c.authorized("marketing"), false);
   assert.equal(c.signals().update.analytics_storage, "granted");
   assert.equal(c.signals().update.ad_storage, "denied");
+  const firstAt = core.parse(env.state.cookies.consent).granted[0].at;
+  env.state.now += 5 * DAY;
   assert.equal(c.grant(["measurement", "marketing"]).ok, true);
-  env.state.cookies._gcl_au = "x"; env.state.cookies._ga = "y"; env.state.session[`consent_fired_ads`] = "1";
+  const after = core.parse(env.state.cookies.consent);
+  assert.equal(after.granted.find((e) => e.id === "measurement").at, firstAt, "an unchanged grant keeps its original time");
+  assert.equal(after.granted.find((e) => e.id === "marketing").at, env.state.now, "a new grant is stamped now");
+  env.state.cookies._gcl_au = "x"; env.state.cookies._ga = "y"; env.state.session.consent_fired_ads = "1";
   assert.equal(c.grant(["marketing"]).ok, true, "dropping measurement");
   assert.ok(!("_ga" in env.state.cookies), "dropping measurement clears its declared cookies");
   assert.ok("_gcl_au" in env.state.cookies, "marketing storage untouched while marketing stays granted");
-  assert.deepEqual(plain(env.state.cleared.at(-1)), { name: "_ga*", path: "/", domain: null }, "cleanup passes the declared descriptor, host-only, at the declared path");
+  assert.deepEqual(plain(env.state.cleared.at(-1)), { name: "_ga*", path: "/", domain: null, exact: false }, "cleanup passes the declared descriptor, host-only, at the declared path");
   let seen = null; c.onChange((dd) => { seen = dd; });
   assert.equal(c.withdraw(), true);
   assert.ok(seen && seen.granted.marketing === false, "listeners see the withdrawal");
   assert.ok(!("_gcl_au" in env.state.cookies) && !("_gcl_ls" in env.state.local) && !("consent_fired_ads" in env.state.session), "withdrawal clears cookies, local storage and the adapter's conversion marker");
   assert.equal(c.current().prompt, false, "a stored refusal does not re-prompt");
+}
+
+{
+  // Exact names are cleared unconditionally at their declared path; wildcards by visible match
+  const m = plain(example); m.services[2].storage = [{ kind: "cookie", name: "video_pref", path: "/app" }];
+  const env = fakeEnv();
+  const c = core.createCore(m, env);
+  assert.equal(c.grantService("video").ok, true);
+  assert.equal(c.withdraw(), true);
+  assert.ok(env.state.cleared.some((st) => st.name === "video_pref" && st.path === "/app" && st.exact === true), "an exact cookie name is deleted at its declared path without enumeration");
 }
 
 {
@@ -219,36 +280,91 @@ function fakeEnv(opts = {}) {
   env.state.signal = false;
   assert.equal(c.authorized("marketing"), false, "signal disappearance does not revive the superseded grant");
 }
+{
+  // A signal observed mid-page is latched; an empty grant under a signal still persists the refusal
+  const env = fakeEnv();
+  env.state.cookies.consent = core.serialize(rec(["marketing"]));
+  const c = core.createCore(example, env);
+  assert.equal(c.boot().granted.marketing, true);
+  env.state.signal = true;
+  assert.equal(c.grant([]).ok, true, "an empty grant is a refusal even while a signal refuses new grants");
+  assert.ok(env.state.cookies.consent.includes(";g=;s=;"));
+  env.state.signal = false;
+  assert.equal(c.authorized("marketing"), false, "the old grant does not revive after the signal disappears");
+  const env2 = fakeEnv();
+  env2.state.cookies.consent = core.serialize(rec(["marketing"]));
+  const c2 = core.createCore(example, env2);
+  c2.boot();
+  env2.state.signal = true;
+  assert.equal(c2.authorized("marketing"), false);
+  env2.state.signal = false;
+  assert.equal(c2.authorized("marketing"), false, "merely observing a signal latches the in-page revocation");
+}
 
 {
   // Storage failure: dropped cookie writes → grant fails closed; refusal falls back to the session flag
   const env = fakeEnv({ writeDrops: true });
   const c = core.createCore(example, env);
-  assert.equal(c.grant(["marketing"]).ok, false, "a grant that cannot be read back is no grant");
+  const r = c.grant(["marketing"]);
+  assert.equal(r.ok, false, "a grant that cannot be read back is no grant");
+  assert.equal(r.persisted, true, "…and its refusal is recorded in the session");
   assert.equal(c.authorized("marketing"), false);
-  assert.equal(env.state.session[c.revokeKey], "1", "refusal recorded in the session when the cookie jar drops writes");
+  assert.equal(env.state.session[c.revokeKey], "1");
 }
 {
-  // Withdrawal whose refusal cannot be stored anywhere reports failure (the renderer then must not reload)
+  // Withdrawal whose refusal cannot be stored anywhere reports failure (the renderer then carries a URL marker)
   const env = fakeEnv({ writeDrops: true, sessionWriteThrows: true });
   env.state.cookies.consent = core.serialize(rec(["marketing"]));
   const c = core.createCore(example, env);
   assert.equal(c.boot().granted.marketing, true);
-  assert.equal(c.grant([]).ok, false, "grant([]) reports the persistence failure");
+  const r = c.grant([]);
+  assert.equal(r.ok, false); assert.equal(r.persisted, false, "grant([]) reports the persistence failure");
   assert.equal(c.withdraw(), false);
   assert.equal(c.authorized("marketing"), false, "…but the in-page revocation holds");
 }
 {
+  // Failed "always allow" refuses everything and reports it
+  const env = fakeEnv();
+  const c = core.createCore(example, env);
+  assert.equal(c.grant(["marketing"]).ok, true);
+  const inst = {};
+  assert.equal(c.loadOnce("video", inst), true);
+  env.state.cookies = new Proxy(env.state.cookies, { set: (t, k, v) => { if (k === "consent" && v.includes("s=video")) return true; t[k] = v; return true; } });
+  const r = c.grantService("video");
+  assert.equal(r.ok, false, "a service grant that cannot be read back fails");
+  assert.equal(c.authorized("marketing"), false, "…and the failed grant refuses everything");
+  assert.equal(c.authorizedInstance("video", inst), false, "…including one-time instances");
+}
+{
   // Throwing accessors: nothing loads, nothing throws out of the core
-  for (const opts of [{ readThrows: true, writeThrows: true }, { sessionReadThrows: true }, { signalThrows: true }, { clockThrows: true }]) {
+  for (const opts of [{ readThrows: true, writeThrows: true }, { sessionReadThrows: true }, { signalThrows: true }, { clockThrows: true }, { hostThrows: true }]) {
     const env = fakeEnv(opts);
     env.state.cookies.consent = core.serialize(rec(["marketing"]));
     const c = core.createCore(example, env);
     assert.doesNotThrow(() => c.boot(), JSON.stringify(opts));
     assert.equal(c.authorized("marketing"), false, `no authorisation under ${JSON.stringify(opts)}`);
     assert.equal(c.grant(["marketing"]).ok, false);
+    // a one-time embed needs no storage: only broken clock, session, signal or host readers block it
+    if (!opts.readThrows) assert.equal(c.loadOnce("video", {}), false, `no load-once under ${JSON.stringify(opts)}`);
     assert.doesNotThrow(() => c.withdraw());
   }
+  // a failing clock after a load-once revokes the instance too
+  const env = fakeEnv();
+  const c = core.createCore(example, env);
+  const inst = {};
+  assert.equal(c.loadOnce("video", inst), true);
+  env.now = () => { throw new Error("clock"); };
+  assert.equal(c.authorizedInstance("video", inst), false);
+}
+{
+  // Wrong host: the manifest scope must match the surface
+  const env = fakeEnv();
+  env.state.host = "other.example.invalid";
+  env.state.cookies.consent = core.serialize(rec(["marketing"]));
+  const c = core.createCore(example, env);
+  assert.equal(c.boot().granted.marketing, false, "a record on the wrong host authorises nothing");
+  assert.equal(c.grant(["marketing"]).ok, false);
+  assert.equal(c.authorized("necessary"), false, "even the required category is closed on the wrong host");
 }
 {
   // Session revocation from a previous page outranks a surviving grant cookie; a new grant clears it
@@ -263,7 +379,7 @@ function fakeEnv(opts = {}) {
 }
 
 {
-  // Embeds: instance-bound load once, service-scoped remembered permission
+  // Embeds: instance-bound load once, service-scoped remembered permission, scoped revocation
   const env = fakeEnv();
   const c = core.createCore(example, env);
   c.boot();
@@ -275,22 +391,33 @@ function fakeEnv(opts = {}) {
   assert.equal(c.authorized("embeds"), false, "…and persists no category grant");
   assert.equal(c.grant(["measurement"]).ok, true, "saving measurement only");
   assert.equal(c.authorizedInstance("video", b), false, "does not open other embed instances");
+  assert.equal(c.authorizedInstance("video", a), true, "…and leaves the one-time instance alone");
+  assert.equal(c.grant(["measurement", "embeds"]).ok, true);
+  assert.equal(c.grant(["measurement"]).ok, true, "dropping the embeds category");
+  assert.equal(c.authorizedInstance("video", a), false, "…kills the one-time permission of its services");
   const c2 = core.createCore(example, env);
   assert.equal(c2.authorizedInstance("video", a), false, "load once does not carry into the next page view");
   assert.equal(c2.grantService("video").ok, true, "always allow remembers the named service");
   assert.equal(c2.authorizedService("video"), true);
   assert.equal(c2.authorized("embeds"), false, "…without granting its whole category");
+  assert.deepEqual(plain(c2.current().services), ["video"]);
+  assert.equal(c2.grant(["measurement"]).ok, true, "a category-only grant keeps the remembered service by default");
+  assert.equal(c2.authorizedService("video"), true);
+  assert.equal(c2.grant(["measurement"], []).ok, true, "an explicit empty service list revokes it");
+  assert.equal(c2.authorizedService("video"), false);
+  assert.equal(c2.grant([], []).ok, true);
+  assert.equal(c2.current().prompt, false, "saving everything off persists a refusal");
   const m2 = plain(example); m2.services.push({ id: "map", category: "embeds", provider: "Example Maps", purposes: ["map"], embed: { host: "maps.example.invalid" } }); m2.text.en.services.map = { label: "Map" };
-  const c3 = core.createCore(m2, env);
+  const env3 = fakeEnv();
+  const c3 = core.createCore(m2, env3);
+  assert.equal(c3.grantService("video").ok, true);
   assert.equal(c3.authorizedService("video"), true);
   assert.equal(c3.authorizedService("map"), false, "another provider in the same category stays closed");
-  assert.equal(c3.grant(["measurement"]).ok, true, "a category grant elsewhere keeps the remembered service");
-  assert.equal(c3.authorizedService("video"), true);
   assert.equal(c3.grant(["measurement", "embeds"]).ok, true);
   assert.equal(c3.authorizedService("map"), true, "granting the category opens every service in it");
   assert.equal(c3.grant(["measurement"]).ok, true, "dropping the category drops its remembered services too");
   assert.equal(c3.authorizedService("video"), false);
-  env.state.signal = true;
+  env3.state.signal = true;
   assert.equal(c3.loadOnce("video", a), false, "a privacy signal blocks load once");
   assert.equal(c3.authorizedInstance("video", a), false);
 }
@@ -318,6 +445,7 @@ function fakeEnv(opts = {}) {
     assert.equal(c.boot().prompt, false);
     assert.equal(c.authorized("marketing"), false);
     assert.equal(c.grant(["marketing"]).ok, false);
+    assert.equal(c.grantService("video").ok, false);
     assert.doesNotThrow(() => c.withdraw());
     assert.deepEqual(env.state.cookies, {});
   }
@@ -330,8 +458,12 @@ assert.ok(/if \(!core\.authorized\(s\.category\) \|\| !core\.authorizedService\(
 assert.ok(/if \(!core\.authorizedService\(s\.id\)\) return;/.test(source), "a conversion re-checks authorisation before it is queued");
 assert.ok(/cookie_domain: location\.hostname/.test(source), "destination cookies stay on the consenting host");
 assert.ok(/if \(d\.prompt && !env\.bot\(\)\) renderBar\(\);/.test(source), "hiding the bar from bots never touches the loader");
-assert.ok(/if \(result\.ok\) location\.reload\(\);/.test(source), "reload only after a persisted refusal");
+assert.ok(/if \(result\.persisted === false\) \{[\s\S]*REVOKE_HASH[\s\S]*location\.reload\(\);/.test(source), "an unpersisted refusal reloads with a URL revocation marker");
+assert.ok(/if \(location\.hash\.indexOf\(REVOKE_HASH\) >= 0\) \{\s*core\.refuse\(\);/.test(source), "the marker closes the gate on the next document before any grant is read");
+assert.ok(/settle\(core\.grantService\(s\.id\), false\)/.test(source), "always allow settles like every other grant");
 assert.ok(/node\.removeAttribute\("src"\);\s*node\.removeAttribute\("srcdoc"\);/.test(source), "embed teardown removes src and srcdoc");
+assert.ok(/node\.hasAttribute\("srcdoc"\)/.test(source), "a served srcdoc is treated as live content");
+assert.ok(/ic-svc-/.test(source), "remembered services have their own settings rows");
 assert.ok(!/innerHTML/.test(source), "no innerHTML sink in the renderer");
 assert.ok(!/uuid|crypto\.randomUUID/.test(source), "no generated identifiers anywhere");
 assert.ok(/value: c\.value === undefined \? 1\.0 : c\.value/.test(source), "a conversion value of zero is preserved");
