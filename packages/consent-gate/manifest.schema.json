@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://inspr.at/schemas/consent-gate-manifest-1.json",
+  "title": "consent-gate manifest",
+  "type": "object",
+  "required": ["version", "revision", "categories", "services", "text"],
+  "additionalProperties": false,
+  "properties": {
+    "version": { "const": 1 },
+    "revision": { "type": "integer", "minimum": 1, "description": "Bump only for a material change of purposes." },
+    "cookieName": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$" },
+    "maxAgeDays": { "type": "integer", "minimum": 1, "maximum": 365 },
+    "language": { "type": "string", "pattern": "^[a-z]{2}$" },
+    "privacyUrl": { "type": "string" },
+    "categories": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object", "required": ["id"], "additionalProperties": false,
+        "properties": { "id": { "$ref": "#/$defs/id" }, "required": { "type": "boolean" } }
+      }
+    },
+    "services": {
+      "type": "array",
+      "items": {
+        "type": "object", "required": ["id", "category", "provider"], "additionalProperties": false,
+        "properties": {
+          "id": { "$ref": "#/$defs/id" },
+          "category": { "$ref": "#/$defs/id" },
+          "provider": { "type": "string", "minLength": 1 },
+          "storage": {
+            "type": "array",
+            "items": {
+              "type": "object", "required": ["kind", "name"], "additionalProperties": false,
+              "properties": {
+                "kind": { "enum": ["cookie", "local", "session"] },
+                "name": { "type": "string", "minLength": 1, "description": "Cookie names may end in * as a prefix wildcard." },
+                "days": { "type": "integer", "minimum": 0 }
+              }
+            }
+          },
+          "destination": {
+            "type": "object", "required": ["type", "tagId", "consent"], "additionalProperties": false,
+            "properties": {
+              "type": { "const": "gtag" },
+              "tagId": { "type": "string", "minLength": 1 },
+              "consent": {
+                "type": "array", "minItems": 1,
+                "items": { "enum": ["ad_storage", "ad_user_data", "ad_personalization", "analytics_storage", "functionality_storage", "personalization_storage"] }
+              },
+              "linkerAcceptIncoming": { "type": "boolean" },
+              "conversion": {
+                "type": "object", "required": ["sendTo"], "additionalProperties": false,
+                "properties": { "sendTo": { "type": "string" }, "value": { "type": "number" }, "currency": { "type": "string" } }
+              }
+            }
+          },
+          "embed": {
+            "type": "object", "required": ["host"], "additionalProperties": false,
+            "properties": { "host": { "type": "string", "minLength": 1 } }
+          }
+        },
+        "oneOf": [{ "required": ["destination"] }, { "required": ["embed"] }]
+      }
+    },
+    "text": {
+      "type": "object", "minProperties": 1,
+      "additionalProperties": {
+        "type": "object", "required": ["bar", "sheet", "embed", "control", "categories"],
+        "properties": {
+          "bar": { "type": "object", "required": ["text", "accept", "reject", "settings"], "properties": { "text": { "type": "string" }, "link": { "type": "string" }, "accept": { "type": "string" }, "reject": { "type": "string" }, "settings": { "type": "string" } } },
+          "sheet": { "type": "object", "required": ["title", "intro", "save", "cancel"], "properties": { "title": { "type": "string" }, "intro": { "type": "string" }, "save": { "type": "string" }, "cancel": { "type": "string" }, "link": { "type": "string" } } },
+          "embed": { "type": "object", "required": ["loadOnce", "always", "open"], "properties": { "loadOnce": { "type": "string" }, "always": { "type": "string" }, "open": { "type": "string" } } },
+          "control": { "type": "string" },
+          "categories": { "type": "object", "additionalProperties": { "type": "object", "required": ["label"], "properties": { "label": { "type": "string" }, "description": { "type": "string" } } } },
+          "services": { "type": "object", "additionalProperties": { "type": "object", "properties": { "label": { "type": "string" }, "description": { "type": "string" } } } }
+        }
+      }
+    }
+  },
+  "$defs": { "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,31}$" } }
+}

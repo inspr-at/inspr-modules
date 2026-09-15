@@ -143,6 +143,13 @@
             pkgs.runCommand "calendar-version-display.css" { nativeBuildInputs = [ pkgs.python3 ]; } ''
               python3 ${./scripts/render-calendar-version-display.py} ${./lib/calendar-version-display.json} > $out
             '';
+          # consent-gate: identity-free consent primitive (INSPR-431). Consumers
+          # vendor consent-gate.js/.css into their own assets and pin the bytes.
+          consent-gate = pkgs.runCommand "consent-gate" { } ''
+            mkdir -p $out
+            cp -r ${./packages/consent-gate}/. $out/
+            cp ${./scripts/check-consent-gate-vendored.sh} $out/check-consent-gate-vendored.sh
+          '';
         };
 
         # ── Test suite (run via `nix flake check`) ───────────────────────
@@ -277,6 +284,16 @@
             # The display weights are data (INSPR-400): the JSON validates, the
             # doctrine's CSS block and prose numbers equal the rendered data,
             # and the flake package renders the same bytes.
+            # consent-gate core: manifest validation, tiers, decisions, Consent
+            # Mode signals, storage failure modes, embeds, bots (INSPR-431).
+            consent-gate = pkgs.runCommand "consent-gate" { nativeBuildInputs = [ pkgs.nodejs_24 ]; } ''
+              cd ${self}
+              node tests/consent-gate.mjs
+              bash scripts/check-consent-gate-vendored.sh packages/consent-gate/consent-gate.js \
+                "$(sha256sum packages/consent-gate/consent-gate.js | cut -d' ' -f1)" packages/consent-gate/consent-gate.js >/dev/null
+              touch $out
+            '';
+
             calendar-version-display = pkgs.runCommand "calendar-version-display"
               {
                 nativeBuildInputs = [
