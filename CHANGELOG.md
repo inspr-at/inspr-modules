@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Adversarial review gates doctrine (INSPR-434).** `docs/AGENTS-DOMAIN-DEV.md`
+  gains "Pattern: adversarial review gates": whoever implements does not
+  review; the gate is a frontier model from a different family than the
+  author, chosen top-down from a ladder (League 1: Codex `gpt-6-astra` xhigh,
+  Claude Fable 5.1 xhigh; League 2: Grok 4.6 xhigh; then the owner); the
+  reviewer runs read-only, only an explicit `ok` opens the gate, and the
+  ticket records model, effort, commit, verdict and each skipped ladder
+  entry with its reason.
+
 ## [0.12.0] - 2026-09-15
 
 ### Changed

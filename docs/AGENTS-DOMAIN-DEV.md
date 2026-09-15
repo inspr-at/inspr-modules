@@ -2,7 +2,7 @@
 
 *Layer: `domain:dev` · INSPR-189 Phase 6 · Loaded on demand by `/dev`.*
 
-Detailed rules for code work: git, build/test gates, style, refactor, gh CLI, just, scripts, editing discipline. Kernel (auto-loaded) covers destructive-git irreversibles and basic identity/style. This pack adds daily-workflow depth.
+Detailed rules for code work: git, build/test gates, adversarial review gates, style, refactor, gh CLI, just, scripts, editing discipline. Kernel (auto-loaded) covers destructive-git irreversibles and basic identity/style. This pack adds daily-workflow depth.
 
 **Load before**: code editing, refactor, multi-commit work, PR work, test/lint gates. Pair with `/secrets` for credentials, `/nix` for nix code.
 
@@ -59,6 +59,13 @@ Before project bootstrap or release/deployment, read [AGENTS-VERSIONING.md](AGEN
 - 🟡 Update docs (README/RUNBOOK) when behavior or API changes — no ship without docs.
 - 🟡 After shipping anything claimed-as-done, do a structured C/H/M/O severity pass through the artifacts: "would this withstand a tough security and validity audit?".
 - 🟡 A claimed-as-done change must name its durable, inspectable artifact evidence. For code, record the repository plus commit or commit range; for deployments, bind the exact release/image/digest to a live behavior check; for documents and generated assets, name the durable artifact/version. Status prose, timestamps, and “tests passed” without the resulting artifact are not a completion trail.
+
+## Pattern: adversarial review gates
+
+- 🔴 **Whoever implements does not review.** Product-delivery taste, review and merge gates go to a frontier model from a **different model family** than the author. A model of the same family (any size, any tier) is still the author's family and is never the gate.
+- 🟡 **Walk the ladder top-down, in the order listed, skipping the author's family.** League 1: (1) Codex `gpt-6-astra` at xhigh reasoning; (2) Claude Fable 5.1 at xhigh. League 2: (3) Grok 4.6 at xhigh. Select the first eligible reviewer available at the specified model and reasoning effort. If none is available, ask the owner; the gate stays closed until the owner's explicit `ok`.
+- 🟡 The reviewer runs **read-only** (Bash / CLI sandbox), gets the diff, the ticket and the acceptance criteria, and returns a verdict. Only an explicit `ok` opens the gate; any other verdict keeps it closed and the findings go back to the author.
+- 🟡 **Evidence on the ticket, recorded by the coordinator**: reviewer model, reasoning effort, reviewed commit, verdict, and each preceding ladder entry skipped with its reason (author's family or unavailable). For owner fallback, record reviewer `owner`, model and effort `not applicable`, reviewed commit, the owner's explicit verdict, and why every ladder entry was ineligible or unavailable. A gate without evidence did not happen.
 
 ## Pattern: critical thinking & editing discipline
 
