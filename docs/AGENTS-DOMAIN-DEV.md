@@ -2,7 +2,7 @@
 
 *Layer: `domain:dev` · INSPR-189 Phase 6 · Loaded on demand by `/dev`.*
 
-Detailed rules for code work: git, build/test gates, style, refactor, gh CLI, just, scripts, editing discipline. Kernel (auto-loaded) covers destructive-git irreversibles and basic identity/style. This pack adds daily-workflow depth.
+Detailed rules for code work: git, build/test gates, style, refactor, gh CLI, just, scripts, editing discipline, web cookie-consent tiers. Kernel (auto-loaded) covers destructive-git irreversibles and basic identity/style. This pack adds daily-workflow depth.
 
 **Load before**: code editing, refactor, multi-commit work, PR work, test/lint gates. Pair with `/secrets` for credentials, `/nix` for nix code.
 
@@ -118,6 +118,18 @@ Kernel: never create new `.md` files unless explicitly requested; prefer editing
 - 🟡 Prefix commands >10s with `date &&` (bash) or `date; and` (fish) for timestamping. Applies to nix builds, docker ops, large file ops, test suites, package installs.
 - 🟡 Background or zellij session for jobs >30s.
 - 🟡 Terminal multiplexer is **zellij**, NOT tmux. Layouts in `~/.config/zellij/`. _(Was a kernel rule until the INSPR-189 budget audit; demoted here because it is a preference, not a turn-1 irreversible.)_
+
+## Pattern: web surfaces — cookies & consent
+
+Applies to every browser-facing surface: product UIs, marketing sites, docs, landing pages, self-hosted deployments. Legal trigger is ePrivacy Art. 5(3) as implemented at the operator's seat (EU seat: national telecom law + GDPR): consent is owed for any **non-essential** storage on or read from the visitor's device, and for any third-party request that does so. Research and case law: umbrella knowledge entry `web-cookie-consent-tiers` (INSPR-429).
+
+- 🔴 **Inventory before UI.** List every cookie / storage key / third-party host the served HTML and runtime load: setter, purpose, lifetime, category (`necessary | measurement | embeds | marketing`), legal basis. No inventory → no consent design.
+- 🔴 **Tier 0 is the default: no banner.** Session, auth (incl. identity-provider session), CSRF, load-balancer, language, UI state, the consent-status cookie itself, and cookieless analytics (no device storage, no persistent identifier, EU hosting) need no consent and get no banner. The privacy page says explicitly that no analytics, advertising or social cookies exist. A banner "to be safe" is a defect.
+- 🔴 **Tier 1 is contextual.** A third-party embed (video, map, scheduling, chat) renders as a placeholder at its own position: provider named, transfer named, two equal actions (load once / always allow), escape link to the provider. No page-level banner; no provider thumbnail before consent.
+- 🔴 **Tier 2 only for real trackers.** Advertising / analytics tags that set cookies get a non-modal bottom bar or corner card: accept and reject on the first layer, identical size, colour, contrast (≥ 3:1) and typography; no pre-ticked category; close = reject; no wall; withdrawal via a permanent footer control. Tags load only **after** consent; Google Consent Mode v2 in **basic** mode (no tag, no ping before consent).
+- 🟡 **Automatisms.** `navigator.globalPrivacyControl` / `Sec-GPC` / DNT → silent reject, no banner. Remember a refusal ≥ 6 months; re-ask only when the inventory revision changes. Share the consent cookie across sub-domains of one registrable domain, never across domains. Hide from bots; respect `prefers-reduced-motion`; keyboard-first; DE/EN from document language.
+- 🟡 **Blocking is the compliance, the banner is only UI.** Acceptance test per surface: fresh browser profile, served HTML plus first-paint network, no tracker / embed / third-party font host before consent. Ship the guard test with the change.
+- 🟡 **First-party only.** Self-hosted consent code (the shared consent primitive once it exists, else a vendored MIT/BSD library), self-hosted fonts, no consent SaaS, no consent CDN. Consent UI uses the surface's design tokens, not a vendor theme. Self-hosted deployments of a product ship the consent component **off**; the operator enables it.
 
 ## Sync triad (Prime Directive)
 

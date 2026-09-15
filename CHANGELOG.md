@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Web cookie-consent tiers doctrine (INSPR-430).** `docs/AGENTS-DOMAIN-DEV.md`
+  gains "Pattern: web surfaces — cookies & consent": inventory before UI;
+  Tier 0 (no banner) as the default for surfaces with only necessary cookies or
+  cookieless analytics; Tier 1 contextual placeholders at embeds; Tier 2
+  non-modal bar with equal accept/reject and block-before-consent (Google
+  Consent Mode v2 basic) only for real trackers; GPC/DNT as silent reject,
+  6-month refusal memory, revision-based re-ask, sub-domain-only sharing;
+  a per-surface guard test as the acceptance bar; first-party code only, and
+  consent components off by default in self-hosted deployments.
+
 ## [0.12.0] - 2026-09-15
 
 ### Changed
