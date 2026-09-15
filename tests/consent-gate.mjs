@@ -489,6 +489,24 @@ function fakeEnv(opts = {}) {
 }
 
 {
+  // A later one-time permission is honoured after a refusal; a subsequent signal clears it
+  const env = fakeEnv();
+  const c = core.createCore(example, env);
+  c.boot();
+  assert.equal(c.refuse().persisted, true);
+  const a = {}, b = {};
+  assert.equal(c.loadOnce("video", a), true);
+  assert.equal(c.loadOnce("video", b), true);
+  assert.equal(c.authorizedInstance("video", a), true, "the first instance stays authorised after a second load-once");
+  assert.equal(c.authorizedInstance("video", b), true);
+  assert.equal(c.authorizedService("video"), false, "the refusal still bars stored grants");
+  env.state.signal = true;
+  assert.equal(c.authorizedInstance("video", a), false, "a subsequent signal clears one-time permissions");
+  env.state.signal = false;
+  assert.equal(c.authorizedInstance("video", a), false, "…and they do not return with the signal gone");
+}
+
+{
   // Bots: nothing authorised, nothing prompted, nothing persisted
   const env = fakeEnv();
   env.state.bot = true;

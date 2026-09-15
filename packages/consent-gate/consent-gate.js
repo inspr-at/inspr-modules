@@ -412,7 +412,7 @@
     // a refusal at once, so the next document does not revive an older grant.
     function signal() {
       var v = attempt(function () { return env.signal() === true; }, BLOCKED);
-      if (v === true && !revoked && !latching && !invalid) { latching = true; try { refuseAll(); } finally { latching = false; } }
+      if (v === true && (!revoked || onceInstances.length > 0) && !latching && !invalid) { latching = true; try { refuseAll(); } finally { latching = false; } }
       if (v === true) revoked = true;
       return v;
     }
@@ -584,10 +584,12 @@
         onceInstances.push({ service: serviceId, instance: instance });
         return true;
       },
+      // A one-time instance permission given after a refusal is honoured
+      // (it is a newer, narrower choice); the refusal still bars stored grants.
       authorizedInstance: function (serviceId, instance) {
-        if (invalid || blockedNow() || signal() !== false || bot() !== false || !isFinite(now()) || revoked) return false;
+        if (invalid || blockedNow() || signal() !== false || bot() !== false || !isFinite(now())) return false;
         if (onceInstances.some(function (o) { return o.service === serviceId && o.instance === instance; })) return true;
-        return this.authorizedService(serviceId);
+        return !revoked && this.authorizedService(serviceId);
       },
       authorizedService: function (serviceId) {
         if (invalid) return false;
@@ -828,6 +830,10 @@
     if (settling) return;
     settling = true;
     try {
+      // A confirmed, persisted decision retires a stale revocation marker.
+      if (result.persisted === true && result.decision && location.hash.indexOf(REVOKE_HASH) >= 0) {
+        try { history.replaceState(null, "", location.pathname + location.search); } catch (_) { /* keep the marker */ }
+      }
       // Decide about loaded destinations before anything new is loaded.
       var lost = dropping || result.ok === false || lostAuthorization();
       if (lost && anyDestinationLoaded()) {

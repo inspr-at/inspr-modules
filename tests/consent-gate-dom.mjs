@@ -102,7 +102,7 @@ function boot(manifest, opts = {}) {
     },
   });
   // page content: an embed per embed service, a footer control, the manifest
-  for (const s of manifest.services) if (s.embed) { const f = new Node("iframe"); f.setAttribute("data-consent-embed", s.id); f.setAttribute("data-src", "https://" + s.embed.host + "/embed/1"); document.body.appendChild(f); }
+  for (const s of manifest.services) if (s.embed) for (let i = 0; i < (opts.embedsPerService || 1); i++) { const f = new Node("iframe"); f.setAttribute("data-consent-embed", s.id); f.setAttribute("data-src", "https://" + s.embed.host + "/embed/" + (i + 1)); document.body.appendChild(f); }
   const control = new Node("button"); control.setAttribute("data-consent-open", ""); document.body.appendChild(control);
   const navigator = { userAgent: opts.ua || "Mozilla/5.0 (Macintosh) Chrome/141.0", globalPrivacyControl: !!opts.signal, doNotTrack: null };
   class FakeDate extends Date { constructor(...a) { super(...(a.length ? a : [state.now * 1000])); } static now() { return state.now * 1000; } }
@@ -247,6 +247,38 @@ const withGrant = (jar, manifest, granted, services = []) => {
   p.control.click(); // reconcile → renderEmbeds → deactivate
   assert.equal(node.attrs.srcdoc, undefined, "srcdoc removed");
   assert.ok(p.state.warnings.some((w) => /integration error/.test(w)), "warning emitted");
+}
+{
+  // reject, then load once on two instances: both stay live, opening Privacy keeps them, a later signal clears them
+  const p = boot(example, { embedsPerService: 2 });
+  p.clickButton("Reject");
+  const [a, b] = p.embeds();
+  p.clickButton("Load once", a.previousElementSibling);
+  p.clickButton("Load once", b.previousElementSibling);
+  assert.equal(a.attrs.src, "https://video.example.invalid/embed/1", "first instance live");
+  assert.equal(b.attrs.src, "https://video.example.invalid/embed/2", "second instance live after the first");
+  p.control.click();
+  assert.equal(a.attrs.src, "https://video.example.invalid/embed/1", "opening Privacy keeps a one-time instance");
+  p.clickButton("Cancel", p.sheet());
+  p.navigator.globalPrivacyControl = true;
+  p.control.click();
+  assert.equal(a.attrs.src, undefined, "a later signal tears one-time instances down");
+  assert.equal(b.attrs.src, undefined);
+  assert.equal(p.state.reloads, 0);
+}
+{
+  // a stale revocation marker retires once a decision persisted; the remembered grant survives the next document
+  const jar = withGrant({ list: [] }, example, ["marketing"]);
+  const p = boot(example, { jar, hash: "#consent-revoked", writers: "drop" });
+  assert.equal(p.location.hash, "#consent-revoked");
+  p.writers.mode = "ok";
+  p.clickButton("Always allow");
+  assert.equal(p.embeds()[0].attrs.src, "https://video.example.invalid/embed/1", "the service grant loads the embed");
+  assert.ok(p.consentCookie().includes("s=video@"), "the service grant persisted");
+  assert.equal(p.location.hash, "", "the stale marker was retired by the persisted decision");
+  const p2 = boot(example, { jar, hash: p.location.hash });
+  assert.ok(p2.consentCookie().includes("s=video@"), "the next document keeps the remembered grant");
+  assert.equal(p2.embeds()[0].attrs.src, "https://video.example.invalid/embed/1");
 }
 {
   // crawler: no bar, nothing loads, nothing stored
