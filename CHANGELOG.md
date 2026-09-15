@@ -29,6 +29,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reviewer runs read-only, only an explicit `ok` opens the gate, and the
   ticket records model, effort, commit, verdict and each skipped ladder
   entry with its reason.
+  Amended (INSPR-436): the Claude rung is Fable 5.1 xhigh with Opus 5 xhigh as
+  the in-family fallback when Fable's usage cap is reached; in-rung fallbacks
+  are recorded as evidence.
 
 ## [0.12.0] - 2026-09-15
 
