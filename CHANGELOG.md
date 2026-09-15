@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **consent-gate (INSPR-431).** `packages/consent-gate/` is the identity-free
+  consent primitive behind the doctrine's web-surface pattern: a manifest per
+  surface declares categories, services (destinations or embeds, with their
+  declared storage) and texts; the gate renders nothing, contextual embed
+  placeholders, or a non-modal bar with equivalent accept/reject, keeps the
+  decision in a host-only cookie without identifier, treats GPC/DNT as
+  refusal, fails closed on invalid manifests and broken storage, clears
+  declared storage on withdrawal, and drives Google Consent Mode v2 in basic
+  mode. `packages.<system>.consent-gate` exposes the files, the `consent-gate`
+  flake check runs the Node core suite, and
+  `scripts/check-consent-gate-vendored.sh` pins a consumer's vendored copy.
+
 ## [0.13.0] - 2026-09-15
 
 ### Added
