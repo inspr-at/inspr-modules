@@ -2,7 +2,7 @@
 
 *Layer: `domain:dev` · INSPR-189 Phase 6 · Loaded on demand by `/dev`.*
 
-Detailed rules for code work: git, build/test gates, style, refactor, gh CLI, just, scripts, editing discipline. Kernel (auto-loaded) covers destructive-git irreversibles and basic identity/style. This pack adds daily-workflow depth.
+Detailed rules for code work: git, build/test gates, adversarial review gates, style, refactor, gh CLI, just, scripts, editing discipline. Kernel (auto-loaded) covers destructive-git irreversibles and basic identity/style. This pack adds daily-workflow depth.
 
 **Load before**: code editing, refactor, multi-commit work, PR work, test/lint gates. Pair with `/secrets` for credentials, `/nix` for nix code.
 
@@ -59,6 +59,13 @@ Before project bootstrap or release/deployment, read [AGENTS-VERSIONING.md](AGEN
 - 🟡 Update docs (README/RUNBOOK) when behavior or API changes — no ship without docs.
 - 🟡 After shipping anything claimed-as-done, do a structured C/H/M/O severity pass through the artifacts: "would this withstand a tough security and validity audit?".
 - 🟡 A claimed-as-done change must name its durable, inspectable artifact evidence. For code, record the repository plus commit or commit range; for deployments, bind the exact release/image/digest to a live behavior check; for documents and generated assets, name the durable artifact/version. Status prose, timestamps, and “tests passed” without the resulting artifact are not a completion trail.
+
+## Pattern: adversarial review gates
+
+- 🔴 **Whoever implements does not review.** Product-delivery taste, review and merge gates go to a frontier model from a **different model family** than the author. A model of the same family (any size, any tier) is still the author's family and is never the gate.
+- 🟡 **Ladder, walked top-down; take the first available reviewer that is not the author's family.** League 1: Codex `gpt-6-astra` at xhigh reasoning · Claude Fable 5.1 at xhigh. League 2: Grok 4.6 at xhigh. Claude-authored work → Astra, else Grok. Codex-authored work → Fable, else Grok. Grok-authored work → Astra or Fable. Nobody eligible available → ask the owner.
+- 🟡 The reviewer runs **read-only** (Bash / CLI sandbox), gets the diff, the ticket and the acceptance criteria, and returns a verdict. Only an explicit `ok` opens the gate; any other verdict keeps it closed and the findings go back to the author.
+- 🟡 **Evidence on the ticket**: reviewer model, reasoning effort, reviewed commit, verdict, and — when League 1 was skipped — the fallback and its reason. A gate without evidence did not happen.
 
 ## Pattern: critical thinking & editing discipline
 
