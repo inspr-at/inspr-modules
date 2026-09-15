@@ -8,8 +8,9 @@ load and what to render. It implements the doctrine pattern
 - **Tier 0** — the manifest has no optional service: nothing is rendered
   except an optional `[data-consent-open]` control that opens the sheet.
 - **Tier 1** — only embeds need consent: a contextual placeholder replaces
-  each `[data-consent-embed]` element until "load once" (this page view) or
-  "always allow" (persisted for the category). No page-level bar.
+  each `[data-consent-embed]` element until "load once" (that element, this
+  page view) or "always allow" (the named service, persisted). No page-level
+  bar.
 - **Tier 2** — a service has a tracking destination: a non-modal bar with
   equivalent **reject** and **accept** buttons, a **settings** link and a
   category sheet. Escape or cancelling the sheet during the first prompt
@@ -18,10 +19,14 @@ load and what to render. It implements the doctrine pattern
 
 Behaviour that is the same on every surface:
 
-- The decision is a host-only cookie `v1;r=<revision>;g=<granted>;t=<unix>`
-  (`SameSite=Lax`, `Secure` on HTTPS, no identifier), kept `maxAgeDays`
-  (default 180) for a grant and a refusal alike. `revision` is bumped only
-  for a material change of purposes; copy edits keep the decision.
+- The decision is a host-only cookie
+  `v1;r=<revision>;v=<textVersion>;g=<categories>;s=<services>;t=<unix>`
+  (`SameSite=Lax`, `Secure` on HTTPS, no identifier). A grant lives
+  `permissionDays` (default 180); a refusal is kept at least six months
+  (`refusalDays`, minimum 183). `revision` is bumped only for a material
+  change of purposes and re-asks; `textVersion` records the copy the person
+  saw and never resets a decision. Parsing is strict: a corrupt or
+  future-dated value is no decision.
 - An affirmative Global Privacy Control or Do-Not-Track signal is a refusal:
   no bar, stored, also over an older grant; signal disappearance does not
   revive it. Crawlers see no bar and get nothing.
@@ -29,21 +34,34 @@ Behaviour that is the same on every surface:
   crawler status. A grant that cannot be read back is no grant. A refusal
   that cannot be stored as a cookie falls back to a session-scoped revocation
   that still outranks a surviving grant on the next page.
-- Withdrawal (or dropping a category in the sheet) clears the storage each
-  affected service declares (`cookie`, `local`, `session`), sends Consent
-  Mode `denied` to a loaded destination and reloads the page once the
-  refusal is persisted, because a loaded tag has no reliable teardown.
+- Withdrawal (or dropping a category in the sheet) clears exactly the
+  storage each affected service declares (`cookie` at its declared path and
+  domain, host-only by default; `local`; `session`), plus the gate's own
+  conversion marker, runs registered teardown callbacks, tears an active
+  embed down (`src` removed, document replaced), sends Consent Mode `denied`
+  to a loaded destination and reloads the page once the refusal is
+  persisted, because a loaded tag has no reliable teardown. If the refusal
+  can be persisted nowhere, the page keeps running with the tag denied and
+  says so on the console; it never reloads into a surviving grant.
+- Embeds: **load once** authorises exactly that element for this page view;
+  **always allow** remembers the named service (its declared purposes) for
+  the permission lifetime without granting its whole category. Granting the
+  category opens every service in it; dropping it drops them all.
 - Google destinations run Consent Mode v2 in **basic** mode: `default`
   denied for every key, `update` grants only the keys the service declares,
   then `gtag.js` is injected with `cookie_domain` pinned to the host. A
   conversion fires only on pages that name the service in
-  `data-consent-fire`, once per session.
+  `data-consent-fire`, once per session, and only to that service's own
+  tag (`sendTo` must be `<tagId>/<label>`).
+- URLs are validated: the privacy link must be an `https:` URL or a
+  same-origin path, an embed only activates with an `https:` `data-src` on
+  its declared host. Anything else stays inert.
 
 ## Files
 
 | File | Purpose |
 |---|---|
-| `consent-gate.js` | Core (`insprConsentCore`, no DOM) + renderer and destination adapter (`insprConsent`). |
+| `consent-gate.js` | Core (`insprConsentCore`, no DOM: validation, decisions, storage format, guard) + renderer and destination adapter (`insprConsent`). |
 | `consent-gate.css` | Reference styles; every token is a `--ic-*` custom property with a neutral fallback. |
 | `manifest.schema.json` | JSON Schema for the manifest. |
 | `example/manifest.json`, `example/example.html` | A valid manifest and a page that uses it. |
@@ -55,18 +73,23 @@ Behaviour that is the same on every surface:
 ```jsonc
 {
   "version": 1,
-  "revision": 1,               // bump only on a material purpose change
-  "cookieName": "consent",     // host-only decision cookie
-  "maxAgeDays": 180,
-  "language": "de",            // else <html lang>, else the first text key
-  "privacyUrl": "/privacy",
-  "categories": [ { "id": "necessary", "required": true }, { "id": "marketing" } ],
+  "revision": 1,                 // bump only on a material purpose change
+  "textVersion": 1,              // bump on copy changes; never resets a decision
+  "controller": "…",             // who is responsible for this surface
+  "scope": "www.example.invalid", // the surface's host
+  "cookieName": "consent",       // host-only decision cookie
+  "permissionDays": 180,
+  "refusalDays": 183,            // at least six months
+  "language": "de",              // else <html lang>, else the first text key
+  "privacyUrl": "/privacy",      // https URL or same-origin path
+  "categories": [ { "id": "necessary", "required": true }, { "id": "marketing" }, { "id": "embeds" } ],
   "services": [
-    { "id": "ads", "category": "marketing", "provider": "…",
+    { "id": "ads", "category": "marketing", "provider": "…", "purposes": ["conversion measurement"],
       "storage": [ { "kind": "cookie", "name": "_gcl_*", "days": 90 }, { "kind": "local", "name": "_gcl_ls" } ],
       "destination": { "type": "gtag", "tagId": "AW-…", "consent": ["ad_storage", "ad_user_data"],
                        "linkerAcceptIncoming": true, "conversion": { "sendTo": "AW-…/…" } } },
-    { "id": "video", "category": "embeds", "provider": "…", "embed": { "host": "video.example.invalid" } }
+    { "id": "video", "category": "embeds", "provider": "…", "purposes": ["video playback"],
+      "embed": { "host": "video.example.invalid" } }
   ],
   "text": { "de": { "bar": {…}, "sheet": {…}, "embed": {…}, "control": "…", "categories": {…}, "services": {…} } }
 }
@@ -74,18 +97,22 @@ Behaviour that is the same on every surface:
 
 Exactly one category is `required`; optional services must sit in an
 optional category; each service declares exactly one of `destination` or
-`embed`. `consent` lists the Consent Mode keys the service may ever set:
-an undeclared key (for example `ad_personalization`) stays denied. Validation
-failures close the gate: nothing optional loads and nothing is rendered.
+`embed` and lists its purposes; declared cookies may name a `path` and a
+`domain` (the scope host or one of its parents; host-only by default) and
+are cleared only there. `consent` lists the Consent Mode keys the service
+may ever set: an undeclared key (for example `ad_personalization`) stays
+denied. Validation failures close the gate: nothing optional loads and
+nothing is rendered. `manifest.schema.json` mirrors these rules.
 
 ## Using it on a surface
 
 1. Copy `consent-gate.js` and `consent-gate.css` into the surface's own
    assets (self-hosted; never a CDN). Record the inspr-modules revision you
-   copied from and add the drift check to CI:
+   copied from and pin both files in CI:
 
    ```sh
-   scripts/check-consent-gate-vendored.sh path/to/vendored/consent-gate.js <sha256 of the copy at the pinned revision>
+   scripts/check-consent-gate-vendored.sh path/to/vendored/consent-gate.js <sha256 at the pinned revision> doctrine/packages/consent-gate/consent-gate.js
+   scripts/check-consent-gate-vendored.sh path/to/vendored/consent-gate.css <sha256 at the pinned revision> doctrine/packages/consent-gate/consent-gate.css
    ```
 
    A Go surface embeds the file with the rest of its assets; an Astro or
@@ -97,8 +124,12 @@ failures close the gate: nothing optional loads and nothing is rendered.
    `<script src="/assets/consent-gate.js" defer data-consent-manifest="#consent-manifest" data-consent-fire="ads"></script>`.
    `data-consent-fire` names the services whose conversion fires on this
    page; leave it empty elsewhere.
-4. Mark embeds: `<iframe data-consent-embed="video" data-src="…">` (or keep
-   `src`, the gate moves it to `data-src` before anything loads).
+4. Mark embeds with `<iframe data-consent-embed="video" data-src="…">`.
+   Served markup must contain no active provider `src` or `srcdoc`:
+   deferred JavaScript cannot prevent the request such an attribute starts
+   the moment the element is connected. The gate treats a live `src` as an
+   integration error (console warning, best-effort removal), and the guard
+   below fails the served HTML.
 5. Put a `<button type="button" data-consent-open></button>` in every footer;
    the gate fills the label from `text.<lang>.control`.
 6. Map the tokens: `--ic-surface`, `--ic-surface-soft`, `--ic-ink`,
@@ -111,7 +142,19 @@ failures close the gate: nothing optional loads and nothing is rendered.
    picks `manifest.language`, else `<html lang>`.
 
 Programmatic access: `insprConsent.open()`, `insprConsent.withdraw()`,
-`insprConsent.granted("marketing")`, `insprConsent.core` (the bound core).
+`insprConsent.granted("marketing")`, `insprConsent.core` (the bound core;
+`core.registerTeardown(serviceId, fn)` runs `fn` when that service loses
+authorisation, `core.onChange(fn)` reports every decision change).
+
+## Pre-consent guard
+
+`insprConsentCore.guardServedHtml({ manifest, html, requests })` is the
+reusable served-HTML and request guard: it reports every active resource
+(`script`, `iframe`, `img`, `link`, media) whose URL points at a declared
+destination or embed host, and every captured pre-consent request to such
+a host. Inert references — the manifest JSON, `data-src`, plain anchors —
+pass. Run it in the surface's tests over the served HTML of every public
+route, and feed it the browser's request log from a fresh visit.
 
 ## Testing on the surface
 

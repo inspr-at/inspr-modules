@@ -149,6 +149,7 @@
             mkdir -p $out
             cp -r ${./packages/consent-gate}/. $out/
             cp ${./scripts/check-consent-gate-vendored.sh} $out/check-consent-gate-vendored.sh
+            cp ${./LICENSE} $out/LICENSE
           '';
         };
 
