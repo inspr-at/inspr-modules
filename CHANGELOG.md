@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-09-15
+
 ### Added
 
 - **Web cookie-consent tiers doctrine (INSPR-430).** `docs/AGENTS-DOMAIN-DEV.md`
