@@ -290,6 +290,7 @@
             consent-gate = pkgs.runCommand "consent-gate" { nativeBuildInputs = [ pkgs.nodejs_24 ]; } ''
               cd ${self}
               node tests/consent-gate.mjs
+              node tests/consent-gate-dom.mjs
               bash scripts/check-consent-gate-vendored.sh packages/consent-gate/consent-gate.js \
                 "$(sha256sum packages/consent-gate/consent-gate.js | cut -d' ' -f1)" packages/consent-gate/consent-gate.js >/dev/null
               touch $out

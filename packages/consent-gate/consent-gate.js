@@ -601,6 +601,8 @@
       onChange: function (fn) { listeners.push(fn); },
       // registerTeardown runs when the service loses authorisation.
       registerTeardown: function (serviceId, fn) { (teardowns[serviceId] = teardowns[serviceId] || []).push(fn); },
+      // pending reports a refusal that could not be stored anywhere yet.
+      pending: function () { return pendingRefusal; },
       optionalCategories: function () { return invalid ? [] : optionalCategories(m); },
       requiredCategory: function () { return invalid ? null : requiredCategory(m); },
       embedServices: function () { return invalid ? [] : m.services.filter(function (s) { return s.embed; }); },
@@ -842,13 +844,16 @@
     } finally { settling = false; }
   }
 
-  // reconcile: before any user-triggered activation, settle a loaded
-  // destination that lost authorisation (expiry, an observed signal, a
-  // failed grant). Returns true when the page is reloading.
+  // reconcile: before any user-triggered activation, apply the current
+  // policy. A loaded destination that lost authorisation (expiry, an
+  // observed signal, a failed grant) is settled with the core's real
+  // persistence state — the page reloads, with the URL marker when the
+  // refusal is still pending. Without a loaded destination, unauthorised
+  // embeds are torn down in place. Returns true when the page is reloading.
   function reconcile() {
-    if (!lostAuthorization()) return false;
-    settle({ ok: true, persisted: true }, true);
-    return true;
+    if (lostAuthorization()) { settle({ ok: true, persisted: !core.pending() }, true); return true; }
+    renderEmbeds();
+    return false;
   }
 
   function acceptAll() {
@@ -946,7 +951,7 @@
 
   function renderState() {
     if (!core.valid) return;
-    if (lostAuthorization()) { settle({ ok: true, persisted: true }, true); return; }
+    if (lostAuthorization()) { settle({ ok: true, persisted: !core.pending() }, true); return; }
     loadDestinations();
     renderEmbeds();
     wireControls();

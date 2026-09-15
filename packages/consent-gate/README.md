@@ -83,7 +83,8 @@ Behaviour that is the same on every surface:
 | `consent-gate.css` | Reference styles; every token is a `--ic-*` custom property with a neutral fallback. |
 | `manifest.schema.json` | JSON Schema for the manifest. |
 | `example/manifest.json`, `example/example.html` | A valid manifest and a page that uses it. |
-| `../../tests/consent-gate.mjs` | Node test suite (part of `nix flake check`). |
+| `../../tests/consent-gate.mjs` | Core test suite under Node (part of `nix flake check`). |
+| `../../tests/consent-gate-dom.mjs` | Renderer journeys under a minimal in-memory DOM (same check); not a browser. |
 | `../../scripts/check-consent-gate-vendored.sh` | Drift check for a consumer's vendored copy. |
 
 ## Manifest
