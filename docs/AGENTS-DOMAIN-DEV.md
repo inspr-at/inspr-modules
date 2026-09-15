@@ -63,9 +63,9 @@ Before project bootstrap or release/deployment, read [AGENTS-VERSIONING.md](AGEN
 ## Pattern: adversarial review gates
 
 - 🔴 **Whoever implements does not review.** Product-delivery taste, review and merge gates go to a frontier model from a **different model family** than the author. A model of the same family (any size, any tier) is still the author's family and is never the gate.
-- 🟡 **Ladder, walked top-down; take the first available reviewer that is not the author's family.** League 1: Codex `gpt-6-astra` at xhigh reasoning · Claude Fable 5.1 at xhigh. League 2: Grok 4.6 at xhigh. Claude-authored work → Astra, else Grok. Codex-authored work → Fable, else Grok. Grok-authored work → Astra or Fable. Nobody eligible available → ask the owner.
+- 🟡 **Walk the ladder top-down, in the order listed, skipping the author's family.** League 1: (1) Codex `gpt-6-astra` at xhigh reasoning; (2) Claude Fable 5.1 at xhigh. League 2: (3) Grok 4.6 at xhigh. Select the first eligible reviewer available at the specified model and reasoning effort. If none is available, ask the owner; the gate stays closed until the owner's explicit `ok`.
 - 🟡 The reviewer runs **read-only** (Bash / CLI sandbox), gets the diff, the ticket and the acceptance criteria, and returns a verdict. Only an explicit `ok` opens the gate; any other verdict keeps it closed and the findings go back to the author.
-- 🟡 **Evidence on the ticket**: reviewer model, reasoning effort, reviewed commit, verdict, and — when League 1 was skipped — the fallback and its reason. A gate without evidence did not happen.
+- 🟡 **Evidence on the ticket, recorded by the coordinator**: reviewer model, reasoning effort, reviewed commit, verdict, and each preceding ladder entry skipped with its reason (author's family or unavailable). For owner fallback, record reviewer `owner`, model and effort `not applicable`, reviewed commit, the owner's explicit verdict, and why every ladder entry was ineligible or unavailable. A gate without evidence did not happen.
 
 ## Pattern: critical thinking & editing discipline
 
