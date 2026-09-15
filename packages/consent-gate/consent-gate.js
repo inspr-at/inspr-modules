@@ -360,11 +360,17 @@
       if (!persist(granted, services)) { refuseAll(); return { ok: false, decision: current() }; }
       revoked = false;
       attempt(function () { env.removeSession(revokeKey); }, null);
+      // ok means "authorised now": the persisted grant must read back
+      // through the full policy, or it is treated as a failed grant.
+      var after = current();
+      var effective = granted.every(function (id) { return after.granted[id] === true; }) &&
+        services.every(function (id) { var sv = serviceById(m, id); return after.services.indexOf(id) >= 0 || (sv && after.granted[sv.category] === true); });
+      if (!effective) { refuseAll(); return { ok: false, decision: current() }; }
       emit();
-      return { ok: true, decision: current() };
+      return { ok: true, decision: after };
     }
 
-    function canGrant() { return !invalid && signal() === false && bot() === false && isFinite(now()); }
+    function canGrant() { return !invalid && signal() === false && bot() === false && sessionRevoked() !== BLOCKED && isFinite(now()); }
 
     var core = {
       valid: !invalid,

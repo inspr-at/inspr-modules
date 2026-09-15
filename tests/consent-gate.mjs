@@ -204,7 +204,7 @@ function fakeEnv(opts = {}) {
   assert.equal(c.grant(["marketing"]).ok, true);
   assert.deepEqual(calls, ["video"], "only the dropped service is torn down");
   c.withdraw();
-  assert.deepEqual(calls, ["video", "video", "ads"]);
+  assert.deepEqual(calls, ["video", "ads", "video"], "withdrawal tears every service down in manifest order");
 }
 
 {
