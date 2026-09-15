@@ -397,6 +397,7 @@
     var cookieName = (!invalid && manifest.cookieName) || DEFAULT_COOKIE;
     var revokeKey = cookieName + REVOKE_SUFFIX;
     var revoked = false; // in-page revocation; latched by a privacy signal too
+    var pendingRefusal = false; // a refusal that could not be stored yet
     var onceInstances = [];
     var listeners = [];
     var teardowns = {};
@@ -414,6 +415,18 @@
       if (v === true && !revoked && !latching && !invalid) { latching = true; try { refuseAll(); } finally { latching = false; } }
       if (v === true) revoked = true;
       return v;
+    }
+    // storeRefusal writes the refusal as a cookie, else as a session
+    // revocation; a failure is remembered and retried on every policy check.
+    function storeRefusal() {
+      var persisted = persist([], []);
+      if (!persisted) persisted = attempt(function () { env.writeSession(revokeKey, "1"); return env.readSession(revokeKey) === "1"; }, false);
+      else attempt(function () { env.removeSession(revokeKey); }, null);
+      pendingRefusal = !persisted;
+      return persisted;
+    }
+    function retryRefusal() {
+      if (pendingRefusal && !latching && !invalid) { latching = true; try { storeRefusal(); } finally { latching = false; } }
     }
     function bot() { return attempt(function () { return env.bot() === true; }, BLOCKED); }
     function hostOk() {
@@ -443,6 +456,7 @@
 
     function current() {
       if (invalid) return decide({ manifest: m, invalid: true });
+      retryRefusal();
       if (blockedNow()) return decide({ manifest: m, blocked: true });
       return decide({ manifest: m, stored: stored(), now: now(), signal: signal(), bot: bot(), revoked: revoked || sessionRevoked() === true });
     }
@@ -478,9 +492,7 @@
       onceInstances = [];
       if (invalid) return false;
       cleanupServices(m.services);
-      var persisted = persist([], []);
-      if (!persisted) persisted = attempt(function () { env.writeSession(revokeKey, "1"); return env.readSession(revokeKey) === "1"; }, false);
-      else attempt(function () { env.removeSession(revokeKey); }, null);
+      var persisted = storeRefusal();
       emit();
       return persisted;
     }
@@ -505,6 +517,7 @@
       });
       if (!persist(granted, services)) { var p2 = refuseAll(); return { ok: false, persisted: p2, decision: current() }; }
       revoked = false;
+      pendingRefusal = false;
       attempt(function () { env.removeSession(revokeKey); }, null);
       var after = current();
       var effective = wantedCats.every(function (id) { return after.granted[id] === true; }) &&
@@ -773,8 +786,8 @@
     var once = el("button", { type: "button", class: "ic-btn", text: T.embed.loadOnce });
     var always = el("button", { type: "button", class: "ic-btn", text: T.embed.always });
     var open = el("a", { class: "ic-link", href: "https://" + s.embed.host + "/", rel: "noopener noreferrer", target: "_blank", text: T.embed.open + " " + s.embed.host });
-    once.addEventListener("click", function () { if (core.loadOnce(s.id, node)) activate(s, node); });
-    always.addEventListener("click", function () { settle(core.grantService(s.id), false); });
+    once.addEventListener("click", function () { if (reconcile()) return; if (core.loadOnce(s.id, node)) activate(s, node); });
+    always.addEventListener("click", function () { if (reconcile()) return; settle(core.grantService(s.id), false); });
     return el("div", { class: "ic-embed", role: "group", "aria-label": st.label || s.provider }, [
       el("p", { class: "ic-embed-title", text: st.label || s.provider }),
       el("p", { class: "ic-embed-text", text: st.description || "" }),
@@ -790,6 +803,10 @@
       });
     });
   }
+  // teardownEmbeds deactivates every embed without activating anything.
+  function teardownEmbeds() {
+    manifest.services.forEach(function (s) { if (s.embed) embedNodes(s).forEach(function (node) { deactivate(s, node); }); });
+  }
 
   // --- bar & sheet ---
   function removeBar() {
@@ -804,20 +821,34 @@
   // reloads — carrying a revocation marker in the URL when the refusal
   // could not be persisted, so the next document closes the gate before it
   // consults any surviving grant. Embeds are torn down in place.
+  var settling = false;
   function settle(result, dropping) {
-    // Decide about loaded destinations before anything new is loaded.
-    var lost = dropping || result.ok === false || lostAuthorization();
-    if (lost && anyDestinationLoaded()) {
-      denyDestinations();
-      if (result.persisted === false) {
-        warn("refusal could not be persisted; reloading with a revocation marker");
-        try { history.replaceState(null, "", location.pathname + location.search + "#" + REVOKE_HASH); } catch (_) { location.hash = REVOKE_HASH; }
+    if (settling) return;
+    settling = true;
+    try {
+      // Decide about loaded destinations before anything new is loaded.
+      var lost = dropping || result.ok === false || lostAuthorization();
+      if (lost && anyDestinationLoaded()) {
+        denyDestinations();
+        if (result.persisted === false) {
+          warn("refusal could not be persisted; reloading with a revocation marker");
+          try { history.replaceState(null, "", location.pathname + location.search + "#" + REVOKE_HASH); } catch (_) { location.hash = REVOKE_HASH; }
+        }
+        teardownEmbeds();
+        location.reload();
+        return;
       }
-      renderEmbeds();
-      location.reload();
-      return;
-    }
-    renderState();
+      renderState();
+    } finally { settling = false; }
+  }
+
+  // reconcile: before any user-triggered activation, settle a loaded
+  // destination that lost authorisation (expiry, an observed signal, a
+  // failed grant). Returns true when the page is reloading.
+  function reconcile() {
+    if (!lostAuthorization()) return false;
+    settle({ ok: true, persisted: true }, true);
+    return true;
   }
 
   function acceptAll() {
@@ -846,7 +877,7 @@
   }
 
   function openSheet() {
-    if (!core.valid) return;
+    if (!core.valid || reconcile()) return;
     if (!sheet) {
       var rows = [];
       var req = core.requiredCategory();

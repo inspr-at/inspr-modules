@@ -188,6 +188,35 @@ assert.equal(d({ stored: rec(["marketing"]), revoked: true }).granted.marketing,
   assert.equal(ages.at(-1), Date.UTC(2026, 8, 1, 12, 0, 0) / 1000 - Date.UTC(2026, 2, 1, 12, 0, 0) / 1000, "…and spans six calendar months");
 }
 
+{
+  // A refusal that could not be stored is retried on every policy check until it reads back (B7)
+  const opts = { writeDrops: true, sessionWriteThrows: true };
+  const env = fakeEnv(opts);
+  env.state.cookies.consent = core.serialize(rec(["marketing"]));
+  const c = core.createCore(example, env);
+  assert.equal(c.boot().granted.marketing, true);
+  env.state.signal = true;
+  assert.equal(c.authorized("marketing"), false, "the observed signal revokes in-page");
+  assert.ok(env.state.cookies.consent.includes("marketing@"), "…but the refusal could not be stored yet");
+  opts.writeDrops = false; opts.sessionWriteThrows = false;
+  c.current();
+  assert.ok(env.state.cookies.consent.includes(";g=;s=;"), "the pending refusal is stored once the writer recovers");
+  env.state.signal = false;
+  assert.equal(c.authorized("marketing"), false);
+  assert.equal(core.createCore(example, env).boot().granted.marketing, false, "the next document sees the stored refusal");
+  // and the same when the writer only recovers after the signal disappeared
+  const opts2 = { writeDrops: true, sessionWriteThrows: true };
+  const env2 = fakeEnv(opts2);
+  env2.state.cookies.consent = core.serialize(rec(["marketing"]));
+  const c2 = core.createCore(example, env2);
+  c2.boot();
+  env2.state.signal = true; c2.current(); env2.state.signal = false;
+  opts2.writeDrops = false; opts2.sessionWriteThrows = false;
+  c2.current();
+  assert.ok(env2.state.cookies.consent.includes(";g=;s=;"), "a pending refusal is stored even after the signal disappeared");
+  assert.equal(core.createCore(example, env2).boot().granted.marketing, false);
+}
+
 // ---- Consent Mode signals & hosts ----------------------------------------
 {
   const sig = plain(core.consentModeSignals(example, { measurement: true, marketing: false, embeds: false }));
@@ -506,6 +535,11 @@ assert.ok(/every\(function \(s\) \{ return svcBoxes\[s\.id\]\.checked; \}\)/.tes
 assert.ok(/if \(r\.persisted\) \{ try \{ history\.replaceState/.test(source), "the revocation marker is removed only after the refusal persisted");
 assert.ok(/var lost = dropping \|\| result\.ok === false \|\| lostAuthorization\(\);/.test(source), "settlement checks loaded destinations against the current decision");
 assert.ok(/if \(lostAuthorization\(\)\) \{ settle/.test(source), "rendering never loads more while a loaded destination lost authorisation");
+assert.ok(/once\.addEventListener\("click", function \(\) \{ if \(reconcile\(\)\) return;/.test(source), "load once reconciles before activating");
+assert.ok(/always\.addEventListener\("click", function \(\) \{ if \(reconcile\(\)\) return;/.test(source), "always allow reconciles before granting");
+assert.ok(/if \(!core\.valid \|\| reconcile\(\)\) return;/.test(source), "opening the settings reconciles first");
+assert.ok(/teardownEmbeds\(\);\s*location\.reload\(\);/.test(source), "the reload branch only tears embeds down, never activates");
+assert.ok(/if \(settling\) return;/.test(source), "settlement is reentrancy-safe");
 assert.ok(!/innerHTML/.test(source), "no innerHTML sink in the renderer");
 assert.ok(!/uuid|crypto\.randomUUID/.test(source), "no generated identifiers anywhere");
 assert.ok(/value: c\.value === undefined \? 1\.0 : c\.value/.test(source), "a conversion value of zero is preserved");
