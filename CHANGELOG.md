@@ -11,6 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Web cookie-consent tiers doctrine (INSPR-430).** `docs/AGENTS-DOMAIN-DEV.md`
+  gains "Pattern: web surfaces — cookies & consent": inventory and per-operation
+  classification before any consent UI; Tier 0 (no prompt) only with evidence,
+  cookieless analytics not automatically exempt; Tier 1 service-specific
+  contextual consent at embeds; Tier 2 per-purpose gating with equivalent
+  first-layer accept/reject, fail-closed lifecycle, withdrawal and Google
+  Consent Mode v2 basic; host-specific consent storage without a visitor id;
+  journey tests and accountability records as the acceptance bar; GPC/DNT as
+  refusal, six-month refusal memory, and self-hosted consent assets styled by
+  the surface's design tokens. Primary sources are cited in the pattern.
 - **Adversarial review gates doctrine (INSPR-434).** `docs/AGENTS-DOMAIN-DEV.md`
   gains "Pattern: adversarial review gates": whoever implements does not
   review; the gate is a frontier model from a different family than the
