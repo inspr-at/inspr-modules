@@ -20,22 +20,25 @@ load and what to render. It implements the doctrine pattern
 Behaviour that is the same on every surface:
 
 - The decision is a host-only cookie
-  `v1;b=<binding>;r=<revision>;v=<textVersion>;g=<cat@at.rev,…>;s=<svc@at.rev,…>;t=<unix>`
+  `v1;b=<binding>;r=<revision>;v=<textVersion>;g=<cat@at.rev.tv,…>;s=<svc@at.rev.tv,…>;t=<unix>`
   (`SameSite=Lax`, `Secure` on HTTPS, no identifier). `b` is a fingerprint
   of controller, scope and cookie name — a property of the surface, not of
   the visitor — so a record from another controller or host is no decision;
-  the gate also refuses to run on a host other than `scope`. Every granted
-  category and remembered service carries its own grant time and the
-  category revision it was given under: an unrelated later grant does not
-  extend an older one, and bumping one category's `revision` invalidates
-  only that category. A grant lives `permissionDays` (default 180); a
+  the gate also refuses to run on a host other than `scope` (`localhost`
+  and `127.0.0.1` are accepted for local development). Every granted
+  category and remembered service carries its own grant time, the category
+  revision and the consent-text version it was given under: an unrelated
+  later grant does not extend an older one nor rewrites its provenance, and
+  bumping one category's `revision` invalidates only that category. All
+  times are whole seconds. A grant lives `permissionDays` (default 180); a
   refusal is kept `refusalMonths` UTC calendar months (minimum six, default
   six). The manifest's `revision` re-asks everything; `textVersion` records
   the copy the person saw and never resets a decision. Parsing is strict: a
   corrupt or future-dated value is no decision.
 - An affirmative Global Privacy Control or Do-Not-Track signal is a refusal:
-  no bar, stored, also over an older grant; signal disappearance does not
-  revive it. Crawlers see no bar and get nothing.
+  no bar, stored the moment it is observed (also mid-page), also over an
+  older grant; signal disappearance does not revive it. Crawlers see no bar
+  and get nothing.
 - Every destination load re-validates cookie, expiry, revision, signal and
   crawler status. A grant that cannot be read back is no grant. A refusal
   that cannot be stored as a cookie falls back to a session-scoped revocation
@@ -48,15 +51,20 @@ Behaviour that is the same on every surface:
   to a loaded destination and reloads the page, because a loaded tag has no
   reliable teardown. If the refusal can be persisted nowhere, the reload
   carries a `#consent-revoked` marker that the next document evaluates
-  before it reads any surviving grant, and it keeps retrying to persist.
+  before it reads any surviving grant; the marker stays until the refusal
+  is actually stored. A loaded destination that loses authorisation for any
+  reason (withdrawal, expiry, a failed grant) is denied and the page
+  reloads before anything else loads.
 - Embeds: **load once** authorises exactly that element for this page view
   and dies with an explicit refusal or the withdrawal of its category;
   **always allow** remembers the named service (its declared purposes) for
   the permission lifetime without granting its whole category. Granting the
   category opens every service in it; dropping it drops them all. The
-  settings sheet lists every embed service under its category so one
-  provider can be revoked without touching its siblings. A served `srcdoc`
-  counts as live content like a served `src`.
+  settings sheet lists every embed service under its category: selecting
+  the category selects all of them, unselecting one provider turns the
+  category into an explicit per-service selection, and exactly what is
+  shown as selected is persisted. A served `srcdoc` counts as live content
+  like a served `src`.
 - Google destinations run Consent Mode v2 in **basic** mode: `default`
   denied for every key, `update` grants only the keys the service declares,
   then `gtag.js` is injected with `cookie_domain` pinned to the host. A
@@ -109,7 +117,8 @@ Exactly one category is `required`; optional services must sit in an
 optional category; each service declares exactly one of `destination` or
 `embed` and lists its purposes; declared cookies may name a `path` and a
 `domain` (the scope host or one of its parents; host-only by default) and
-are cleared only there. `consent` lists the Consent Mode keys the service
+are cleared only there — exact names unconditionally, wildcard names by
+visible match, which is why wildcards are only accepted at path `/`. `consent` lists the Consent Mode keys the service
 may ever set: an undeclared key (for example `ad_personalization`) stays
 denied. Validation failures close the gate: nothing optional loads and
 nothing is rendered. `manifest.schema.json` mirrors these rules.
@@ -164,9 +173,10 @@ reusable served-HTML and request guard: it reports every active resource
 protocol-relative and entity-encoded URLs included) whose URL points at a
 declared destination or embed host, every gated embed served with
 `srcdoc`, and every captured pre-consent request to such a host. Comments,
-the manifest JSON, `data-src` and plain anchors are inert. It is a
-regex-based scanner over served HTML, not a full HTML parser: use it as a
-smoke test next to the browser's request log, not instead of it. Run it in the surface's tests over the served HTML of every public
+raw-text contents (`script`, `style`), the manifest JSON, `data-src` and
+plain anchors are inert; attribute values may contain `>`. It is a small
+quote-aware tokenizer, not a full HTML parser: use it as a smoke test next
+to the browser's request log, not instead of it. Run it in the surface's tests over the served HTML of every public
 route, and feed it the browser's request log from a fresh visit.
 
 ## Testing on the surface

@@ -101,7 +101,7 @@
                 "name": {
                   "type": "string",
                   "minLength": 1,
-                  "description": "Cookie names may end in * as a prefix wildcard."
+                  "description": "Cookie names may end in * as a prefix wildcard; wildcards are only allowed at path / because other paths cannot be enumerated for cleanup."
                 },
                 "days": {
                   "type": "integer",

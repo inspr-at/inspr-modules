@@ -26,7 +26,7 @@
   var CONSENT_MODE_KEYS = ["ad_storage", "ad_user_data", "ad_personalization", "analytics_storage", "functionality_storage", "personalization_storage", "security_storage"];
   var GTAG_HOSTS = ["www.googletagmanager.com", "googleads.g.doubleclick.net", "www.google.com", "www.google-analytics.com", "pagead2.googlesyndication.com"];
   var ID = /^[a-z][a-z0-9-]{0,31}$/;
-  var ENTRY = /^([a-z][a-z0-9-]{0,31})@([0-9]{1,12})\.([0-9]{1,9})$/;
+  var ENTRY = /^([a-z][a-z0-9-]{0,31})@([0-9]{1,12})\.([0-9]{1,9})\.([0-9]{1,9})$/;
   var TAG_ID = /^[A-Z]{1,4}-[A-Za-z0-9_-]{1,40}$/;
   var HOSTNAME = /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
   var COOKIE_NAME = /^[A-Za-z0-9_.-]{1,64}\*?$/;
@@ -137,6 +137,7 @@
           if (st.days !== undefined && !(Number.isInteger(st.days) && st.days >= 0 && st.days <= 3650)) errors.push(label + " days invalid");
           if (st.kind === "cookie") {
             if (st.path !== undefined && !/^\/[A-Za-z0-9_\/.-]{0,200}$/.test(String(st.path))) errors.push(label + " path invalid");
+            if (typeof st.name === "string" && st.name.slice(-1) === "*" && st.path !== undefined && st.path !== "/") errors.push(label + " wildcard names must use path / (other paths cannot be enumerated for cleanup; declare exact names)");
             if (st.domain !== undefined && !isHost(st.domain)) errors.push(label + " domain invalid");
             if (st.domain !== undefined && isHost(st.domain) && typeof m.scope === "string" && !hostMatches(m.scope.toLowerCase(), String(st.domain).toLowerCase())) errors.push(label + " domain must be the scope host or one of its parents");
           } else if (st.path !== undefined || st.domain !== undefined) errors.push(label + " path/domain apply to cookies only");
@@ -177,12 +178,13 @@
   }
 
   // Stored decision:
-  //   "v1;b=<binding>;r=<revision>;v=<textVersion>;g=<cat@at.rev,…>;s=<svc@at.rev,…>;t=<unix>"
+  //   "v1;b=<binding>;r=<revision>;v=<textVersion>;g=<cat@at.rev.tv,…>;s=<svc@at.rev.tv,…>;t=<unix>"
   // b binds the record to controller/scope/cookie name; every granted
-  // category and remembered service carries its own grant time and the
-  // category revision it was given under; t is the time of the last change.
-  // No identifier of any kind. Parsing is strict.
-  function serializeEntries(list) { return list.slice().sort(function (a, b) { return a.id < b.id ? -1 : 1; }).map(function (e) { return e.id + "@" + e.at + "." + e.rev; }).join(","); }
+  // category and remembered service carries its own grant time, the
+  // category revision and the consent-text version it was given under; t is
+  // the time of the last change. No identifier of any kind. Parsing is
+  // strict. All times are integer seconds.
+  function serializeEntries(list) { return list.slice().sort(function (a, b) { return a.id < b.id ? -1 : 1; }).map(function (e) { return e.id + "@" + e.at + "." + e.rev + "." + e.tv; }).join(","); }
   function serialize(rec) {
     return "v1;b=" + rec.binding + ";r=" + rec.revision + ";v=" + rec.textVersion + ";g=" + serializeEntries(rec.granted) + ";s=" + serializeEntries(rec.services) + ";t=" + Math.floor(rec.at);
   }
@@ -193,7 +195,7 @@
     for (var i = 0; i < list.length; i++) {
       var m = ENTRY.exec(list[i]);
       if (!m) return null;
-      out.push({ id: m[1], at: parseInt(m[2], 10), rev: parseInt(m[3], 10) });
+      out.push({ id: m[1], at: parseInt(m[2], 10), rev: parseInt(m[3], 10), tv: parseInt(m[4], 10) });
     }
     return out;
   }
@@ -306,38 +308,77 @@
     });
   }
 
+  // tokenizeTags: a small quote-aware scanner over served HTML. Comments are
+  // skipped, raw-text elements (script, style, textarea, title) contribute
+  // only their start tag, attribute values may contain ">" inside quotes,
+  // attribute names are lower-cased and the last occurrence wins.
+  function tokenizeTags(html) {
+    var out = [];
+    var i = 0;
+    var n = html.length;
+    while (i < n) {
+      var lt = html.indexOf("<", i);
+      if (lt < 0) break;
+      if (html.substr(lt, 4) === "<!--") { var end = html.indexOf("-->", lt + 4); i = end < 0 ? n : end + 3; continue; }
+      var nm = /^<([a-zA-Z][a-zA-Z0-9-]*)/.exec(html.slice(lt, lt + 40));
+      if (!nm) { i = lt + 1; continue; }
+      var name = nm[1].toLowerCase();
+      var j = lt + 1 + nm[1].length;
+      var attrs = {};
+      while (j < n) {
+        var ch = html.charAt(j);
+        if (ch === ">") { j++; break; }
+        if (/\s|\//.test(ch)) { j++; continue; }
+        var k = j;
+        while (j < n && !/[\s=\/>]/.test(html.charAt(j))) j++;
+        var aname = html.slice(k, j).toLowerCase();
+        while (j < n && /\s/.test(html.charAt(j))) j++;
+        var value = "";
+        if (html.charAt(j) === "=") {
+          j++;
+          while (j < n && /\s/.test(html.charAt(j))) j++;
+          var q = html.charAt(j);
+          if (q === '"' || q === "'") { var close = html.indexOf(q, j + 1); value = html.slice(j + 1, close < 0 ? n : close); j = close < 0 ? n : close + 1; }
+          else { var v0 = j; while (j < n && !/[\s>]/.test(html.charAt(j))) j++; value = html.slice(v0, j); }
+        }
+        if (aname) attrs[aname] = value;
+      }
+      out.push({ name: name, attrs: attrs });
+      if (name === "script" || name === "style" || name === "textarea" || name === "title") {
+        var closeRe = new RegExp("</" + name + "\\s*>", "i");
+        closeRe.lastIndex = 0;
+        var rest = html.slice(j);
+        var cm = closeRe.exec(rest);
+        j = cm ? j + cm.index + cm[0].length : n;
+      }
+      i = j;
+    }
+    return out;
+  }
+
   // guardServedHtml: the reusable pre-consent guard. Given served HTML and the
   // requests captured before any choice, it reports every active resource
   // (script/iframe/img/link/video/audio/source/object/embed/track with a live
   // URL attribute, srcset candidates included, protocol-relative and
-  // entity-encoded URLs decoded, comments ignored), every gated embed served
-  // with srcdoc, and every request that touches a declared host. Inert
-  // references — the manifest JSON, data-src, plain anchors — do not count.
+  // entity-encoded URLs decoded, comments and raw-text contents ignored),
+  // every gated embed served with srcdoc, and every request that touches a
+  // declared host. Inert references — the manifest JSON, data-src, plain
+  // anchors — do not count.
   function guardServedHtml(input) {
     var m = input.manifest;
     var hosts = declaredHosts(m);
     var violations = [];
-    var html = String(input.html || "").replace(/<!--[\s\S]*?-->/g, "");
-    var tag = /<(script|iframe|img|link|video|audio|source|object|embed|track)\b([^>]*)>/gi;
-    var attr = /(?:^|\s)(src|href|data|srcset|poster|srcdoc)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi;
-    var match;
+    var active = ["script", "iframe", "img", "link", "video", "audio", "source", "object", "embed", "track"];
     function flag(element, attribute, url) {
       var host = urlHost(decodeEntities(url));
       if (host && hosts.some(function (h) { return hostMatches(host, h); })) violations.push({ kind: "markup", element: element, attribute: attribute, url: url });
     }
-    while ((match = tag.exec(html)) !== null) {
-      var element = match[1].toLowerCase();
-      var attrs = match[2];
-      var a;
-      attr.lastIndex = 0;
-      while ((a = attr.exec(attrs)) !== null) {
-        var name = a[1].toLowerCase();
-        var value = a[2] !== undefined ? a[2] : a[3] !== undefined ? a[3] : a[4];
-        if (name === "srcdoc") { if (element === "iframe" && /data-consent-embed\s*=/i.test(attrs)) violations.push({ kind: "markup", element: element, attribute: "srcdoc", url: "" }); continue; }
-        if (name === "srcset") decodeEntities(value).split(",").forEach(function (cand) { var u = cand.trim().split(/\s+/)[0]; if (u) flag(element, "srcset", u); });
-        else flag(element, name, value);
-      }
-    }
+    tokenizeTags(String(input.html || "")).forEach(function (t) {
+      if (active.indexOf(t.name) < 0) return;
+      if (t.name === "iframe" && t.attrs.srcdoc !== undefined && t.attrs["data-consent-embed"] !== undefined) violations.push({ kind: "markup", element: "iframe", attribute: "srcdoc", url: "" });
+      ["src", "href", "data", "poster"].forEach(function (a) { if (t.attrs[a] !== undefined) flag(t.name, a, t.attrs[a]); });
+      if (t.attrs.srcset !== undefined) decodeEntities(t.attrs.srcset).split(",").forEach(function (cand) { var u = cand.trim().split(/\s+/)[0]; if (u) flag(t.name, "srcset", u); });
+    });
     (input.requests || []).forEach(function (u) {
       var host = urlHost(u);
       if (host && hosts.some(function (h) { return hostMatches(host, h); })) violations.push({ kind: "request", url: String(u) });
@@ -365,7 +406,15 @@
     function now() { return attempt(function () { return env.now(); }, NaN); }
     function stored() { return attempt(function () { return parse(env.readCookie(cookieName)); }, null); }
     function sessionRevoked() { return attempt(function () { return env.readSession(revokeKey) === "1"; }, BLOCKED); }
-    function signal() { var v = attempt(function () { return env.signal() === true; }, BLOCKED); if (v === true) revoked = true; return v; }
+    var latching = false;
+    // An observed affirmative signal is latched in the page and persisted as
+    // a refusal at once, so the next document does not revive an older grant.
+    function signal() {
+      var v = attempt(function () { return env.signal() === true; }, BLOCKED);
+      if (v === true && !revoked && !latching && !invalid) { latching = true; try { refuseAll(); } finally { latching = false; } }
+      if (v === true) revoked = true;
+      return v;
+    }
     function bot() { return attempt(function () { return env.bot() === true; }, BLOCKED); }
     function hostOk() {
       if (invalid || typeof env.host !== "function") return true;
@@ -381,7 +430,7 @@
 
     function persist(granted, services) {
       if (invalid) return false;
-      var at = now();
+      var at = Math.floor(now());
       if (!(isFinite(at) && at > 0)) return false;
       var rec = { binding: binding(manifest), revision: manifest.revision, textVersion: manifest.textVersion, granted: granted, services: services, at: at };
       var value = serialize(rec);
@@ -441,18 +490,18 @@
     // up everything that was dropped. ok means "authorised now".
     function applyGrant(wantedCats, wantedSvcs) {
       var before = current();
-      var at = now();
+      var at = Math.floor(now());
       var dropCats = optionalCategories(m).filter(function (id) { return before.granted[id] && wantedCats.indexOf(id) < 0; });
       var dropSvcs = before.services.filter(function (id) { return wantedSvcs.indexOf(id) < 0 && wantedCats.indexOf(serviceById(m, id).category) < 0; });
       cleanupServices(servicesOfCategories(dropCats).concat(dropSvcs.map(function (id) { return serviceById(m, id); })));
       if (!wantedCats.length && !wantedSvcs.length) { var p = refuseAll(); return { ok: p, persisted: p, decision: current() }; }
       var granted = wantedCats.map(function (id) {
         var kept = before.entries.granted.filter(function (e) { return e.id === id; })[0];
-        return kept ? kept : { id: id, at: Math.floor(at), rev: categoryRevision(m, id) };
+        return kept ? kept : { id: id, at: at, rev: categoryRevision(m, id), tv: manifest.textVersion };
       });
       var services = wantedSvcs.filter(function (id) { return wantedCats.indexOf(serviceById(m, id).category) < 0; }).map(function (id) {
         var kept = before.entries.services.filter(function (e) { return e.id === id; })[0];
-        return kept ? kept : { id: id, at: Math.floor(at), rev: categoryRevision(m, serviceById(m, id).category) };
+        return kept ? kept : { id: id, at: at, rev: categoryRevision(m, serviceById(m, id).category), tv: manifest.textVersion };
       });
       if (!persist(granted, services)) { var p2 = refuseAll(); return { ok: false, persisted: p2, decision: current() }; }
       revoked = false;
@@ -506,8 +555,8 @@
         if (services.indexOf(serviceId) < 0) services.push(serviceId);
         return applyGrant(granted, services);
       },
-      refuse: function () { return refuseAll(); },
-      withdraw: function () { return refuseAll(); },
+      refuse: function () { var p = refuseAll(); return { ok: p, persisted: p, decision: current() }; },
+      withdraw: function () { var p = refuseAll(); return { ok: p, persisted: p, decision: current() }; },
       authorized: function (categoryId) {
         if (invalid) return false;
         if (categoryId === requiredCategory(m)) return !blockedNow();
@@ -547,7 +596,7 @@
     return core;
   }
 
-  root.insprConsentCore = { VERSION: VERSION, validateManifest: validateManifest, tierOf: tierOf, parse: parse, serialize: serialize, decide: decide, consentModeSignals: consentModeSignals, declaredHosts: declaredHosts, guardServedHtml: guardServedHtml, createCore: createCore, safeUrl: safeUrl, binding: binding, refusalExpiry: refusalExpiry, decodeEntities: decodeEntities, BOT: BOT, MIN_REFUSAL_MONTHS: MIN_REFUSAL_MONTHS, REVOKE_HASH: REVOKE_HASH };
+  root.insprConsentCore = { VERSION: VERSION, validateManifest: validateManifest, tierOf: tierOf, parse: parse, serialize: serialize, decide: decide, consentModeSignals: consentModeSignals, declaredHosts: declaredHosts, guardServedHtml: guardServedHtml, tokenizeTags: tokenizeTags, createCore: createCore, safeUrl: safeUrl, binding: binding, refusalExpiry: refusalExpiry, decodeEntities: decodeEntities, BOT: BOT, MIN_REFUSAL_MONTHS: MIN_REFUSAL_MONTHS, REVOKE_HASH: REVOKE_HASH };
 
   if (typeof document === "undefined") return;
 
@@ -637,6 +686,8 @@
   // --- destinations (Google tag with Consent Mode v2 in basic mode) ---
   function gtag() { root.dataLayer.push(arguments); }
   function anyDestinationLoaded() { return Object.keys(loadedDestinations).length > 0; }
+  // lostAuthorization: a destination that is loaded but no longer authorised.
+  function lostAuthorization() { return Object.keys(loadedDestinations).some(function (id) { return !core.authorizedService(id); }); }
 
   function loadDestinations() {
     manifest.services.forEach(function (s) {
@@ -754,15 +805,19 @@
   // could not be persisted, so the next document closes the gate before it
   // consults any surviving grant. Embeds are torn down in place.
   function settle(result, dropping) {
-    renderState();
-    var lost = dropping || result.ok === false;
-    if (!lost || !anyDestinationLoaded()) return;
-    denyDestinations();
-    if (result.persisted === false) {
-      warn("refusal could not be persisted; reloading with a revocation marker");
-      try { history.replaceState(null, "", location.pathname + location.search + "#" + REVOKE_HASH); } catch (_) { location.hash = REVOKE_HASH; }
+    // Decide about loaded destinations before anything new is loaded.
+    var lost = dropping || result.ok === false || lostAuthorization();
+    if (lost && anyDestinationLoaded()) {
+      denyDestinations();
+      if (result.persisted === false) {
+        warn("refusal could not be persisted; reloading with a revocation marker");
+        try { history.replaceState(null, "", location.pathname + location.search + "#" + REVOKE_HASH); } catch (_) { location.hash = REVOKE_HASH; }
+      }
+      renderEmbeds();
+      location.reload();
+      return;
     }
-    location.reload();
+    renderState();
   }
 
   function acceptAll() {
@@ -771,8 +826,7 @@
   }
   function refuse() {
     removeBar();
-    var persisted = core.refuse();
-    settle({ ok: persisted, persisted: persisted }, true);
+    settle(core.refuse(), true);
   }
 
   function renderBar() {
@@ -812,7 +866,10 @@
           svcBoxes[s.id] = sbox;
           var slabel = el("label", { for: "ic-svc-" + s.id }); slabel.appendChild(labelled(svcText(s.id).label || s.provider, svcText(s.id).description));
           rows.push(el("div", { class: "ic-row ic-row-service" }, [sbox, slabel]));
-          box.addEventListener("change", function () { if (box.checked) sbox.checked = true; });
+          // A category selects all its services; unselecting one service
+          // turns the category into an explicit per-service selection.
+          box.addEventListener("change", function () { sbox.checked = box.checked; });
+          sbox.addEventListener("change", function () { if (!sbox.checked) box.checked = false; });
         });
       });
       var save = el("button", { type: "button", class: "ic-btn", text: T.sheet.save });
@@ -822,7 +879,11 @@
       sheet = el("dialog", { class: "ic-sheet", "aria-labelledby": "ic-sheet-title" }, [el("h2", { id: "ic-sheet-title", text: T.sheet.title }), el("p", { text: T.sheet.intro })].concat(rows, [el("div", { class: "ic-actions" }, [cancel, save])], mini));
       save.addEventListener("click", function () {
         sheet.close();
-        var ids = core.optionalCategories().filter(function (id) { return boxes[id].checked; });
+        // Persist exactly what is displayed: a category counts as granted
+        // only when it and every service row under it are selected.
+        var ids = core.optionalCategories().filter(function (id) {
+          return boxes[id].checked && core.embedServices().filter(function (s) { return s.category === id; }).every(function (s) { return svcBoxes[s.id].checked; });
+        });
         var svcs = core.embedServices().filter(function (s) { return svcBoxes[s.id].checked && ids.indexOf(s.category) < 0; }).map(function (s) { return s.id; });
         var d = core.current();
         var dropping = core.optionalCategories().some(function (id) { return d.granted[id] && ids.indexOf(id) < 0; });
@@ -854,6 +915,7 @@
 
   function renderState() {
     if (!core.valid) return;
+    if (lostAuthorization()) { settle({ ok: true, persisted: true }, true); return; }
     loadDestinations();
     renderEmbeds();
     wireControls();
@@ -864,8 +926,9 @@
     // A revocation marker carried by the URL (a refusal that could not be
     // stored on the previous page) closes the gate before any grant is read.
     if (location.hash.indexOf(REVOKE_HASH) >= 0) {
-      core.refuse();
-      try { history.replaceState(null, "", location.pathname + location.search); } catch (_) { /* keep the hash */ }
+      var r = core.refuse();
+      // The marker stays until the refusal is actually stored somewhere.
+      if (r.persisted) { try { history.replaceState(null, "", location.pathname + location.search); } catch (_) { /* keep the hash */ } }
     }
     var d = core.boot();
     renderState();
