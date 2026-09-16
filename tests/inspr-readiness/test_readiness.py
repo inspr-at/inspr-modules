@@ -23,6 +23,7 @@ from readiness.contract import (
     MAX_GENERATION_HOPS,
     ProfileError,
     digest_bytes,
+    digest_text,
     load_profile_bytes,
     parse_profile,
     usage_error_payload,
@@ -63,6 +64,29 @@ def identities() -> dict[str, str]:
         "harness": "claude",
         "workspace": "wt-readiness",
     }
+
+
+def fixture_binding(top="/fixture/workspace", git_dir="/fixture/workspace/.git/worktrees/wt-readiness"):
+    return {
+        "project_id": 7,
+        "runtime_id": "11111111-1111-4111-8111-111111111111",
+        "runtime_generation": "22222222-2222-4222-8222-222222222222",
+        "account_label": "claude_ai_max",
+        "dispatch_profile_id": "fixture-profile", "dispatch_profile_version": "1",
+        "workspace_handle": "fixture-worktree",
+        "workspace_identity": digest_text("paimos:agentd-workspace:v1\0" + top + "\0" + git_dir)[7:],
+        "workspace_mode": "exclusive", "baseline_digest": "sha256:" + "b" * 64,
+    }
+
+
+def fixture_receipt(binding=None):
+    b = fixture_binding() if binding is None else dict(binding)
+    return {**b, "contract_version": CONTRACT_VERSION,
+        "intent_id": "33333333-3333-4333-8333-333333333333",
+        "host_kind": "macos-home-manager", "status": "ready", "next_action": "none",
+        "observed_at": "2026-09-07T14:44:50Z", "expires_at": "2026-09-07T14:46:00Z",
+        "checks": [{"id": "workspace_isolation", "status": "pass", "reason": "workspace_verified",
+                    "digest": digest_text(b["workspace_identity"])}]}
 
 
 def base_profile(**overrides):
@@ -115,6 +139,11 @@ def base_profile(**overrides):
             payload[key] = merged
         else:
             payload[key] = value
+    if "paimos_readiness" not in overrides:
+        payload["paimos_readiness"] = fixture_binding()
+        for field in ("account_label", "account_key"):
+            if field in payload["expected"]:
+                payload["paimos_readiness"][field] = payload["expected"][field]
     return payload
 
 
@@ -157,6 +186,7 @@ class FakeHost:
             "git": "/nix/store/cccccccccccccccccccccccccccccccc-git/bin/git",
             "nix": "/nix/store/dddddddddddddddddddddddddddddddd-nix/bin/nix",
             "paimos": "/nix/store/eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee-paimos/bin/paimos",
+            "paimos-agentd": "/nix/store/eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee-paimos/bin/paimos-agentd",
             "claude": "/nix/store/ffffffffffffffffffffffffffffffff-claude/bin/claude",
         }
         for path in self.which_map.values():
@@ -164,6 +194,8 @@ class FakeHost:
         self.git_head = HEAD
         self.git_dir = "/fixture/workspace/.git/worktrees/wt-readiness"
         self.git_common = "/fixture/workspace/.git"
+        self.receipt = fixture_receipt()
+        self.receipt_exit = 0
         self.doctor = doctor_layers()
         self.claude_status = {"loggedIn": True, "authMethod": "claude.ai", "subscriptionType": "max"}
         self.codex_status = (b"Logged in using ChatGPT\n", b"", 0)
@@ -240,6 +272,8 @@ class FakeHost:
             raise ProbeTimeout
         if name == "git":
             return self._git(argv)
+        if name == "paimos-agentd":
+            return RunResult(tuple(argv), json.dumps(self.receipt).encode(), b"", self.receipt_exit)
         if name == "paimos":
             raw = json.dumps(self.doctor).encode("utf-8")
             if len(raw) > max_output:
@@ -257,6 +291,7 @@ class FakeHost:
         query = argv[-1]
         mapping = {
             "--is-inside-work-tree": "true",
+            "--show-toplevel": "/fixture/workspace",
             "HEAD": self.git_head,
             "--git-dir": self.git_dir,
             "--git-common-dir": self.git_common,
@@ -506,6 +541,9 @@ class ProbeTests(unittest.TestCase):
                 "checks": [{"id": "host_kind", "status": "pass", "reason": "host_kind_supported"}],
             }
         ).encode()
+        # The portable cache cannot replace a fresh accepted daemon observation.
+        host.receipt["observed_at"] = "2026-09-07T14:50:00Z"
+        host.receipt["expires_at"] = "2026-09-07T14:51:00Z"
         later = run_profile(payload, host, use_cache=True, now=NOW + timedelta(seconds=301))
         self.assertEqual(later.status, "ready")
         self.assertGreater(len(host.recorded), first_probes)

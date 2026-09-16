@@ -14,6 +14,7 @@ from pathlib import Path
 
 from readiness.contract import CONTRACT_VERSION, digest_bytes
 from readiness.engine import generation_digest, workspace_identity_digest
+from test_readiness import fixture_binding, fixture_receipt
 
 
 def _readiness_pythonpath() -> str:
@@ -101,6 +102,10 @@ class RealCliTests(unittest.TestCase):
         profile.symlink_to("home-manager-78-link")
         generation_link.symlink_to(store)
         self.generation = generation_digest(store)
+        canonical_root = str(self.workspace.resolve())
+        self.binding = fixture_binding(canonical_root, str((self.workspace / ".git").resolve()))
+        receipt = json.dumps(fixture_receipt(self.binding))
+        self._write_tool("paimos-agentd", "#!/bin/sh\ntest \"$1\" = readiness-receipt || exit 9\nprintf '%s\\n' '" + receipt + "'\n")
         self._write_tool("paimos", self._paimos_script())
         self._write_tool("claude", self._claude_script())
         self._write_tool("nix", "#!/bin/sh\nexit 0\n")
@@ -192,6 +197,7 @@ printf '%s\\n' '{"loggedIn":true,"authMethod":"claude.ai","subscriptionType":"ma
                 "workspace": "wt-readiness",
             },
             "expected": expected,
+            "paimos_readiness": self.binding,
             "requested_capabilities": ["runtime_ready", "exclusive_workspace"],
             "checks": {
                 "required": [
