@@ -125,6 +125,7 @@ PROFILE_TOP = frozenset(
         "checks",
         "inputs",
         "observation_ttl_seconds",
+        "paimos_readiness",
     }
 )
 IDENTITY_KEYS = frozenset(
@@ -272,6 +273,7 @@ class Profile:
     inputs: dict[str, str]
     observation_ttl_seconds: int
     source_bytes: bytes
+    paimos_readiness: dict[str, Any] | None = None
 
     @property
     def digest(self) -> str:
@@ -290,6 +292,7 @@ class CheckResult:
     status: str
     reason: str
     digest: str | None = None
+    expires_at: datetime | None = None
 
     def as_dict(self) -> dict[str, Any]:
         out: dict[str, Any] = {
@@ -409,6 +412,19 @@ def parse_profile(payload: Any, *, source_bytes: bytes | None = None) -> Profile
         raise ProfileError("invalid_ttl")
 
     _require_check_inputs(required, expected, inputs)
+    if "exclusive_workspace" in capabilities:
+        if "workspace_isolation" not in required:
+            raise ProfileError("exclusive_workspace_requires_check")
+        if expected.get("workspace_mode", "exclusive") != "exclusive":
+            raise ProfileError("exclusive_workspace_requires_mode")
+    binding = None
+    if "paimos_readiness" in data:
+        from .receipt import parse_binding
+        binding = parse_binding(data["paimos_readiness"])
+        if not expected.get("paimos_instance"):
+            raise ProfileError("missing_paimos_runtime")
+        if binding["workspace_mode"] != expected.get("workspace_mode", "exclusive"):
+            raise ProfileError("readiness_binding_mode_mismatch")
     encoded = source_bytes if source_bytes is not None else json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return Profile(
         profile_id=profile_id,
@@ -420,6 +436,7 @@ def parse_profile(payload: Any, *, source_bytes: bytes | None = None) -> Profile
         inputs=inputs,
         observation_ttl_seconds=ttl,
         source_bytes=encoded,
+        paimos_readiness=binding,
     )
 
 
@@ -581,7 +598,8 @@ def aggregate(profile: Profile, checks: list[CheckResult], *, now: datetime) -> 
     evidence = Evidence(
         status=overall,
         observed_at=now,
-        expires_at=now + timedelta(seconds=profile.observation_ttl_seconds),
+        expires_at=min([now + timedelta(seconds=profile.observation_ttl_seconds)]
+                       + [item.expires_at for item in checks if item.expires_at is not None]),
         profile_id=profile.profile_id,
         profile_digest=profile.digest,
         context=dict(profile.identities),

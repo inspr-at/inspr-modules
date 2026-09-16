@@ -454,6 +454,28 @@ fresh evidence; leftover cache files cannot change a result. The optional
 `inputs.cache_dir` key remains accepted for profile compatibility but is
 ignored.
 
+An `exclusive_workspace` request requires `workspace_isolation` as a required
+check and an operator-supplied `paimos_readiness` binding. This binds the numeric
+project, current runtime ID/generation, account, immutable dispatch-profile
+version, workspace handle/identity/mode and baseline digest. Populate it from
+the approved Paimos lifecycle configuration; the example uses synthetic values.
+The CLI asks the owned daemon's private socket for the latest server-accepted
+receipt for that exact tuple through `paimos-agentd readiness-receipt`. It does
+not create a readiness intent, reserve a workspace or start a worker.
+
+The receipt must be unexpired, match the independently observed physical Git
+workspace identity and report managed workspace availability. Missing producers,
+old generations, stale observations, mismatches and occupied workspaces cannot
+produce `ready`. The exported result contains only closed reasons and digests,
+and expires no later than the accepted receipt. Old profiles remain parseable,
+but an exclusive-workspace request without this binding is unavailable.
+Explicit shared-mode probes without an exclusive request retain local Git
+provenance checks; they do not prove absence of other workers.
+
+This is availability of **Paimos-managed** work at the observation time. It
+cannot exclude unmanaged processes or prevent an intervening Start. Paimos's
+atomic Start-time reservation remains the final authority.
+
 Subprocess probes share one combined stdout+stderr byte budget (default
 65536) and a finite positive timeout. The deadline covers drain and
 termination of the owned session/process group, including same-group
@@ -466,13 +488,13 @@ are rejected as `invalid_command`.
 ### Expected digest derivation (read-only)
 
 Digests are `sha256:` plus 64 lowercase hex characters. They are computed
-from **opaque identifiers**, never from path strings, emails, or command
-output:
+from the inputs below. Local paths and raw command output are never exported:
 
 | Profile field | Exact input to SHA-256 |
 |---|---|
 | `home_manager_generation_digest` | basename of the fully resolved `/nix/store/…-home-manager-generation` path (Home Manager `current-home` is usually one hop; `~/.local/state/nix/profiles/home-manager` is `home-manager → home-manager-N-link → store`) |
 | `nix_system_generation_digest` | basename of the fully resolved `/nix/store/…` system path (`/run/current-system` vs `/nix/var/nix/profiles/system` → `system-N-link` → store) |
+| `paimos_readiness.workspace_identity` | native Paimos physical identity: bare hex SHA-256 of `paimos:agentd-workspace:v1` + NUL + canonical Git top-level + NUL + canonical Git directory; observed independently, not inferred from the requested mode |
 | `workspace_identity_digest` | UTF-8 of `<head>\|worktree=<0\|1>\|mode=<exclusive\|shared>`, where `<head>` is `git rev-parse HEAD` and worktree is 1 when `--git-dir` differs from `--git-common-dir` |
 | `doctrine_kernel_digest` | bytes of the file named by `inputs.doctrine_kernel` |
 

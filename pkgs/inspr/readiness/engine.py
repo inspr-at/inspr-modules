@@ -446,11 +446,11 @@ def evaluate(profile: Profile, host: ProbeHost, *, now: datetime, use_cache: boo
     checks: list[CheckResult] = []
     for check_id in (*profile.required_checks, *profile.optional_checks):
         optional = check_id in profile.optional_checks
-        checks.append(run_check(check_id, profile, host, optional=optional))
+        checks.append(run_check(check_id, profile, host, optional=optional, now=now))
     return aggregate(profile, checks, now=now)
 
 
-def run_check(check_id: str, profile: Profile, host: ProbeHost, *, optional: bool) -> CheckResult:
+def run_check(check_id: str, profile: Profile, host: ProbeHost, *, optional: bool, now: datetime | None = None) -> CheckResult:
     dispatch = {
         "host_kind": probe_host_kind,
         "activated_generation": probe_activated_generation,
@@ -465,7 +465,7 @@ def run_check(check_id: str, profile: Profile, host: ProbeHost, *, optional: boo
     if fn is None:
         return CheckResult(check_id, "unsupported", "unknown_check")
     try:
-        result = fn(profile, host)
+        result = fn(profile, host, now=now) if check_id == "workspace_isolation" else fn(profile, host)
     except ProbeTimeout:
         result = CheckResult(check_id, "unknown", "probe_timeout")
     except ProbeOutputBound:
@@ -671,7 +671,7 @@ def probe_doctrine_loader(profile: Profile, host: ProbeHost) -> CheckResult:
     return CheckResult("doctrine_loader", "pass", "doctrine_loader_verified", observed)
 
 
-def probe_workspace_isolation(profile: Profile, host: ProbeHost) -> CheckResult:
+def probe_workspace_isolation(profile: Profile, host: ProbeHost, *, now: datetime | None = None) -> CheckResult:
     root = profile.inputs["workspace_root"]
     if not host.isdir(root):
         return CheckResult("workspace_isolation", "fail", "workspace_missing")
@@ -703,6 +703,41 @@ def probe_workspace_isolation(profile: Profile, host: ProbeHost) -> CheckResult:
     expected = profile.expected["workspace_identity_digest"]
     if identity != expected:
         return CheckResult("workspace_isolation", "fail", "workspace_identity_mismatch", identity)
+    if "exclusive_workspace" in profile.requested_capabilities or profile.paimos_readiness is not None:
+        from .receipt import validate_receipt
+        binding = profile.paimos_readiness
+        if binding is None:
+            return CheckResult("workspace_isolation", "unknown", "readiness_binding_missing")
+        if any(profile.expected.get(field, "") != binding.get(field, "") for field in ("account_label", "account_key")):
+            return CheckResult("workspace_isolation", "fail", "readiness_binding_account_mismatch")
+        top = _git_text(host, argv_prefix + ["rev-parse", "--show-toplevel"], extra_env=env)
+        if not top or not os.path.isabs(top):
+            return CheckResult("workspace_isolation", "unknown", "workspace_git_unverified")
+        canonical_git = host.realpath(git_dir if os.path.isabs(git_dir) else os.path.join(root, git_dir))
+        native_identity = digest_text("paimos:agentd-workspace:v1\0" + host.realpath(top) + "\0" + canonical_git)[7:]
+        if native_identity != binding["workspace_identity"]:
+            return CheckResult("workspace_isolation", "fail", "readiness_receipt_workspace_mismatch")
+        daemon = _pinned_tool(profile, host, "paimos-agentd")
+        if daemon is None:
+            return CheckResult("workspace_isolation", "unknown", "readiness_consumer_unavailable")
+        argv = [daemon, "readiness-receipt", "--instance", profile.expected["paimos_instance"]]
+        for key, flag in (("project_id", "project-id"), ("runtime_id", "runtime-id"),
+            ("runtime_generation", "runtime-generation"), ("account_label", "account-label"),
+            ("account_key", "account-key"), ("dispatch_profile_id", "dispatch-profile"),
+            ("dispatch_profile_version", "dispatch-profile-version"), ("workspace_handle", "workspace-handle"),
+            ("workspace_identity", "workspace-identity"), ("workspace_mode", "workspace-mode"),
+            ("baseline_digest", "baseline-digest")):
+            if key in binding:
+                argv.extend(["--" + flag, str(binding[key])])
+        result = host.run(argv, timeout=5, max_output=16384)
+        if result.exit_code != 0:
+            return CheckResult("workspace_isolation", "unknown", "readiness_receipt_unavailable")
+        status, workspace_status, expiry = validate_receipt(result.stdout, binding, now=now or parse_now(None))
+        if workspace_status == "fail":
+            return CheckResult("workspace_isolation", "fail", "managed_workspace_not_available", expires_at=expiry)
+        if status != "ready" or workspace_status != "pass":
+            return CheckResult("workspace_isolation", "unknown", "readiness_receipt_not_ready", expires_at=expiry)
+        return CheckResult("workspace_isolation", "pass", "managed_workspace_available", digest_text(native_identity), expiry)
     return CheckResult("workspace_isolation", "pass", "workspace_verified", identity)
 
 

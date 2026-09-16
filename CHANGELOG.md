@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Managed workspace readiness (INSPR-440).** Require an exact, unexpired
+  Paimos-accepted availability receipt for exclusive workspace requests;
+  local Git provenance alone no longer claims a workspace is free.
+
 ## [0.15.1] - 2026-09-16
 
 ### Fixed
