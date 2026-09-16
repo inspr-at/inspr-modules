@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
 import tempfile
 import unittest
@@ -10,7 +11,11 @@ PACKAGE_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PACKAGE_ROOT))
 
 from routing_edge.compile import compile_edge, write_outputs  # noqa: E402
-from routing_edge.deny import deny_regexes_for_app, route_regex  # noqa: E402
+from routing_edge.deny import (  # noqa: E402
+    deny_regexes_for_app,
+    paimos_attended_runtime_list_regex,
+    route_regex,
+)
 from routing_edge.deployment import (  # noqa: E402
     PINNED_TRAEFIK_OCI_INDEX_DIGEST,
     PINNED_TRAEFIK_OCI_LINUX_AMD64_DIGEST,
@@ -180,6 +185,64 @@ class CompileTests(unittest.TestCase):
         janus = "\n".join(deny_regexes_for_app("janus", "/janus"))
         self.assertIn("/internal", janus)
         self.assertIn("/buildz", janus)
+
+    def test_attended_runtime_list_is_exact_get_above_unchanged_deny(self) -> None:
+        result, contract, deployment = compile_named(
+            "combined-connected.json", "combined-connected.deployment.json"
+        )
+        routers = result.dynamic["http"]["routers"]
+        allow = routers["inspr-attended-paimos-runtimes"]
+        deny = routers["inspr-deny-paimos"]
+        self.assertEqual(allow["priority"], deny["priority"] + 1)
+        self.assertEqual(allow["service"], "inspr-upstream-paimos")
+        self.assertIn("Method(`GET`)", allow["rule"])
+        self.assertEqual(
+            allow["middlewares"],
+            ["inspr-deny-encoded-path", "inspr-app-paimos"],
+        )
+        self.assertIn("lifecycle/v1(?:/.*)?", deny["rule"])
+        exact = paimos_attended_runtime_list_regex("/paimos")
+        self.assertIn(f"PathRegexp(`{exact}`)", allow["rule"])
+        self.assertTrue(re.fullmatch(exact, "/paimos/api/projects/6/lifecycle/v1/runtimes"))
+        for other in (
+            "/api/projects/6/lifecycle/v1/runtimes",
+            "/paimos/api/projects/0/lifecycle/v1/runtimes",
+            "/paimos/api/projects/6/lifecycle/v1/runtimes/",
+            "/paimos/api/projects/6/lifecycle/v1/runtimes/claim",
+            "/paimos/api/projects/6/lifecycle/v1/runtime-health",
+            "/paimosx/api/projects/6/lifecycle/v1/runtimes",
+        ):
+            self.assertFalse(re.fullmatch(exact, other), other)
+        self.assertEqual(
+            result.dynamic["http"]["middlewares"]["inspr-deny-encoded-path"]["encodedCharacters"],
+            {key: False for key in (
+                "allowEncodedSlash", "allowEncodedBackSlash", "allowEncodedNullCharacter",
+                "allowEncodedSemicolon", "allowEncodedPercent", "allowEncodedQuestionMark",
+                "allowEncodedHash",
+            )},
+        )
+        self.assertEqual(
+            result.report["apps"]["paimos"]["attended_lifecycle_exception"],
+            {
+                "method": "GET",
+                "path": "/paimos/api/projects/{positive-id}/lifecycle/v1/runtimes",
+                "authority": "paimos_non_impersonated_super_admin_session",
+            },
+        )
+
+        disabled, _, _ = compile_named(
+            "standalone-aithema.json", "standalone-aithema.deployment.json"
+        )
+        self.assertEqual(disabled.findings, [])
+        self.assertNotIn("inspr-attended-paimos-runtimes", disabled.dynamic["http"]["routers"])
+        self.assertNotIn("attended_lifecycle_exception", disabled.report["apps"]["paimos"])
+
+        contract["apps"]["paimos"]["public_base_path"] = ""
+        contract["apps"]["aithema"]["public_base_path"] = "/aithema"
+        rooted = compile_edge(contract, deployment)
+        self.assertEqual(rooted.findings, [])
+        root_allow = rooted.dynamic["http"]["routers"]["inspr-attended-paimos-runtimes"]
+        self.assertIn("PathRegexp(`^/api/projects/[1-9][0-9]*/lifecycle/v1/runtimes$`)", root_allow["rule"])
 
     def test_sse_paths_are_not_in_the_deny_catalog(self) -> None:
         deny = "\n".join(deny_regexes_for_app("paimos", "/paimos"))
