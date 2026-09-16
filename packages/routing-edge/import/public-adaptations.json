@@ -36,6 +36,10 @@
       "reason": "Emit the 3.7.13 syntax marker and expose the exact official release and OCI process-proof coordinates in the generated wiring report."
     },
     {
+      "path": "packages/routing-edge/routing_edge/deny.py",
+      "reason": "Name the exact attended Paimos runtime-list GET exception while retaining the source-backed wildcard lifecycle denial for all other methods and paths."
+    },
+    {
       "path": "packages/routing-edge/routing_edge/deployment.py",
       "reason": "Advance the compiler compatibility constants to 3.7.13 and add exact official release and OCI process-proof coordinates."
     },

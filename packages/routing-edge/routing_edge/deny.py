@@ -62,6 +62,18 @@ _PAIMOS_LIFECYCLE = (
     ("api", "projects", PARAM, "lifecycle", "v1", "*"),
 )
 
+
+def paimos_attended_runtime_list_regex(public_base_path: str) -> str:
+    """The one browser lifecycle read admitted ahead of the private deny.
+
+    Keep this exact and mount-relative: an unprefixed native path must stay
+    denied when Paimos is mounted at /paimos beside another root app.
+    """
+    return (
+        "^" + re.escape(public_base_path)
+        + "/api/projects/[1-9][0-9]*/lifecycle/v1/runtimes$"
+    )
+
 # Paimos admin debug + build-tag-gated dev login:
 # backend/main.go:449-453 and 1150
 _PAIMOS_DEBUG = (

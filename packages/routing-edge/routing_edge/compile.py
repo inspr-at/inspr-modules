@@ -25,6 +25,7 @@ from .deny import (
     PAIMOS_SSE_APP_PATHS,
     deny_regexes_for_app,
     family_summaries,
+    paimos_attended_runtime_list_regex,
 )
 from .deployment import (
     EXTERNAL_MODE,
@@ -164,6 +165,33 @@ def compile_edge(contract: Any, deployment_document: Any, *, dynamic_filename: s
                 service=resource("deny-unpublished"),
                 middlewares=[resource("deny-unpublished")],
                 priority=DENY_PRIORITY,
+                tls=tls_public,
+                certificate_resolver=deployment.certificate_resolver,
+            )
+        if app_id == "paimos":
+            # The existing Paimos handler reauthorizes a non-impersonated
+            # super-admin browser session. Admit only its exact runtime-list
+            # GET; keep the wildcard lifecycle deny authoritative otherwise.
+            middlewares[resource("deny-encoded-path")] = {
+                "encodedCharacters": {
+                    "allowEncodedSlash": False,
+                    "allowEncodedBackSlash": False,
+                    "allowEncodedNullCharacter": False,
+                    "allowEncodedSemicolon": False,
+                    "allowEncodedPercent": False,
+                    "allowEncodedQuestionMark": False,
+                    "allowEncodedHash": False,
+                },
+            }
+            routers[resource("attended-paimos-runtimes")] = _router(
+                rule=(
+                    f"{host_rule} && Method(`GET`) && "
+                    f"PathRegexp(`{paimos_attended_runtime_list_regex(base)}`)"
+                ),
+                entry=entry,
+                service=resource("upstream-paimos"),
+                middlewares=[resource("deny-encoded-path"), chain_name],
+                priority=DENY_PRIORITY + 1,
                 tls=tls_public,
                 certificate_resolver=deployment.certificate_resolver,
             )
@@ -531,6 +559,11 @@ def _wiring_report(
                 "callback": join_public_path(mount["public_base_path"], mount["oidc"]["redirect_path"]),
             }
             if app_id == "paimos":
+                entry["attended_lifecycle_exception"] = {
+                    "method": "GET",
+                    "path": mount["public_base_path"] + "/api/projects/{positive-id}/lifecycle/v1/runtimes",
+                    "authority": "paimos_non_impersonated_super_admin_session",
+                }
                 sse_paths = []
                 for path in PAIMOS_SSE_APP_PATHS:
                     endpoint = "/api/intake/sessions/demo/stream" if "{id}" in path else path

@@ -15,6 +15,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Paimos-accepted availability receipt for exclusive workspace requests;
   local Git provenance alone no longer claims a workspace is free.
 
+## [0.15.1] - 2026-09-16
+
+### Fixed
+
+- **Shared Flow Paimos enrollment (INSPR-441).** Route only the attended
+  lifecycle runtime-list GET to Paimos's existing super-admin session guard;
+  keep other lifecycle methods and machine routes denied at the edge.
+
 ## [0.15.0] - 2026-09-16
 
 ### Changed

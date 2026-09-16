@@ -80,6 +80,7 @@ def request(
     port: int,
     path: str,
     *,
+    method: str = "GET",
     host: str = "127.0.0.1",
     headers: dict[str, str] | None = None,
     timeout: float = 8.0,
@@ -92,7 +93,7 @@ def request(
         merged = {"Host": host}
         if headers:
             merged.update(headers)
-        connection.request("GET", path, headers=merged)
+        connection.request(method, path, headers=merged)
         response = connection.getresponse()
         body = response.read()
         return response.status, {key.lower(): value for key, value in response.getheaders()}, body
@@ -271,6 +272,63 @@ class TraefikProcessTests(unittest.TestCase):
 
             first_at = _sse_first_byte_delay(port, "/paimos/api/intake/sessions/demo/stream")
             self.assertLess(first_at, 0.35)
+        finally:
+            self._stop(bundle)
+
+    def test_only_attended_paimos_runtime_list_get_crosses_lifecycle_deny(self) -> None:
+        bundle = self._start_edge(
+            "combined-connected.json",
+            ("aithema", "paimos", "pharos", "janus"),
+            "/paimos/api/health",
+            {200},
+        )
+        try:
+            port = bundle["port"]
+            paimos = bundle["backends"]["paimos"]["state"]
+            status, _, body = request(
+                port,
+                "/paimos/api/projects/6/lifecycle/v1/runtimes",
+                headers={"X-Forwarded-User": "untrusted"},
+            )
+            self.assertEqual(status, 200)
+            forwarded = _json(body)
+            self.assertEqual(forwarded["path"], "/paimos/api/projects/6/lifecycle/v1/runtimes")
+            self.assertEqual(forwarded["app_id"], "paimos")
+            self.assertIn(forwarded["x_forwarded_user"], (None, ""))
+            self.assertEqual(forwarded["x_forwarded_prefix"], "/paimos")
+            after_get = len(paimos.requests)
+
+            denied = (
+                ("POST", "/paimos/api/projects/6/lifecycle/v1/runtimes"),
+                ("HEAD", "/paimos/api/projects/6/lifecycle/v1/runtimes"),
+                ("PUT", "/paimos/api/projects/6/lifecycle/v1/runtimes"),
+                ("GET", "/paimos/api/projects/6/lifecycle/v1/runtimes/"),
+                ("GET", "/paimos/api/projects/6/lifecycle/v1/runtimes/extra"),
+                ("GET", "/paimos/api/projects/0/lifecycle/v1/runtimes"),
+                ("GET", "/paimos/api/projects/6x/lifecycle/v1/runtimes"),
+                ("GET", "/paimos/api/projects/6/lifecycle/v1/runtime-health"),
+                ("GET", "/paimos/api/projects/6/lifecycle/v1/intents"),
+                ("GET", "/api/projects/6/lifecycle/v1/runtimes"),
+                ("GET", "/paimosx/api/projects/6/lifecycle/v1/runtimes"),
+                ("GET", "/paimos%2fapi/projects/6/lifecycle/v1/runtimes"),
+                ("GET", "/paimos/api/projects/6/lifecycle/v1/runtimes%2fextra"),
+            )
+            for method, path in denied:
+                with self.subTest(method=method, path=path):
+                    status, _, _ = request(port, path, method=method)
+                    self.assertIn(status, {400, 403, 404})
+                    self.assertEqual(len(paimos.requests), after_get)
+
+            # Traefik canonicalizes dot segments before matching and forwarding.
+            # These aliases may enter only the same protected list handler,
+            # never a different lifecycle operation.
+            for path in (
+                "/paimos/api/projects/6/lifecycle/v1/extra/../runtimes",
+                "/paimos/api/projects/6/lifecycle/v1/extra/%2e%2e/runtimes",
+            ):
+                status, _, body = request(port, path)
+                self.assertEqual(status, 200)
+                self.assertEqual(_json(body)["path"], "/paimos/api/projects/6/lifecycle/v1/runtimes")
         finally:
             self._stop(bundle)
 

@@ -97,6 +97,12 @@ fragment filename and must prevent collisions with all other dynamic providers.
   Paimos control/lifecycle/dev-login/debug families, Janus `/internal` and
   `/buildz`, Pharos `/internal`, `/agent`, `/metrics`, `/register`, `/report`,
   Aithema `/session/demo`. Native unprefixed variants are also denied
+- One attended Paimos exception routes only `GET /api/projects/{positive-id}/lifecycle/v1/runtimes`
+  at its configured public mount to Paimos's existing non-impersonated
+  super-admin session guard. Other lifecycle methods and paths remain denied;
+  the edge does not authenticate users or expose a machine route. Traefik
+  canonicalizes dot segments before routing and forwards those aliases only
+  to the same guarded list handler; ambiguous encoded separators are rejected
 - Paimos SSE (`/api/changes`, `/api/agent-mode/deliveries/events`,
   `/api/intake/sessions/{id}/stream`) is forwarded with
   `responseHeaderTimeout: 0s` and without buffering middleware
@@ -131,7 +137,7 @@ Consumers import it with their **own pinned nixpkgs** and a pinned
 else at build time or at run time.
 
 **Publication prerequisite:** root review must publish this tree through
-`inspr-modules` before consumers pin an immutable coordinate. The consumer example below targets `v0.15.0`; use it after the matching
+`inspr-modules` before consumers pin an immutable coordinate. The consumer example below targets `v0.15.1`; use it after the matching
 GitHub Release is published. A prepared source branch alone is not release
 availability.
 
@@ -140,7 +146,7 @@ availability.
 From a consuming flake after publication:
 
 ```nix
-inputs.inspr-modules.url = "github:inspr-at/inspr-modules/v0.15.0";
+inputs.inspr-modules.url = "github:inspr-at/inspr-modules/v0.15.1";
 
 let
   routingEdge = inputs.inspr-modules.packages.${pkgs.system}.routing-edge;
