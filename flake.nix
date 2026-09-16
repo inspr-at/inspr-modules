@@ -55,11 +55,11 @@
 #                                       Replaces the older inspr-doctor.sh probe.
 #   packages.<system>.routing-edge     Traefik file-provider compiler built from
 #                                       this flake (`insprSource = self`).
-#   packages.<system>.aithema-workspace Immutable public Aithema 0.9.0 runtime
+#   packages.<system>.aithema-workspace Immutable public Aithema 0.10.0 runtime
 #                                       with lock-integrity-pinned dependencies.
 #
 # Consumer pattern (in your flake.nix):
-#   inputs.inspr-modules.url = "github:inspr-at/inspr-modules/v0.16.0";  # pin a tag; main moves
+#   inputs.inspr-modules.url = "github:inspr-at/inspr-modules/v0.16.1";  # pin a tag; main moves
 #   inputs.inspr-modules.inputs.nixpkgs.follows = "nixpkgs";
 #
 #   home.imports = [
@@ -556,11 +556,18 @@ EOF
                 set -eu
 
                 test "${aithemaWorkspacePkg.passthru.release.sourceRev}" = \
-                  5a004b302141196daff3fd578429390cbb3ea0e0
+                  d9591b440fdcfa68a2217dd2aefbd92310d151b7
                 test "${aithemaWorkspacePkg.passthru.release.runtimeSha256}" = \
-                  14b8a33f92dd8898958cec521052fb4464a9bdcf2c2b764e24db960dbae2315a
+                  2a4deb70f34c525dbd74b23283b67ca69073f9a764d2ed719c8f29d790bca203
                 test "$(sha256sum ${./packages/aithema-workspace/package-lock.json} | cut -d' ' -f1)" = \
-                  090e19b9b5be534745ab3e3ab8bb0907284711e278794cab574902ae6c385467
+                  e3d3826a85f08bbeeff960abd6c457ec96177f00e275c557962a7c88e6f97e81
+                test "$(sha256sum ${./packages/aithema-workspace/package.json} | cut -d' ' -f1)" = \
+                  ec8193c039578dd61270a1322e8a554a75a4102be908c5069909755bd5686910
+                ${pkgs.nodejs_24}/bin/node -e '
+                  const fs = require("node:fs");
+                  const installed = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+                  if (installed.version !== "0.10.0") throw new Error("installed Aithema manifest version drift");
+                ' ${aithemaWorkspacePkg}/lib/node_modules/@inspr/aithema-core/package.json
                 ${aithemaWorkspacePkg}/bin/aithema-workspace --help \
                   | grep -q 'Usage: aithema-workspace --config FILE'
 

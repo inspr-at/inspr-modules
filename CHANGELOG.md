@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.1] - 2026-09-16
+
+### Fixed
+
+- **Aithema conversations through systemd credentials (INSPR-443 / AIT-26).**
+  Package Aithema 0.10.0 with protected systemd credential support while
+  preserving the stricter checks for ordinary credential files. This release
+  also carries the compact Flow Shell 0.2.1 workspace interface (AIT-29).
+
 ## [0.16.0] - 2026-09-16
 
 ### Fixed

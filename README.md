@@ -38,7 +38,7 @@ The shared editor/Pretty bundle is pinned from `inspr-at/inspr`; the older
 | Module | Namespace | What it does |
 |---|---|---|
 | `ssh-authorized` | `inspr.ssh.authorized` | System-side counterpart to the HM `ssh-authorized` (since INSPR-73). Same shared keyring (rich-key form, `status: active \| legacy \| revoked`) but renders into `users.users.<u>.openssh.authorizedKeys.keys` (which NixOS materializes as `/etc/ssh/authorized_keys.d/<u>`). **Multi-user**: `inspr.ssh.authorized.users.<name>.{trust, force, extraKeys}`. **`force = true`** wraps the rendered list in `lib.mkForce` to displace upstream-injected keys (e.g. server-home / hokage profiles); default `false` merges via list concatenation. Throws at eval time on undeclared alias OR revoked-in-trust. Define the `keys` keyring in a plain-Nix file imported at BOTH NixOS-module scope (for this module) AND HM scope (for the HM module) — single source of truth across both. |
-| `aithema-workspace` | `services.inspr.aithemaWorkspace` | Disabled-by-default service for the immutable public Aithema 0.9.0 runtime. Runs the actual Node 24+ CLI as a dedicated static user, keeps SQLite state in a systemd-owned persistent directory, and loads operator-owned runtime JSON through protected systemd credentials. It does not render auth/provider configuration, open a firewall port, provision TLS/OIDC, or weaken Aithema's production validation. |
+| `aithema-workspace` | `services.inspr.aithemaWorkspace` | Disabled-by-default service for the immutable public Aithema 0.10.0 runtime. Runs the actual Node 24+ CLI as a dedicated static user, keeps SQLite state in a systemd-owned persistent directory, and loads operator-owned runtime JSON through protected systemd credentials. It does not render auth/provider configuration, open a firewall port, provision TLS/OIDC, or weaken Aithema's production validation. |
 | `default` | (aggregate) | Imports all NixOS modules. |
 
 ### Packages
@@ -48,7 +48,7 @@ The shared editor/Pretty bundle is pinned from `inspr-at/inspr`; the older
 | `inspr` | The INSPR CLI (evolved from `inspr-doctor`, INSPR-195): `check` (read-only drift diagnosis, incl. the kernel byte-budget gate), `readiness` (read-only, machine-readable development-machine probe driven by an operator-owned project profile), `heal` (apply mapped fixes with verified-applied semantics), `onboard` (fresh-host walkthrough, optional Pharos registration), `post-deploy` (nixcfg → Pharos → HostDash validation). |
 | `secrets-audit` | Bash script: detects drift between `secrets/*.age` files and their declarations in `secrets/secrets.nix`. Three modes: human report, `--quiet`, `--json`. |
 | `consent-gate` | Identity-free consent primitive for browser-facing surfaces (INSPR-431): one manifest per surface → nothing / contextual embed placeholders / non-modal bar with equivalent choices; host-only decision cookie without identifier, GPC/DNT as refusal, fail-closed storage handling, Google Consent Mode v2 basic adapter. Consumers vendor `consent-gate.js`/`.css` and pin the bytes with `scripts/check-consent-gate-vendored.sh`. See `packages/consent-gate/README.md`. |
-| `aithema-workspace` | Actual `aithema-workspace` executable from the immutable public Aithema 0.9.0 runtime archive. Node 24 is part of the closure; every direct and transitive dependency is fetched from the release lockfile by its recorded integrity. |
+| `aithema-workspace` | Actual `aithema-workspace` executable from the immutable public Aithema 0.10.0 runtime archive. Node 24 is part of the closure; every direct and transitive dependency is fetched from the release lockfile by its recorded integrity. |
 
 ## Consumer pattern
 
@@ -62,7 +62,7 @@ In your `flake.nix`:
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
     # Pin to a tag. Tracking `main` means every `nix flake update`
     # can change doctrine and module behaviour under you.
-    inspr-modules.url = "github:inspr-at/inspr-modules/v0.16.0";
+    inspr-modules.url = "github:inspr-at/inspr-modules/v0.16.1";
     inspr-modules.inputs.nixpkgs.follows = "nixpkgs";
   };
 
@@ -160,7 +160,7 @@ eval fails on purpose:
 {
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    inspr-modules.url = "github:inspr-at/inspr-modules/v0.16.0";
+    inspr-modules.url = "github:inspr-at/inspr-modules/v0.16.1";
     inspr-modules.inputs.nixpkgs.follows = "nixpkgs";
   };
 
@@ -281,7 +281,7 @@ nix build .#checks.aarch64-darwin.secrets-audit-functional --print-build-logs
 | `inspr-cli-functional` | Sources a synthetic rendered `fleet.conf` with Bash and proves quotes, command substitutions, backticks, backslashes, spaces, newlines, and dollar expansions remain literal values without executing; null/empty configuration remains assignment-free. |
 | `paimos-config-functional` | Executes synthetic activations to prove legacy `api_key`, missing files, and unset/empty URL variables preserve the prior config; diagnostics resist shell interpolation; jq encoding safely preserves quoted and multiline routing URLs. Never reads a real user config or credential. |
 | `consent-gate` | Core: manifest validation (fail closed), tier selection, bound per-entry decision records without identifiers, partial grants, per-entry expiry and category revisions, six-calendar-month refusals, GPC/DNT over older grants with immediate and retried persistence, session and URL revocation, dropped and throwing accessors, instance-bound load-once vs remembered embed services, scoped storage cleanup, crawler handling, Consent Mode key derivation, the served-HTML guard. Renderer journeys under a minimal in-memory DOM (`tests/consent-gate-dom.mjs`): first visit, accept/reject, expiry before load-once and always-allow, observed signal with and without working storage, embed-only teardown, revocation marker across documents, settings selections, served srcdoc, crawlers. |
-| `aithema-workspace-package-proof` | Builds the immutable runtime package, checks installed `--help`, then starts a synthetic test-mode server outside its source tree and proves loopback health plus graceful SIGTERM shutdown. The pinned 0.9 package advertises `supportsSpeechConfig`, so the proof also starts it with a non-secret mock speech sidecar and checks the rendered speech controls/model. NixOS activation remains a Linux-side proof. |
+| `aithema-workspace-package-proof` | Builds the immutable runtime package, checks installed `--help`, then starts a synthetic test-mode server outside its source tree and proves loopback health plus graceful SIGTERM shutdown. The pinned 0.10 package advertises `supportsSpeechConfig`, so the proof also starts it with a non-secret mock speech sidecar and checks the rendered speech controls/model. NixOS activation remains a Linux-side proof. |
 | `module-eval` (since INSPR-72) | 128 sub-tests across the Home Manager and NixOS modules, run via `lib.evalModules` + stub HM and NixOS harnesses (`tests/module-eval/harness.nix`). Verifies: assertions and throws fire when they should, required options stay required, deprecations warn, shell-active fleet values are encoded, Paimos literal/env URL output stays nested under `instances` without credential references, rollout/failure guards precede replacement, git include counts match declarations, SSH authorization stays deterministic, and the Aithema service remains disabled/fail-closed with protected config and durable ownership. Runs entirely at flake-eval time—no activation, real HM, or network. |
 
 ### Local dev (without nix sandbox)
@@ -357,7 +357,7 @@ data, and third-party components retain their own licensing boundaries.
 
 ## Status
 
-**v0.16.0.** Extracted from a working NixOS + Home Manager fleet on 2026-05-02
+**v0.16.1.** Extracted from a working NixOS + Home Manager fleet on 2026-05-02
 and used in production since.
 
 ### Supported
@@ -549,7 +549,7 @@ create it. From your repository root:
 ```bash
 # 1. Vendor the doctrine as a submodule at ./doctrine, pinned to a tag.
 git submodule add https://github.com/inspr-at/inspr-modules.git doctrine
-git -C doctrine checkout v0.16.0
+git -C doctrine checkout v0.16.1
 git add doctrine .gitmodules
 
 # 2. Load the kernel from your agent instruction file. @-refs resolve from the
