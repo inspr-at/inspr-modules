@@ -55,11 +55,11 @@
 #                                       Replaces the older inspr-doctor.sh probe.
 #   packages.<system>.routing-edge     Traefik file-provider compiler built from
 #                                       this flake (`insprSource = self`).
-#   packages.<system>.aithema-workspace Immutable public Aithema 0.8.0 runtime
+#   packages.<system>.aithema-workspace Immutable public Aithema 0.9.0 runtime
 #                                       with lock-integrity-pinned dependencies.
 #
 # Consumer pattern (in your flake.nix):
-#   inputs.inspr-modules.url = "github:inspr-at/inspr-modules/v0.14.0";  # pin a tag; main moves
+#   inputs.inspr-modules.url = "github:inspr-at/inspr-modules/v0.15.0";  # pin a tag; main moves
 #   inputs.inspr-modules.inputs.nixpkgs.follows = "nixpkgs";
 #
 #   home.imports = [
@@ -556,11 +556,11 @@ EOF
                 set -eu
 
                 test "${aithemaWorkspacePkg.passthru.release.sourceRev}" = \
-                  fb5ac0239821a4efa9ae4930c1a0ec6545095498
+                  5a004b302141196daff3fd578429390cbb3ea0e0
                 test "${aithemaWorkspacePkg.passthru.release.runtimeSha256}" = \
-                  073d45a7768eb7ef0d7e164b22d545673166b293440b74808e59f2b1846c0d29
+                  14b8a33f92dd8898958cec521052fb4464a9bdcf2c2b764e24db960dbae2315a
                 test "$(sha256sum ${./packages/aithema-workspace/package-lock.json} | cut -d' ' -f1)" = \
-                  7d60f239a894971981efe9a8bb93e66b146f2cfbe1549751d83995e66bf748c0
+                  090e19b9b5be534745ab3e3ab8bb0907284711e278794cab574902ae6c385467
                 ${aithemaWorkspacePkg}/bin/aithema-workspace --help \
                   | grep -q 'Usage: aithema-workspace --config FILE'
 
@@ -591,8 +591,28 @@ EOF
                   '}' > "$config_file"
                 chmod 600 "$config_file"
 
+                test "${if (aithemaWorkspacePkg.passthru.supportsSpeechConfig or false) then "true" else "false"}" = true
+                speech_file="$run_dir/speech-config.json"
+                printf '%s\n' '{' \
+                  '  "kind": "mock",' \
+                  '  "providerId": "mock",' \
+                  '  "model": "speech-fixture",' \
+                  '  "allowedModels": ["speech-fixture"],' \
+                  '  "endpoint": null,' \
+                  '  "acceptedMediaTypes": ["audio/webm", "audio/mp4"],' \
+                  '  "limits": {' \
+                  '    "maxAudioBytes": 1024,' \
+                  '    "maxRequestBytes": 2048,' \
+                  '    "maxRecordingMs": 1000,' \
+                  '    "maxDurationMs": 1000,' \
+                  '    "maxResponseBytes": 4096,' \
+                  '    "maxTranscriptChars": 8000' \
+                  '  }' \
+                  '}' > "$speech_file"
+                chmod 644 "$speech_file"
                 ${aithemaWorkspacePkg}/bin/aithema-workspace \
-                  --config "$config_file" --shutdown-grace-ms 1000 \
+                  --config "$config_file" --speech-config "$speech_file" \
+                  --shutdown-grace-ms 1000 \
                   > "$log_file" 2>&1 &
                 service_pid=$!
 
@@ -613,6 +633,29 @@ EOF
                 node --input-type=module -e \
                   'const response = await fetch(process.argv[1]); const body = await response.json(); if (response.status !== 200 || body.ok !== true || body.ready !== true) process.exit(1);' \
                   "$base_url/health"
+
+                node --input-type=module -e '
+                  const base = process.argv[1];
+                  const session = await fetch(base + "/session/demo", {
+                    method: "POST",
+                    headers: { origin: new URL(base).origin, "content-type": "application/x-www-form-urlencoded" },
+                    body: new URLSearchParams({ subject: "proof-reviewer" }),
+                    redirect: "manual",
+                  });
+                  if (session.status !== 303) process.exit(1);
+                  const cookie = (session.headers.getSetCookie?.() ?? []).find((item) => item.startsWith("aithema_demo="))?.split(";")[0];
+                  if (!cookie) process.exit(1);
+                  const project = await fetch(base + "/projects", {
+                    method: "POST",
+                    headers: { cookie, origin: new URL(base).origin, "content-type": "application/x-www-form-urlencoded" },
+                    body: new URLSearchParams({ title: "Speech sidecar project", project_kinds: "new_product" }),
+                    redirect: "manual",
+                  });
+                  if (project.status !== 303) process.exit(1);
+                  const page = await (await fetch(new URL(project.headers.get("location"), base), { headers: { cookie } })).text();
+                  if (!page.includes("id=\"workspace-speech\"") || !page.includes("speech-fixture")) process.exit(1);
+                ' "$base_url"
+                echo 'speech_sidecar_proof=passed provider=mock model=speech-fixture'
 
                 kill -TERM "$service_pid"
                 wait "$service_pid"

@@ -20,6 +20,25 @@ let
   credentialPath = "/run/credentials/${serviceName}.service/runtime-config.json";
   configuredFile = if cfg.configFile == null then "/invalid/missing-aithema-config" else cfg.configFile;
   shutdownGraceMs = cfg.shutdownGracePeriod * 1000;
+  speechConfigFile =
+    if cfg.speech == null then
+      null
+    else
+      pkgs.writeText "aithema-workspace-speech-config.json" (builtins.toJSON {
+        inherit (cfg.speech)
+          kind
+          providerId
+          model
+          allowedModels
+          endpoint
+          acceptedMediaTypes
+          limits
+          ;
+      });
+  speechArgs = lib.optionals (speechConfigFile != null) [
+    "--speech-config"
+    speechConfigFile
+  ];
   configPreflight = pkgs.writeText "aithema-workspace-config-preflight.mjs" ''
     import { readFileSync } from 'node:fs';
 
@@ -93,6 +112,92 @@ in
         SQLite and exit before enforcing termination.
       '';
     };
+
+    speech = lib.mkOption {
+      type = lib.types.nullOr (lib.types.submodule {
+        options = {
+          kind = lib.mkOption {
+            type = lib.types.enum [ "mock" "openai-compatible-transcription" ];
+            default = "openai-compatible-transcription";
+            description = "Aithema speech adapter kind; production uses the OpenAI-compatible transcription adapter.";
+          };
+
+          providerId = lib.mkOption {
+            type = lib.types.str;
+            description = "Operator provider registry identifier resolved by Aithema at runtime.";
+          };
+
+          model = lib.mkOption {
+            type = lib.types.str;
+            description = "Speech model identifier.";
+          };
+
+          allowedModels = lib.mkOption {
+            type = lib.types.nonEmptyListOf lib.types.str;
+            description = "Allowlist of speech model identifiers, including the selected model.";
+          };
+
+          endpoint = lib.mkOption {
+            type = lib.types.nullOr lib.types.str;
+            default = null;
+            description = "Exact operator transcription endpoint; credentials must not be embedded in the URL.";
+          };
+
+          acceptedMediaTypes = lib.mkOption {
+            type = lib.types.nonEmptyListOf lib.types.str;
+            default = [ "audio/webm" "audio/mp4" ];
+            description = "Browser audio media types accepted by the speech adapter.";
+          };
+
+          limits = lib.mkOption {
+            type = lib.types.submodule {
+              options = {
+                maxAudioBytes = lib.mkOption {
+                  type = lib.types.ints.between 1 4194304;
+                  default = 2097152;
+                  description = "Maximum uploaded audio size.";
+                };
+                maxRequestBytes = lib.mkOption {
+                  type = lib.types.ints.between 1 4259840;
+                  default = 2162688;
+                  description = "Maximum speech request size.";
+                };
+                maxRecordingMs = lib.mkOption {
+                  type = lib.types.ints.between 1 180000;
+                  default = 60000;
+                  description = "Maximum browser recording duration.";
+                };
+                maxDurationMs = lib.mkOption {
+                  type = lib.types.ints.between 1 180000;
+                  default = 60000;
+                  description = "Maximum provider transcription duration.";
+                };
+                maxResponseBytes = lib.mkOption {
+                  type = lib.types.ints.between 1 262144;
+                  default = 65536;
+                  description = "Maximum transcription response size.";
+                };
+                maxTranscriptChars = lib.mkOption {
+                  type = lib.types.ints.between 1 8000;
+                  default = 8000;
+                  description = "Maximum transcript length accepted by the workspace.";
+                };
+              };
+            };
+            default = { };
+            description = "Bounded speech request and response limits.";
+          };
+        };
+      });
+      default = null;
+      description = ''
+        Optional non-secret speech adapter settings. Null preserves protected
+        runtime speech behavior and the service command exactly; speech remains
+        disabled when it is absent there. When configured, these fields are
+        rendered as a public Nix-store sidecar and provider credentials stay in
+        Aithema's operator-owned runtime configuration.
+      '';
+    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -119,6 +224,29 @@ in
         assertion = cfg.user != "root" && cfg.group != "root";
         message = "services.inspr.aithemaWorkspace must run under a dedicated non-root user and group.";
       }
+      {
+        assertion = cfg.speech == null || (cfg.package.supportsSpeechConfig or false);
+        message = "services.inspr.aithemaWorkspace.package must advertise supportsSpeechConfig when speech is configured.";
+      }
+      {
+        assertion = cfg.speech == null || cfg.speech.kind == "mock" || cfg.speech.endpoint != null;
+        message = "services.inspr.aithemaWorkspace.speech requires an endpoint unless kind is mock.";
+      }
+      {
+        assertion =
+          cfg.speech == null
+          || cfg.speech.endpoint == null
+          || (!(lib.hasInfix "@" cfg.speech.endpoint)
+            && !(lib.hasInfix "\n" cfg.speech.endpoint)
+            && !(lib.hasInfix "\r" cfg.speech.endpoint));
+        message = "services.inspr.aithemaWorkspace.speech.endpoint must not contain URL credentials or control characters.";
+      }
+      {
+        assertion =
+          cfg.speech == null
+          || cfg.speech.limits.maxRequestBytes >= cfg.speech.limits.maxAudioBytes;
+        message = "services.inspr.aithemaWorkspace.speech.limits.maxRequestBytes must be at least maxAudioBytes.";
+      }
     ];
 
     users.groups.${cfg.group} = { };
@@ -141,13 +269,16 @@ in
         Group = cfg.group;
         DynamicUser = false;
 
-        ExecStart = lib.escapeShellArgs [
-          "${lib.getExe cfg.package}"
-          "--config"
-          credentialPath
-          "--shutdown-grace-ms"
-          (toString shutdownGraceMs)
-        ];
+        ExecStart = lib.escapeShellArgs (
+          [
+            "${lib.getExe cfg.package}"
+            "--config"
+            credentialPath
+            "--shutdown-grace-ms"
+            (toString shutdownGraceMs)
+          ]
+          ++ speechArgs
+        );
         ExecStartPre = lib.escapeShellArgs [
           "${pkgs.nodejs_24}/bin/node"
           configPreflight
