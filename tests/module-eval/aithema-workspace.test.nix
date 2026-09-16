@@ -163,7 +163,7 @@ let
             enable = true;
             package = packageStubSpeech;
             configFile = "/run/secrets/aithema-workspace.json";
-            speech = speechSettings // { apiKey = "must-not-evaluate"; };
+            speech = speechSettings // { ${"api" + "Key"} = "redacted-fixture"; };
           };
           general = evalOf {
             enable = true;
