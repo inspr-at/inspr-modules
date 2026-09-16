@@ -47,6 +47,9 @@
 { pkgs, sshAuthorizedModule }:
 pkgs.testers.runNixOSTest {
   name = "ssh-authorized";
+  # The test executes real network clients. Keep a stuck guest or transport
+  # process from consuming the flake-check worker's default one-hour budget.
+  globalTimeout = 10 * 60;
 
   nodes = {
     server = { pkgs, ... }: {
@@ -79,15 +82,22 @@ pkgs.testers.runNixOSTest {
     };
 
     client = { pkgs, ... }: {
-      environment.systemPackages = [ pkgs.openssh ];
+      environment.systemPackages = [ pkgs.coreutils pkgs.openssh ];
     };
   };
 
   testScript = ''
+    # The pinned test-driver type surface accepts timeout values as seconds.
+    boot_timeout = 180
+    ssh_timeout = 50
+
     start_all()
-    server.wait_for_unit("sshd.service")
-    server.wait_for_open_port(22)
-    client.wait_for_unit("multi-user.target")
+    server.wait_for_unit("multi-user.target", timeout=boot_timeout)
+    server.wait_for_unit("sshd.service", timeout=boot_timeout)
+    server.wait_for_open_port(22, timeout=boot_timeout)
+    client.wait_for_unit("multi-user.target", timeout=boot_timeout)
+    server.succeed("systemctl is-active sshd.service")
+    server.succeed("sshd -T")
 
     # Runtime keygen on the client — nothing committed, nothing built at eval.
     names = ["alice-trusted", "alice-untrusted", "bob", "revoked"]
@@ -110,24 +120,44 @@ pkgs.testers.runNixOSTest {
         for ph, real in subs.items():
             server.succeed(f"sed -i 's|{ph}|{real}|g' /etc/ssh/authorized_keys.d/{user}")
 
-    def ssh(key, user):
-        return ("ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "
+    def ssh_command(key, user):
+        return ("timeout --signal=TERM --kill-after=5s 45s ssh "
+                "-n "
+                "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "
                 "-o BatchMode=yes -o ConnectTimeout=5 -i /root/" + key + " "
-                + user + "@server true")
+                + user + "@server true 2>&1")
+
+    def ssh_result(key, user):
+        return client.execute(ssh_command(key, user), timeout=ssh_timeout)
+
+    def assert_admitted(key, user):
+        status, output = ssh_result(key, user)
+        assert status == 0, f"expected {key} to be admitted as {user}, got exit {status}: {output}"
+
+    def assert_refused(key, user):
+        status, output = ssh_result(key, user)
+        # GNU timeout reports 124/137 and failed transport normally reports
+        # other text/status combinations. A real OpenSSH public-key refusal
+        # must carry both its exit status and its protocol-authentication
+        # diagnostic; a generic non-zero result is not evidence of refusal.
+        assert status == 255, f"expected SSH authentication refusal for {key} as {user}, got exit {status}: {output}"
+        assert "Permission denied (publickey" in output, (
+            f"expected public-key refusal for {key} as {user}, got: {output}"
+        )
 
     with subtest("trusted key is admitted"):
-        client.succeed(ssh("alice-trusted", "alice"))
+        assert_admitted("alice-trusted", "alice")
 
     with subtest("keyring key that is not in trust is refused"):
-        client.fail(ssh("alice-untrusted", "alice"))
+        assert_refused("alice-untrusted", "alice")
 
     with subtest("revoked alias does not admit"):
-        client.fail(ssh("revoked", "alice"))
-        client.fail(ssh("revoked", "bob"))
+        assert_refused("revoked", "alice")
+        assert_refused("revoked", "bob")
 
     with subtest("multi-user isolation: bob's key cannot open alice"):
-        client.fail(ssh("bob", "alice"))
-        client.succeed(ssh("bob", "bob"))
+        assert_refused("bob", "alice")
+        assert_admitted("bob", "bob")
 
     with subtest("force=true renders exactly the trusted list on the server"):
         keys = server.succeed("cat /etc/ssh/authorized_keys.d/alice")
