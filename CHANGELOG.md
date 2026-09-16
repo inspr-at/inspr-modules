@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-09-16
+
+### Changed
+
+- **Aithema workspace 0.9.0 (INSPR-439 / AIT-21).** Update the immutable
+  runtime and exact release lockfile, expose the package speech-config
+  capability, and add the declarative non-secret speech sidecar option.
+
 ## [0.14.0] - 2026-09-15
 
 ### Added

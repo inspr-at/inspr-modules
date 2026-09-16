@@ -16,6 +16,14 @@ let
     printf '#!/bin/sh\nexit 0\n' > "$out/bin/aithema-workspace"
     chmod +x "$out/bin/aithema-workspace"
   '';
+  packageStubSpeech = pkgs.runCommand "aithema-workspace-speech" {
+    meta.mainProgram = "aithema-workspace";
+    passthru.supportsSpeechConfig = true;
+  } ''
+    mkdir -p "$out/bin"
+    printf '#!/bin/sh\nexit 0\n' > "$out/bin/aithema-workspace"
+    chmod +x "$out/bin/aithema-workspace"
+  '';
 
   evalOf = settings: evalNixosModule {
     inherit module;
@@ -33,8 +41,60 @@ let
     configFile = "/run/secrets/aithema-workspace.json";
   };
 
+  speechSettings = {
+    kind = "openai-compatible-transcription";
+    providerId = "operator-transcription";
+    model = "whisper-fixture";
+    allowedModels = [ "whisper-fixture" ];
+    endpoint = "https://speech.example.invalid/v1/audio/transcriptions";
+    acceptedMediaTypes = [ "audio/webm" "audio/mp4" ];
+    limits = {
+      maxAudioBytes = 1048576;
+      maxRequestBytes = 1114112;
+      maxRecordingMs = 30000;
+      maxDurationMs = 30000;
+      maxResponseBytes = 32768;
+      maxTranscriptChars = 4000;
+    };
+  };
+
+  speechEnabled = evalOf {
+    enable = true;
+    package = packageStubSpeech;
+    configFile = "/run/secrets/aithema-workspace.json";
+    speech = speechSettings;
+  };
+
   service = valid.units."aithema-workspace";
   sc = service.serviceConfig;
+  speechService = speechEnabled.units."aithema-workspace";
+  speechSc = speechService.serviceConfig;
+  expectedExecStart = lib.escapeShellArgs [
+    "${lib.getExe packageStub}"
+    "--config"
+    "/run/credentials/aithema-workspace.service/runtime-config.json"
+    "--shutdown-grace-ms"
+    "10000"
+  ];
+  speechConfigPath = builtins.elemAt (builtins.match ".*--speech-config ([^ ]+)$" speechSc.ExecStart) 0;
+  expectedSpeechConfigPath = pkgs.writeText "aithema-workspace-speech-config.json" (builtins.toJSON speechSettings);
+  defaultSpeechSettings = {
+    kind = "openai-compatible-transcription";
+    providerId = "operator-transcription";
+    model = "whisper-fixture";
+    allowedModels = [ "whisper-fixture" ];
+    endpoint = "https://speech.example.invalid/v1/audio/transcriptions";
+    acceptedMediaTypes = [ "audio/webm" "audio/mp4" ];
+    limits = {
+      maxAudioBytes = 2097152;
+      maxRequestBytes = 2162688;
+      maxRecordingMs = 60000;
+      maxDurationMs = 60000;
+      maxResponseBytes = 65536;
+      maxTranscriptChars = 8000;
+    };
+  };
+  expectedDefaultSpeechConfigPath = pkgs.writeText "aithema-workspace-speech-config.json" (builtins.toJSON defaultSpeechSettings);
 
   tests = [
     {
@@ -67,6 +127,94 @@ let
         && lib.hasInfix "--shutdown-grace-ms 10000" sc.ExecStart
         && !(lib.hasInfix "/run/secrets/aithema-workspace.json" sc.ExecStart)
         && sc.LoadCredential == "runtime-config.json:/run/secrets/aithema-workspace.json";
+    }
+    {
+      name = "null speech preserves the existing command and credential wiring exactly";
+      assertion =
+        valid.success
+        && sc.ExecStart == expectedExecStart
+        && sc.LoadCredential == "runtime-config.json:/run/secrets/aithema-workspace.json";
+    }
+    {
+      name = "enabled speech appends only the CLI sidecar argument and writes the plain public object";
+      assertion =
+        speechEnabled.success
+        && speechSc.LoadCredential == sc.LoadCredential
+        && lib.hasInfix "--speech-config ${speechConfigPath}" speechSc.ExecStart
+        && speechConfigPath == toString expectedSpeechConfigPath
+        && !(lib.hasInfix "/run/secrets/aithema-workspace.json" speechSc.ExecStart);
+    }
+    {
+      name = "speech defaults remain bounded and the option rejects credentials or general fields";
+      assertion =
+        let
+          defaults = evalOf {
+            enable = true;
+            package = packageStubSpeech;
+            configFile = "/run/secrets/aithema-workspace.json";
+            speech = {
+              providerId = "operator-transcription";
+              model = "whisper-fixture";
+              allowedModels = [ "whisper-fixture" ];
+              endpoint = "https://speech.example.invalid/v1/audio/transcriptions";
+            };
+          };
+          credentials = evalOf {
+            enable = true;
+            package = packageStubSpeech;
+            configFile = "/run/secrets/aithema-workspace.json";
+            speech = speechSettings // { apiKey = "must-not-evaluate"; };
+          };
+          general = evalOf {
+            enable = true;
+            package = packageStubSpeech;
+            configFile = "/run/secrets/aithema-workspace.json";
+            speech = speechSettings // { executionLocation = "cloud"; };
+          };
+          defaultsConfigPath = builtins.elemAt (
+            builtins.match ".*--speech-config ([^ ]+)$" defaults.units."aithema-workspace".serviceConfig.ExecStart
+          ) 0;
+        in
+        defaults.success
+        && defaultsConfigPath == toString expectedDefaultSpeechConfigPath
+        && !credentials.success
+        && !general.success;
+    }
+    {
+      name = "speech capability, endpoint and limit invariants fail closed at evaluation";
+      assertion =
+        let
+          legacyPackage = evalOf {
+            enable = true;
+            package = packageStub;
+            configFile = "/run/secrets/aithema-workspace.json";
+            speech = speechSettings;
+          };
+          missingEndpoint = evalOf {
+            enable = true;
+            package = packageStubSpeech;
+            configFile = "/run/secrets/aithema-workspace.json";
+            speech = speechSettings // { endpoint = null; };
+          };
+          urlCredentials = evalOf {
+            enable = true;
+            package = packageStubSpeech;
+            configFile = "/run/secrets/aithema-workspace.json";
+            speech = speechSettings // { endpoint = "https://user:password@speech.example.invalid/transcribe"; };
+          };
+          undersizedRequest = evalOf {
+            enable = true;
+            package = packageStubSpeech;
+            configFile = "/run/secrets/aithema-workspace.json";
+            speech = speechSettings // {
+              limits = speechSettings.limits // { maxRequestBytes = 100; };
+            };
+          };
+        in
+        lib.any (a: lib.hasInfix "supportsSpeechConfig" a.message) legacyPackage.failedAssertions
+        && lib.any (a: lib.hasInfix "requires an endpoint" a.message) missingEndpoint.failedAssertions
+        && lib.any (a: lib.hasInfix "URL credentials" a.message) urlCredentials.failedAssertions
+        && lib.any (a: lib.hasInfix "maxRequestBytes must be at least" a.message) undersizedRequest.failedAssertions;
     }
     {
       name = "runtime preflight enforces the managed persistent data directory without the source path";
