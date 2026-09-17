@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Retired OpenClaw slash commands (INSPR-446).** `/inspr` and the kernel
+  router no longer list `/ocbots`, `/modelhelp`, or `/oc-modelupdate`.
+  `AGENTS-VERSIONING.md` remains the normative versioning policy; kernel
+  routing and `calendar-version-doctrine` still enforce it.
+
 ### Added
 
 - **`homeManagerModules.agent-kernel` (INSPR-445).** Declarative injection of
