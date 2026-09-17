@@ -18,6 +18,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Four-CLI kernel injection (INSPR-449).** `inspr.agent-kernel` concatenates
+  optional `extraSources`, keeps Pi as the default replace harness, and can
+  upsert a marker block in existing Codex/Claude user files. README How to
+  start names Claude, Codex, Grok, and Pi loaders.
+
 - **How to start for an existing project (INSPR-448).** README section on the
   three always-on layers (public kernel, private kernel, repo overlay) and
   ten steps that do not require Nix or Home Manager.

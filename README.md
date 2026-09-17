@@ -66,6 +66,19 @@ Nix and Home Manager can copy the same files onto a machine. They are not how
 the doctrine loads. A friend with an existing git repo and a tracker only
 needs the steps below.
 
+**Four CLIs (what each actually reads):**
+
+| CLI | Repo overlay | Global kernel (does not follow `@-ref`) |
+| --- | --- | --- |
+| Claude Code | `CLAUDE.md` `@-ref`s kernel + private + `AGENTS.md` | optional marker block in `~/.claude/CLAUDE.md` |
+| Codex | `AGENTS.md` | marker block in `~/.codex/AGENTS.md` |
+| Grok | `AGENTS.md` | `~/.grok/AGENTS.md` (replace) |
+| Pi | `AGENTS.md` (wins over `CLAUDE.md` in the same directory) | `~/.pi/agent/AGENTS.md` (replace) |
+
+Always keep a repo `AGENTS.md` so Pi does not treat `CLAUDE.md` as the overlay.
+`homeManagerModules.agent-kernel` installs the global column. `extraSources`
+holds a studio private kernel; the atelier default does not.
+
 1. **Stay on one tracker.** The product's PMA or PPM instance is the only
    ticket home. Do not open a second tracker for the same work.
 2. **Pin the public kernel** as `./doctrine` at a **tag**, not `main`.

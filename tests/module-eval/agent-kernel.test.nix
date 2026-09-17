@@ -4,7 +4,7 @@
 # Module-eval tests for `inspr.agent-kernel` (INSPR-445).
 #
 # Scope: disabled shape, default Pi slot, extra harnesses, custom source,
-# and the assertion set (empty harnesses, absolute target path).
+# extraSources, marker-only install, and the assertion set.
 # ─────────────────────────────────────────────────────────────────────────
 { harness, lib }:
 
@@ -83,6 +83,37 @@ let
         r.success
         && r.failedAssertions == [ ]
         && r.config.home.file.".pi/agent/AGENTS.md".source == customSource;
+    }
+
+    {
+      name = "extraSources option accepts a path while disabled";
+      assertion =
+        let
+          r = evalModule {
+            module = module;
+            config.inspr.agent-kernel.extraSources = [ customSource ];
+          };
+        in
+        r.success && (r.config.home.file or { }) == { };
+    }
+
+    {
+      name = "marker-only install writes no replace home.file";
+      assertion =
+        let
+          r = evalModule {
+            module = module;
+            config.inspr.agent-kernel = {
+              enable = true;
+              harnesses = lib.mkForce { };
+              markerHarnesses.codex = ".codex/AGENTS.md";
+            };
+          };
+        in
+        r.success
+        && r.failedAssertions == [ ]
+        && (r.config.home.file or { }) == { }
+        && r.config.home.activation ? insprAgentKernelMarkers;
     }
 
     {
