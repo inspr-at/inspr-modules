@@ -39,6 +39,14 @@ Three tiers:
 | `/style`           | `AGENTS-PROFILE-MARKUS.md` (private)                                           | Need Markus's full style + pacing prefs in depth         |
 | `/incident`        | Incident-response section of CORE + secret-leak protocol             | Security incident, suspected secret leak                 |
 | `/push`            | Single-repo commit + push helper                                     | Wrap up a single-repo change                             |
+| `/inspr-versioning` | `AGENTS-VERSIONING.md` + adoption procedure                          | New or existing repo: calendar v2, Pretty display, PR    |
+
+Bundled **skills** (under `skills/`, not `commands/`) also show up as slash commands in Claude Code. They were easy to miss on this map:
+
+| Skill              | What it does                                                         | When to use                                              |
+| ------------------ | -------------------------------------------------------------------- | -------------------------------------------------------- |
+| `/ship-next`       | Propose one next change; wait for `go`; then ship it                 | What should we ship?                                     |
+| `/tidyrepo`        | State hygiene only (worktrees, merged branches, ticket metadata)     | End of a session or after a release train                |
 
 ## Key references
 

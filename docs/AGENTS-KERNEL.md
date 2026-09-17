@@ -41,7 +41,7 @@ _Auto-loaded. Universal hard-safety + identity + router. Carries ONLY rules wher
 
 ## ROUTER — load before working in a domain
 
-`/inspr` map · `/nix` nix-darwin + HM + NixOS modules · `/dev` code + tests + git workflow · `/push`
+`/inspr` map · `/nix` nix-darwin + HM + NixOS modules · `/dev` code + tests + git workflow · `/push` · `/inspr-versioning` calendar adoption
 
 **Version-bearing work:** load `AGENTS-VERSIONING.md` (or the installed `inspr-worker-doctrine` reference) at project bootstrap and before release/deployment. INSPR Calendar Versioning is the default: pick up existing adoption tickets for the next deployment; without one, propose and track adoption; adopted projects review their saved presentation pin. Preserve migration/review gates and historical artifacts.
 
