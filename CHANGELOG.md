@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`homeManagerModules.agent-kernel` (INSPR-445).** Declarative injection of
+  `docs/AGENTS-KERNEL.md` into CLI harnesses that do not follow Claude Code
+  `@-ref`s. Disabled by default; the default harness slot is Pi's global
+  `~/.pi/agent/AGENTS.md`. Extra harnesses are attrset entries. Never sets
+  Home Manager `force`, so a user-owned file blocks activation instead of
+  being replaced. Module-eval tests cover disabled shape, the default Pi
+  slot, extra harnesses, custom source, and the assertion set.
+
 ## [0.16.1] - 2026-09-16
 
 ### Fixed
