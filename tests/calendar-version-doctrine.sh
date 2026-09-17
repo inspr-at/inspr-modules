@@ -17,6 +17,15 @@ grep -Fq '[AGENTS-VERSIONING.md](AGENTS-VERSIONING.md)' "$index" \
 grep -Fq '[Versioning Doctrine](docs/AGENTS-VERSIONING.md)' "$readme" \
   || fail "repository release policy does not link the gradual default"
 
+command="$repo_root/commands/inspr-versioning.md"
+map="$repo_root/commands/inspr.md"
+test -f "$command" || fail "inspr-versioning command is missing"
+grep -Fq '/inspr-versioning' "$map" || fail "/inspr map omits /inspr-versioning"
+grep -Fq '/ship-next' "$map" || fail "/inspr map omits /ship-next skill"
+grep -Fq '/tidyrepo' "$map" || fail "/inspr map omits /tidyrepo skill"
+grep -Fq 'AGENTS-VERSIONING.md' "$command" || fail "inspr-versioning command does not load the policy"
+grep -Fq 'reply **`ok`**' "$command" || fail "inspr-versioning command lacks the ok confirmation gate"
+
 for required in \
   'inspr-calendar-v2' \
   'inspr-calendar-v1' \

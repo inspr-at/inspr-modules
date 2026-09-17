@@ -18,6 +18,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`/inspr-versioning` (INSPR-447).** Interactive calendar-v2 adoption:
+  inspect, TL;DR, wait for exact `ok`, then implement Pretty display,
+  canonical click-to-copy, visitor-facing positive history, presentation
+  pin, and a PR. `/inspr` also lists bundled skills `/ship-next` and
+  `/tidyrepo` (they live under `skills/`, not `commands/`).
+
 - **`homeManagerModules.agent-kernel` (INSPR-445).** Declarative injection of
   `docs/AGENTS-KERNEL.md` into CLI harnesses that do not follow Claude Code
   `@-ref`s. Disabled by default; the default harness slot is Pi's global
