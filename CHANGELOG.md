@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **How to start for an existing project (INSPR-448).** README section on the
+  three always-on layers (public kernel, private kernel, repo overlay) and
+  ten steps that do not require Nix or Home Manager.
+
 - **`/inspr-versioning` (INSPR-447).** Interactive calendar-v2 adoption:
   inspect, TL;DR, wait for exact `ok`, then implement Pretty display,
   canonical click-to-copy, visitor-facing positive history, presentation
