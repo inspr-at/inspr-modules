@@ -39,13 +39,11 @@ Three tiers:
 | `/style`           | `AGENTS-PROFILE-MARKUS.md` (private)                                           | Need Markus's full style + pacing prefs in depth         |
 | `/incident`        | Incident-response section of CORE + secret-leak protocol             | Security incident, suspected secret leak                 |
 | `/push`            | Single-repo commit + push helper                                     | Wrap up a single-repo change                             |
-| `/ocbots`          | OpenClaw bots ops context                                            | OC bot deploy / admin                                    |
-| `/modelhelp`       | OpenClaw model cheat-sheet                                           | Quick reference for OC models                            |
-| `/oc-modelupdate`  | Research + update model lists                                        | Refresh OC model catalog                                 |
 
 ## Key references
 
 - **Doctrine source**: <https://github.com/inspr-at/inspr-modules/tree/main/docs>
+- **Versioning**: [`docs/AGENTS-VERSIONING.md`](../docs/AGENTS-VERSIONING.md) — load before version-bearing work. Enforced by `calendar-version-doctrine` (file present, index/README/kernel/mirror still route to it).
 - **Field notes / runbooks**: per-repo `docs/`
 
 Studio repositories also load a private kernel, which names the tracker, the

@@ -47,7 +47,7 @@ _Auto-loaded. Universal hard-safety + identity + router. Carries ONLY rules wher
 
 Studio repos also load a private kernel, which adds `/ppm` `/ops` `/iac` `/secrets` `/style` `/incident`.
 
-Budget before loading — heavy: `/style` ≈46k · `/ppm` ≈22k · `/incident` ≈20k · `/ops` ≈18k. The rest are 9–11k. nixcfg adds repo-local `/ocbots`, `/modelhelp`, `/oc-modelupdate`.
+Budget before loading — heavy: `/style` ≈46k · `/ppm` ≈22k · `/incident` ≈20k · `/ops` ≈18k. The rest are 9–11k.
 
 **Precedence**: later `@-ref` wins; KERNEL always wins over domain packs. Each repo also auto-loads its own delta (`AGENTS.md`, or `AGENTS-NIXCFG.md` in nixcfg).
 
