@@ -51,6 +51,45 @@ The shared editor/Pretty bundle is pinned from `inspr-at/inspr`; the older
 | `consent-gate` | Identity-free consent primitive for browser-facing surfaces (INSPR-431): one manifest per surface → nothing / contextual embed placeholders / non-modal bar with equivalent choices; host-only decision cookie without identifier, GPC/DNT as refusal, fail-closed storage handling, Google Consent Mode v2 basic adapter. Consumers vendor `consent-gate.js`/`.css` and pin the bytes with `scripts/check-consent-gate-vendored.sh`. See `packages/consent-gate/README.md`. |
 | `aithema-workspace` | Actual `aithema-workspace` executable from the immutable public Aithema 0.10.0 runtime archive. Node 24 is part of the closure; every direct and transitive dependency is fetched from the release lockfile by its recorded integrity. |
 
+## How to start — existing project (no Nix required)
+
+An agent session loads **three always-on layers**. Domain packs (`/dev`, `/nix`,
+`/secrets`, …) load only when you invoke them.
+
+```
+1. Public kernel     this repo: docs/AGENTS-KERNEL.md
+2. Private kernel    your studio file (tracker, hosts, secret *paths* — never values)
+3. Repo overlay      AGENTS.md in the product repository
+```
+
+Nix and Home Manager can copy the same files onto a machine. They are not how
+the doctrine loads. A friend with an existing git repo and a tracker only
+needs the steps below.
+
+1. **Stay on one tracker.** The product's PMA or PPM instance is the only
+   ticket home. Do not open a second tracker for the same work.
+2. **Pin the public kernel** as `./doctrine` at a **tag**, not `main`.
+3. **Load it** from the repo root. `@-refs` resolve from the repository root,
+   not from the file that contains them:
+   `@./doctrine/docs/AGENTS-KERNEL.md` in `CLAUDE.md`.
+4. **Write a private kernel** in a private repo or `doctrine-private`
+   submodule: instance name, project key, overlay pointer. No credentials.
+5. **Load it** after the public kernel in the same `CLAUDE.md`.
+6. **Write `AGENTS.md`** in the product repo: only rules unique to that
+   product. It may tighten the kernel. It must not relax it.
+7. **Load the overlay** last in `CLAUDE.md` (`@./AGENTS.md`).
+8. **Symlink the commands you want** under `.claude/commands/` (and Pi/Cursor
+   equivalents) to `doctrine/commands/*.md`, including `inspr.md` and
+   `inspr-versioning.md`.
+9. **Prove the wiring:** `./doctrine/scripts/doctrine-check.sh`. Add it to CI
+   (`examples/doctrine-check.yml`, `submodules: recursive`). A green run on an
+   empty layout proves nothing — read skips (`∘`) vs passes.
+10. **Versioning last.** In the product repo run `/inspr-versioning`, read the
+    TL;DR, reply `ok` only if the plan is right. That opens a PR; it does not
+    rewrite published tags.
+
+Worked example of steps 2–3 and 8–9: [Checking that your wiring actually resolves](#checking-that-your-wiring-actually-resolves). Home Manager modules stay in [Consumer pattern](#consumer-pattern) below.
+
 ## Consumer pattern
 
 In your `flake.nix`:
