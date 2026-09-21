@@ -3,11 +3,24 @@
 All notable changes to **inspr-modules** are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+with [Semantic Versioning](https://semver.org/spec/v2.0.0.html) through 0.17.0
+and [INSPR Calendar Versioning](docs/AGENTS-VERSIONING.md) (`inspr-calendar-v2`)
+from the next release once its migration gates pass. Historical sections retain
+their original versions.
 
 ---
 
 ## [Unreleased]
+
+### Changed
+
+- **Repository INSPR-VER2 migration (INSPR-458).** 0.17.0 is the last
+  SemVer release. `RELEASE.json` carries the stable-channel migration anchor;
+  the offline reservation helper assigns `YYMMDDhhmmss.0.0` and increments
+  `release_sequence` at release time. Executable gates cover validation,
+  collision refusal, mixed-era ordering, source archives, consumer pins and
+  exact rollback. Existing releases and historical CHANGELOG sections stay
+  unchanged; candidate publication and consumer verification gate adoption.
 
 ## [0.17.0] - 2026-09-21
 

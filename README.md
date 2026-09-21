@@ -113,8 +113,8 @@ In your `flake.nix`:
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     home-manager.url = "github:nix-community/home-manager";
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
-    # Pin to a tag. Tracking `main` means every `nix flake update`
-    # can change doctrine and module behaviour under you.
+    # Published legacy tag; calendar tags use vYYMMDDhhmmss.0.0 after cutover.
+    # Keep the resolved commit in flake.lock; main moves.
     inspr-modules.url = "github:inspr-at/inspr-modules/v0.17.0";
     inspr-modules.inputs.nixpkgs.follows = "nixpkgs";
   };
@@ -213,6 +213,7 @@ eval fails on purpose:
 {
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    # Published legacy pin; see Versioning for calendar tags and commit pins.
     inspr-modules.url = "github:inspr-at/inspr-modules/v0.17.0";
     inspr-modules.inputs.nixpkgs.follows = "nixpkgs";
   };
@@ -351,37 +352,48 @@ nix build .#secrets-audit
 
 ## Versioning + deprecation policy
 
-Semantic versioning: **MAJOR.MINOR.PATCH** per [semver.org](https://semver.org/).
+**0.17.0 is the last SemVer release** (`legacy`). The next release adopts
+INSPR Calendar Versioning (`INSPR-VER2`, machine id `inspr-calendar-v2`) under
+INSPR-458, owner-approved on 2026-09-21. General rules and migration gates are
+in the normative [Versioning Doctrine](docs/AGENTS-VERSIONING.md).
 
-This repository remains on that legacy scheme until an owner-approved
-repository migration is completed. The estate-wide gradual default and its
-mixed-era requirements are defined in the normative
-[Versioning Doctrine](docs/AGENTS-VERSIONING.md); publishing that doctrine does
-not itself migrate this or any consuming repository.
+[`RELEASE.json`](RELEASE.json) is the sole release-coordinate source; versions
+use UTC `YYMMDDhhmmss.0.0`. The stable-channel anchor maps legacy `0.17.0` to
+sequence **0** and the first calendar release to sequence **1**; this is an
+ordinal baseline, not a historical tag count. `version`, `first_calendar_version`
+and `first_calendar_release_sequence` stay null until the first reservation.
 
-- **PATCH** — bugfixes, doc improvements, no API surface changes
-- **MINOR** — new options, new modules, deprecations (still backward-compatible)
-- **MAJOR** — breaking changes (removals, semantic changes, renames without aliases)
+Release preparation (Python 3, offline):
 
-Option renames go through a **deprecation window**:
-
-1. New option lands in a MINOR release; old option is marked deprecated (`visible = false` in option docs; emits a `warnings = [ ... ]` at eval time) and continues to work as an alias.
-2. Old option is **removed** in the next MAJOR release; consumers have at least one MINOR cycle to migrate.
-3. Each deprecation + removal is recorded in [CHANGELOG.md](./CHANGELOG.md).
-
-**Example** (current — `inspr.secrets.agents.identityFile` → `identityFiles`):
-```nix
-# Old (still works, emits eval warning; removed in the next MAJOR, i.e. v1.0.0 —
-# an earlier revision of this line said v0.2.0, which contradicted the policy
-# above and was simply wrong):
-inspr.secrets.agents.identityFile = "$HOME/.ssh/id_rsa";
-
-# New (preferred):
-inspr.secrets.agents.identityFiles = [
-  "$HOME/.ssh/id_ed25519"
-  "$HOME/.ssh/id_rsa"
-];
+```sh
+python3 scripts/reserve-release.py validate
+python3 scripts/reserve-release.py reserve
+python3 scripts/reserve-release.py show
 ```
+
+Run `reserve` once from the latest stable metadata in the coordinator's
+serialized release lane. It records UTC now, increments the sequence and
+prints the exact tag and CHANGELOG heading; `show` reuses that reservation.
+The helper never tags, pushes or publishes.
+
+Tags are annotated and named `vYYMMDDhhmmss.0.0`; signing is optional.
+If a tag is signed, verify it. Record the tag → commit mapping and the
+source-archive digest as immutability evidence on INSPR-458.
+
+Consumers select a published tag or exact commit and retain the resolved
+commit in `flake.lock` or the `doctrine` gitlink. Existing examples use published
+legacy tags. Update both consumption paths together when both exist, then run
+`scripts/doctrine-check.sh --multipath-only` in the consumer.
+
+Rollback re-pins a prior immutable tag or commit, verifies its recorded mapping
+and source-archive digest, and records a deployment event. It leaves release
+metadata, ordering and existing tags unchanged.
+
+Option renames retain a **deprecation window**: deprecated options stay aliases
+with eval warnings, and replacements/removals are documented in CHANGELOG.
+Legacy promises of at least one MINOR cycle and removal at the next MAJOR
+require owner review before translation to calendar releases. New deprecations
+require at least one published release before an announced breaking removal.
 
 ## Recovery scenarios
 
@@ -410,7 +422,7 @@ data, and third-party components retain their own licensing boundaries.
 
 ## Status
 
-**v0.17.0.** Extracted from a working NixOS + Home Manager fleet on 2026-05-02
+Extracted from a working NixOS + Home Manager fleet on 2026-05-02
 and used in production since.
 
 ### Supported
@@ -423,7 +435,9 @@ and used in production since.
 | Platforms | `aarch64-darwin`, `x86_64-darwin`, `x86_64-linux` |
 | Not tested | `aarch64-linux` |
 
-Versioning is SemVer over tags. Pin a tag; `main` moves.
+SemVer ends at 0.17.0; the next release uses INSPR Calendar Versioning after
+its migration gates pass. Pin a published tag or exact commit; `main` moves. See
+[Versioning + deprecation policy](#versioning--deprecation-policy).
 
 Roadmap:
 - NixOS counterparts for the remaining Home Manager modules — `ssh-authorized` has one and a VM test; `agent-secrets`, `paimos-config` and `git-identity` do not yet
@@ -600,7 +614,8 @@ The check assumes a specific layout, and until now nothing told you how to
 create it. From your repository root:
 
 ```bash
-# 1. Vendor the doctrine as a submodule at ./doctrine, pinned to a tag.
+# 1. Vendor the doctrine at ./doctrine; the gitlink records the exact commit.
+# This is a published legacy tag. Calendar tags use vYYMMDDhhmmss.0.0.
 git submodule add https://github.com/inspr-at/inspr-modules.git doctrine
 git -C doctrine checkout v0.17.0
 git add doctrine .gitmodules
