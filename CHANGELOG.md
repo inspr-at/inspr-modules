@@ -12,6 +12,8 @@ their original versions.
 
 ## [Unreleased]
 
+## [260921084702.0.0] - 2026-09-21
+
 ### Changed
 
 - **Repository INSPR-VER2 migration (INSPR-458).** 0.17.0 is the last
