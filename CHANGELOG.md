@@ -12,6 +12,13 @@ their original versions.
 
 ## [Unreleased]
 
+### Changed
+
+- **Review-gate ladder names Grok 4.7 (INSPR-462).** League 2 of the
+  adversarial review ladder in `AGENTS-DOMAIN-DEV.md` is now Grok 4.7 at
+  xhigh; Grok 4.6 is no longer offered on the Cursor route. A model registry
+  in Paimos will replace hardcoded model names with roles.
+
 ### Fixed
 
 - **CHANGELOG history restored (INSPR-460).** Entries that shipped in 0.5.0
