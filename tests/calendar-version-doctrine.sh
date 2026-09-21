@@ -59,6 +59,12 @@ for required in \
   'color-mix(in oklab, currentColor, <highlight> 80%)' \
   'display design revision 3' \
   'Weighting MUST NOT split, reorder, or annotate the' \
+  '### Scheme display labels' \
+  '| `inspr-calendar-v2` | `INSPR-VER2` |' \
+  '| `inspr-calendar-v1` | `INSPR-VER1` |' \
+  '| `legacy` | `Legacy` |' \
+  'MUST show the doctrine label and MUST NOT invent one' \
+  'An unknown scheme' \
   'never from the shape of the string'
 do
   grep -Fq "$required" "$policy" || fail "missing normative surface: $required"
@@ -77,7 +83,7 @@ for outcome in ('New project', 'Existing adoption ticket (explicit)', 'No adopti
 for requirement in ('next normal deployment', 'proactively propose', 'recorded owner', 'never follow a mutable branch', 'designated PPM or PMA', 'trust context'):
     assert requirement in adoption, requirement
 presentation = policy.split('## Shared presentation from INSPR Calendar Versioning\n', 1)[1].split('## Calendar coordinate', 1)[0]
-for requirement in ('packages/versioning/config/display.json', 'scripts/versioning-bundle.mjs', 'independently reviewed', 'every\nnormal build', '0.7 + 0.3 * configuredOpacity', 'reduced-motion', 'including the year', 'No runtime configuration fetch', 'current bundle CLI', 'global bundle digest alone does not verify a template'):
+for requirement in ('packages/versioning/config/display.json', 'scripts/versioning-bundle.mjs', 'independently reviewed', 'every\nnormal build', '0.7 + 0.3 * configuredOpacity', 'reduced-motion', 'including the year', 'No runtime configuration fetch', 'current bundle CLI', 'global bundle digest alone does not verify a template', 'packages/versioning/config/schemes.json', 'inspr.version-scheme-labels.v1'):
     assert requirement in presentation, requirement
 for surface in (kernel, mirror):
     assert '**Version-bearing work:**' in surface
