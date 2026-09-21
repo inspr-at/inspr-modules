@@ -12,6 +12,16 @@ their original versions.
 
 ## [Unreleased]
 
+### Fixed
+
+- **CHANGELOG history restored (INSPR-460).** Entries that shipped in 0.5.0
+  (INSPR-362, INSPR-321, INSPR-304, INSPR-320) and 0.4.0 (the product-gauntlet
+  rewrite) had been filed under a stray `[Unreleased]` heading below 0.4.4; they
+  now sit in those releases' sections. The 0.4.x sections are newest-first like
+  the rest of the file. Of the stray block's roadmap list, the still-open items
+  (INSPR-74, INSPR-75) moved to the README Roadmap; the shipped or duplicate
+  ones were dropped. No version, date or tag changed.
+
 ## [260921084702.0.0] - 2026-09-21
 
 ### Changed
@@ -299,6 +309,18 @@ their original versions.
   `post-deploy` behaviour is unchanged. This is not Paimos launch
   gating and not a live customer-acceptance claim. [INSPR-377]
 
+- **`skills/design-frontier-gauntlet` (INSPR-362).** A bounded five-lens
+  interface exploration: Codex with built-in OpenAI ImageGen, exact Claude
+  Fable 5.1, and three distinct Higgsfield image models selected from current
+  official documentation intersected with the live catalog and schema. Each
+  dispatched concept has one attributed worker and isolated output; a
+  deterministic, fail-closed helper produces a local keyboard-accessible
+  solo/matrix gallery, including honest preflight-unavailable cards without
+  invented worker IDs or substituted results. The workflow never deploys by
+  default and labels all simulated actions.
+
+- **Ticket-first work authorization and session attribution (INSPR-321).** Every AI worker now binds material work to one canonical PPM or PMA ticket before changing state and records the actual builder, reviewer, or operator session UUID in a value-free `I work on this` marker. The rule is always-on in the public kernel, detailed in the full doctrine reference, mirrored for non-Claude harnesses, and built into product-gauntlet dispatch.
+
 ### Fixed
 
 - Home Manager and NixOS generation comparison follows the real
@@ -324,6 +346,146 @@ their original versions.
   instead of the Home Manager activation action.
 - Packaged CLI hostname resolution falls back to `uname -n` when `hostname`
   is unavailable, avoiding sandbox noise without masking diagnostics.
+
+- `homeManagerModules.inspr-cli` now shell-escapes every nonempty `fleet.conf`
+  value before the Bash CLI sources it. Quotes, command substitutions,
+  backticks, backslashes, spaces, newlines, and dollar expansions remain
+  literal data; null and empty options still emit no assignment. [INSPR-304]
+
+### Changed
+
+- **Calendar versions are the gradual estate default (INSPR-320).** The
+  normative versioning doctrine defines `YY.MM.DD[.hh.mm.ss]` as an explicit
+  UTC release coordinate with Gregorian validation, deterministic same-day
+  collision handling, immutable enumerated artifact sets, per-coordinate
+  digests, and scheme-aware mixed-era ordering. Adoption remains per
+  repository: current and in-flight releases keep their existing scheme,
+  history is never retagged, and each migration
+  needs a value-free inventory plus executable producer, consumer, update,
+  deployment, and rollback evidence. `inspr-modules` itself remains on SemVer
+  until a separate owner-approved migration passes.
+
+---
+
+## [0.4.4] - 2026-08-18
+
+### Fixed
+
+- The README's Home Manager walkthrough imported only `git-identity` while its
+  `home.nix` block configured `inspr.paimos-cli`; pasted together they failed
+  with "The option inspr.paimos-cli does not exist". Import restored. Found by
+  an outside evaluation, under a contribution rule that says every example must
+  evaluate — the rule was documented more thoroughly than it was automated.
+  Testing the README's quickstart as an actual consumer flake is the right fix
+  and is not in this release.
+
+---
+
+## [0.4.3] - 2026-08-18
+
+Documentation only. Cut because the rule adopted in 0.4.1 — docs ship with the
+tag that describes them — is worth more than avoiding a fourth same-day
+version number. This is the last release of the day; the next one should be
+boring and some weeks away.
+
+### Changed
+
+- Guard language matched to mechanism. `leak-guard` "refuse to publish" and
+  "required and blocking" described a pre-publication barrier; what exists is a
+  **post-push detector plus PR gate** that scans the working tree, not the git
+  index. Now says so, next to the usage instructions rather than only here.
+- One note near the top of the README explaining that `INSPR-nnn` keys point
+  at a private tracker and carry nothing a consumer needs.
+- README test count corrected to 104 (said 92 in the release cut to make counts
+  accurate — same drift, same fix).
+
+---
+
+## [0.4.2] - 2026-08-18
+
+### Fixed
+
+- **`homeManagerModules.default` did not parse in v0.4.0 or v0.4.1.** A
+  comment edit left a stray `imports = [` outside the module function. The
+  advertised aggregate was unimportable in two consecutive releases and no
+  check noticed, because nothing imported the flake's exports through the
+  framework they are exported for. An outside reviewer found it by parsing
+  every `.nix` file by hand.
+- The Home Manager consumer example imported `paimos-config` in a
+  `git-identity` walkthrough and did not say that `./your-home.nix` must supply
+  the ordinary Home Manager baseline (`home.username`, `homeDirectory`,
+  `stateVersion`); a reader copying it hit a missing-option error.
+- The NixOS example called itself a "Minimal `flake.nix`" but cannot build a
+  system (no filesystem, bootloader or `system.stateVersion`). Relabelled as a
+  module-integration example, with what it needs around it stated.
+
+### Added
+
+- `tests/module-eval/exports-importable.test.nix` — imports **every** module in
+  the flake's real `homeManagerModules` and `nixosModules` attrsets with default
+  configuration. Driven by the export attrsets themselves, so it cannot drift
+  from what is advertised. Verified red: reinstating the v0.4.1 file fails the
+  suite with the exact syntax error. 104 eval tests, was 92.
+- The stub Home Manager harness now declares `xdg`. It did not, so
+  `homeManagerModules.inspr-cli` — which sets `xdg.configFile` — could not be
+  imported in tests despite working under real Home Manager. Found by the new
+  export test on its first run.
+
+### Known limitations (unchanged)
+
+- Both guard scripts read the worktree, not the git index (INSPR-300).
+- Only `ssh-authorized` has a VM test; other modules are eval-only, on stubs.
+- One maintainer; latest tag only; `nixos-unstable` + matching HM only.
+
+---
+
+## [0.4.1] - 2026-08-18
+
+`v0.4.0` was cut so the tag would match its documentation, and then three more
+pull requests landed on `main` before anyone re-tagged — a NixOS consumer
+walkthrough, a VM integration test, and a security-policy correction. An
+independent reviewer's top blocker was, once again, that the recommended tag
+did not contain what the default-branch manual described. This release
+contains everything on `main`, and is the last commit before the tag.
+
+### Added
+
+- `checks.<linux>.nixos-vm-ssh-authorized` — a real NixOS VM test for the SSH
+  admission module: boots server + client, proves the trusted key logs in and
+  untrusted / revoked / cross-user keys are refused, and that `force = true`
+  renders exactly the trusted list. Runs in CI on GitHub's Linux runners.
+  Verified red-then-green against a runtime-only bug that every eval-time
+  assertion misses.
+- README: a NixOS consumer example for `ssh-authorized` (previously findable
+  only in a 300-line module header); a doctrine-check adoption recipe covering
+  the submodule, the `@`-ref and the command symlinks; the guard's environment
+  knobs; a plain statement that `leak-guard` is this repository's own lint and
+  needs a fork to protect anyone else.
+
+### Fixed
+
+- `SECURITY.md` directed reporters to GitHub private vulnerability reporting,
+  which was **disabled** on the repository. It is now enabled, alongside secret
+  scanning and push protection, and the policy names the mechanisms without
+  calling any of them a guarantee.
+- The deprecation example promised removal of `identityFile` "in v0.2.0",
+  contradicting the policy two lines above it (removal in the next MAJOR) and
+  the shipped code (still present at 0.4.x, deliberately). The example now
+  matches the policy.
+- README overstated what consumer evaluation proves for `ssh-authorized`: the
+  option accepts any string, so a mistyped key evaluates fine and fails only
+  at login. Now stated, with the check to run first.
+- An orphaned sentence fragment under the support table, and a roadmap line
+  claiming the project is "currently HM-only" when it ships a NixOS module.
+
+### Known limitations (unchanged from 0.4.0, restated so nobody has to dig)
+
+- Both guard scripts are incomplete and read the worktree rather than the git
+  index; a staged leak with an unstaged local cleanup passes `leak-guard`.
+  Tracked (INSPR-300); do not treat a green result as proof.
+- Only `ssh-authorized` has a VM test. Other modules are eval-only, on stubs.
+- One maintainer; only the latest tag receives fixes; only `nixos-unstable`
+  plus matching Home Manager is claimed.
 
 ---
 
@@ -386,6 +548,8 @@ exactly that point.
 - Module examples use generic names (`alice@laptop`) rather than the
   maintainer's machines — one of which was decommissioned.
 
+- `skills/product-gauntlet`: speed-first rewrite. One QA gate per slice (not per ticket), controller preflight, event reports instead of polling, cheaper default models, one headless Chromium at slice-end. Quality bar unchanged.
+
 ### Known limitations
 
 - Both guard scripts are incomplete. They walk the filesystem where they should
@@ -394,177 +558,6 @@ exactly that point.
 - Only `ssh-authorized` has a NixOS VM integration test. The other modules are eval-only, against stub harnesses.
 - `leak-guard.sh` matches a hard-coded pattern set. It is usable as-is only by
   this project; adopting it elsewhere means forking and rewriting `PATTERNS`.
-
----
-
-## [0.4.1] - 2026-08-18
-
-`v0.4.0` was cut so the tag would match its documentation, and then three more
-pull requests landed on `main` before anyone re-tagged — a NixOS consumer
-walkthrough, a VM integration test, and a security-policy correction. An
-independent reviewer's top blocker was, once again, that the recommended tag
-did not contain what the default-branch manual described. This release
-contains everything on `main`, and is the last commit before the tag.
-
-### Added
-
-- `checks.<linux>.nixos-vm-ssh-authorized` — a real NixOS VM test for the SSH
-  admission module: boots server + client, proves the trusted key logs in and
-  untrusted / revoked / cross-user keys are refused, and that `force = true`
-  renders exactly the trusted list. Runs in CI on GitHub's Linux runners.
-  Verified red-then-green against a runtime-only bug that every eval-time
-  assertion misses.
-- README: a NixOS consumer example for `ssh-authorized` (previously findable
-  only in a 300-line module header); a doctrine-check adoption recipe covering
-  the submodule, the `@`-ref and the command symlinks; the guard's environment
-  knobs; a plain statement that `leak-guard` is this repository's own lint and
-  needs a fork to protect anyone else.
-
-### Fixed
-
-- `SECURITY.md` directed reporters to GitHub private vulnerability reporting,
-  which was **disabled** on the repository. It is now enabled, alongside secret
-  scanning and push protection, and the policy names the mechanisms without
-  calling any of them a guarantee.
-- The deprecation example promised removal of `identityFile` "in v0.2.0",
-  contradicting the policy two lines above it (removal in the next MAJOR) and
-  the shipped code (still present at 0.4.x, deliberately). The example now
-  matches the policy.
-- README overstated what consumer evaluation proves for `ssh-authorized`: the
-  option accepts any string, so a mistyped key evaluates fine and fails only
-  at login. Now stated, with the check to run first.
-- An orphaned sentence fragment under the support table, and a roadmap line
-  claiming the project is "currently HM-only" when it ships a NixOS module.
-
-### Known limitations (unchanged from 0.4.0, restated so nobody has to dig)
-
-- Both guard scripts are incomplete and read the worktree rather than the git
-  index; a staged leak with an unstaged local cleanup passes `leak-guard`.
-  Tracked (INSPR-300); do not treat a green result as proof.
-- Only `ssh-authorized` has a VM test. Other modules are eval-only, on stubs.
-- One maintainer; only the latest tag receives fixes; only `nixos-unstable`
-  plus matching Home Manager is claimed.
-
----
-
-## [0.4.2] - 2026-08-18
-
-### Fixed
-
-- **`homeManagerModules.default` did not parse in v0.4.0 or v0.4.1.** A
-  comment edit left a stray `imports = [` outside the module function. The
-  advertised aggregate was unimportable in two consecutive releases and no
-  check noticed, because nothing imported the flake's exports through the
-  framework they are exported for. An outside reviewer found it by parsing
-  every `.nix` file by hand.
-- The Home Manager consumer example imported `paimos-config` in a
-  `git-identity` walkthrough and did not say that `./your-home.nix` must supply
-  the ordinary Home Manager baseline (`home.username`, `homeDirectory`,
-  `stateVersion`); a reader copying it hit a missing-option error.
-- The NixOS example called itself a "Minimal `flake.nix`" but cannot build a
-  system (no filesystem, bootloader or `system.stateVersion`). Relabelled as a
-  module-integration example, with what it needs around it stated.
-
-### Added
-
-- `tests/module-eval/exports-importable.test.nix` — imports **every** module in
-  the flake's real `homeManagerModules` and `nixosModules` attrsets with default
-  configuration. Driven by the export attrsets themselves, so it cannot drift
-  from what is advertised. Verified red: reinstating the v0.4.1 file fails the
-  suite with the exact syntax error. 104 eval tests, was 92.
-- The stub Home Manager harness now declares `xdg`. It did not, so
-  `homeManagerModules.inspr-cli` — which sets `xdg.configFile` — could not be
-  imported in tests despite working under real Home Manager. Found by the new
-  export test on its first run.
-
-### Known limitations (unchanged)
-
-- Both guard scripts read the worktree, not the git index (INSPR-300).
-- Only `ssh-authorized` has a VM test; other modules are eval-only, on stubs.
-- One maintainer; latest tag only; `nixos-unstable` + matching HM only.
-
----
-
-## [0.4.3] - 2026-08-18
-
-Documentation only. Cut because the rule adopted in 0.4.1 — docs ship with the
-tag that describes them — is worth more than avoiding a fourth same-day
-version number. This is the last release of the day; the next one should be
-boring and some weeks away.
-
-### Changed
-
-- Guard language matched to mechanism. `leak-guard` "refuse to publish" and
-  "required and blocking" described a pre-publication barrier; what exists is a
-  **post-push detector plus PR gate** that scans the working tree, not the git
-  index. Now says so, next to the usage instructions rather than only here.
-- One note near the top of the README explaining that `INSPR-nnn` keys point
-  at a private tracker and carry nothing a consumer needs.
-- README test count corrected to 104 (said 92 in the release cut to make counts
-  accurate — same drift, same fix).
-
----
-
-## [0.4.4] - 2026-08-18
-
-### Fixed
-
-- The README's Home Manager walkthrough imported only `git-identity` while its
-  `home.nix` block configured `inspr.paimos-cli`; pasted together they failed
-  with "The option inspr.paimos-cli does not exist". Import restored. Found by
-  an outside evaluation, under a contribution rule that says every example must
-  evaluate — the rule was documented more thoroughly than it was automated.
-  Testing the README's quickstart as an actual consumer flake is the right fix
-  and is not in this release.
-
----
-
-## [Unreleased]
-
-### Added
-
-- **`skills/design-frontier-gauntlet` (INSPR-362).** A bounded five-lens
-  interface exploration: Codex with built-in OpenAI ImageGen, exact Claude
-  Fable 5.1, and three distinct Higgsfield image models selected from current
-  official documentation intersected with the live catalog and schema. Each
-  dispatched concept has one attributed worker and isolated output; a
-  deterministic, fail-closed helper produces a local keyboard-accessible
-  solo/matrix gallery, including honest preflight-unavailable cards without
-  invented worker IDs or substituted results. The workflow never deploys by
-  default and labels all simulated actions.
-
-- **Ticket-first work authorization and session attribution (INSPR-321).** Every AI worker now binds material work to one canonical PPM or PMA ticket before changing state and records the actual builder, reviewer, or operator session UUID in a value-free `I work on this` marker. The rule is always-on in the public kernel, detailed in the full doctrine reference, mirrored for non-Claude harnesses, and built into product-gauntlet dispatch.
-
-### Fixed
-
-- `homeManagerModules.inspr-cli` now shell-escapes every nonempty `fleet.conf`
-  value before the Bash CLI sources it. Quotes, command substitutions,
-  backticks, backslashes, spaces, newlines, and dollar expansions remain
-  literal data; null and empty options still emit no assignment. [INSPR-304]
-
-### Changed
-
-- **Calendar versions are the gradual estate default (INSPR-320).** The
-  normative versioning doctrine defines `YY.MM.DD[.hh.mm.ss]` as an explicit
-  UTC release coordinate with Gregorian validation, deterministic same-day
-  collision handling, immutable enumerated artifact sets, per-coordinate
-  digests, and scheme-aware mixed-era ordering. Adoption remains per
-  repository: current and in-flight releases keep their existing scheme,
-  history is never retagged, and each migration
-  needs a value-free inventory plus executable producer, consumer, update,
-  deployment, and rollback evidence. `inspr-modules` itself remains on SemVer
-  until a separate owner-approved migration passes.
-- `skills/product-gauntlet`: speed-first rewrite. One QA gate per slice (not per ticket), controller preflight, event reports instead of polling, cheaper default models, one headless Chromium at slice-end. Quality bar unchanged.
-
-### Planned
-
-- **NixOS VM integration tests** — `pkgs.testers.runNixOSTest` for end-to-end activation testing. Heavy but the gold standard.
-- **More NixOS-equivalent modules** — server-side counterparts for the remaining HM modules (`agent-secrets`, `paimos-config`, `git-identity`). `ssh-authorized` shipped as the first NixOS module (INSPR-73). [INSPR-24 Stage 4]
-- **`ssh-authorized` keyring layout** — file-per-key under `keys/<alias>.pub` for fleet-scale (~10+ keys); current inline form stays supported. [INSPR-74]
-- **`ssh-authorized` build-time validation** — pipe each key through `ssh-keygen -l` (or a regex) at eval to catch typos before activation. [INSPR-75]
-- **1Password tag-export integration** — Phase 2 secrets graduation (consumer-side script that materializes `.age` files from tagged 1Password items). [INSPR-23]
-- **Doctor genericization** — extract Markus-specific values from `inspr-doctor` into config so the same script runs against any consumer's setup. [INSPR-44 follow-up]
-- **Second-instance mirror of the cross-repo authoring doctrine** — the business-side Paimos instance should carry the same guideline as OPS #4336. Blocked on an agent credential for that instance; the `--api-key` argv path is gone (PAI-685), so it needs an interactive `paimos auth login` or a headless `PAIMOS_URL` + `PAIMOS_API_KEY` pair. [INSPR-284 follow-up]
 
 ---
 
