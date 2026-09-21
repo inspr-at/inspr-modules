@@ -15,12 +15,15 @@ their original versions.
 ### Fixed
 
 - **CHANGELOG history restored (INSPR-460).** Entries that shipped in 0.5.0
-  (INSPR-362, INSPR-321, INSPR-304, INSPR-320) and 0.4.0 (the product-gauntlet
-  rewrite) had been filed under a stray `[Unreleased]` heading below 0.4.4; they
-  now sit in those releases' sections. The 0.4.x sections are newest-first like
-  the rest of the file. Of the stray block's roadmap list, the still-open items
-  (INSPR-74, INSPR-75) moved to the README Roadmap; the shipped or duplicate
-  ones were dropped. No version, date or tag changed.
+  (INSPR-362, INSPR-321, INSPR-304, INSPR-320 and the speed-first
+  product-gauntlet rewrite) had been filed under a stray `[Unreleased]` heading
+  below 0.4.4; they now sit in the 0.5.0 section. The 0.4.x sections are
+  newest-first like the rest of the file. Of the stray block's roadmap list, the
+  still-open items (INSPR-74, INSPR-75) moved to the README Roadmap. Dropped as
+  shipped: NixOS VM tests (`tests/nixos-vm`), doctor genericization (`inspr
+  check` reads `fleet.conf`) and the business-instance doctrine mirror
+  (INSPR-287); dropped as duplicates of the Roadmap: NixOS counterparts and
+  1Password tag-export. No version, date or tag changed.
 
 ## [260921084702.0.0] - 2026-09-21
 
@@ -365,6 +368,8 @@ their original versions.
   deployment, and rollback evidence. `inspr-modules` itself remains on SemVer
   until a separate owner-approved migration passes.
 
+- `skills/product-gauntlet`: speed-first rewrite. One QA gate per slice (not per ticket), controller preflight, event reports instead of polling, cheaper default models, one headless Chromium at slice-end. Quality bar unchanged.
+
 ---
 
 ## [0.4.4] - 2026-08-18
@@ -547,8 +552,6 @@ exactly that point.
   endpoints.
 - Module examples use generic names (`alice@laptop`) rather than the
   maintainer's machines — one of which was decommissioned.
-
-- `skills/product-gauntlet`: speed-first rewrite. One QA gate per slice (not per ticket), controller preflight, event reports instead of polling, cheaper default models, one headless Chromium at slice-end. Quality bar unchanged.
 
 ### Known limitations
 
