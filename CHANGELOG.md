@@ -14,7 +14,7 @@ their original versions.
 
 ### Changed
 
-- **Repository Calendar v2 migration (INSPR-458).** 0.17.0 is the last
+- **Repository INSPR-VER2 migration (INSPR-458).** 0.17.0 is the last
   SemVer release. `RELEASE.json` carries the stable-channel migration anchor;
   the offline reservation helper assigns `YYMMDDhhmmss.0.0` and increments
   `release_sequence` at release time. Executable gates cover validation,

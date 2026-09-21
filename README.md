@@ -352,29 +352,16 @@ nix build .#secrets-audit
 
 ## Versioning + deprecation policy
 
-Releases through **0.17.0** use Semantic Versioning (`legacy`): PATCH for
-bugfixes/docs, MINOR for compatible additions/deprecations, MAJOR for breaking
-changes. **0.17.0 is the last SemVer release.** INSPR-458, owner-approved on
-2026-09-21, prepares the next release for `inspr-calendar-v2` under the normative
-[Versioning Doctrine](docs/AGENTS-VERSIONING.md).
+**0.17.0 is the last SemVer release** (`legacy`). The next release adopts
+INSPR Calendar Versioning (`INSPR-VER2`, machine id `inspr-calendar-v2`) under
+INSPR-458, owner-approved on 2026-09-21. General rules and migration gates are
+in the normative [Versioning Doctrine](docs/AGENTS-VERSIONING.md).
 
-[`RELEASE.json`](RELEASE.json) is the sole release-coordinate source. The
-calendar version is `YYMMDDhhmmss.0.0`, reserved once from UTC; stored values
-omit `v`, annotated SSH-signed tags use `vYYMMDDhhmmss.0.0`. The stable channel's
-migration anchor assigns legacy `0.17.0` sequence **0** and the first calendar
-release sequence **1**. This is an ordinal baseline, not a count of historical
-tags. `version`, `first_calendar_version` and `first_calendar_release_sequence`
-remain null until the first reservation. This prepared state is a **candidate**;
-the migration becomes authoritative only after the immutable candidate and
-consumer gates are verified and recorded on INSPR-458. The in-flight 0.17.0
-release completes under SemVer.
-
-Calendar coordinates convey order, not compatibility. MINOR/PATCH stay `0.0`;
-no prerelease/build suffix, caret/tilde range or 32-bit segment parser applies.
-Breaking changes and migration instructions belong in [CHANGELOG.md](./CHANGELOG.md).
-Within v2, validate the date then compare the first segment as one integer.
-Across eras, use explicit `version_scheme`, the migration anchor and
-`release_sequence`; never infer an era from shape or use `sort -V`.
+[`RELEASE.json`](RELEASE.json) is the sole release-coordinate source; versions
+use UTC `YYMMDDhhmmss.0.0`. The stable-channel anchor maps legacy `0.17.0` to
+sequence **0** and the first calendar release to sequence **1**; this is an
+ordinal baseline, not a historical tag count. `version`, `first_calendar_version`
+and `first_calendar_release_sequence` stay null until the first reservation.
 
 Release preparation (Python 3, offline):
 
@@ -384,72 +371,29 @@ python3 scripts/reserve-release.py reserve
 python3 scripts/reserve-release.py show
 ```
 
-Run `reserve` once in the coordinator's serialized release lane, from the
-latest stable release metadata, after 0.17.0 has been published. It atomically
-updates the source, increments the sequence, preserves the first-calendar
-anchor and prints the exact tag and CHANGELOG heading. Same-second reuse and
-clock regression fail; wait for a later UTC second before retrying. `show`
-reuses the recorded coordinate for every build and refuses an unreserved
-candidate. The helper does not tag, push or publish. Its adjacent
-`RELEASE.json.lock` rejects concurrent writers; after an interrupted run,
-inspect the source and establish that no writer remains before clearing the
-lock. The lock does not coordinate separate worktrees or machines.
+Run `reserve` once from the latest stable metadata in the coordinator's
+serialized release lane. It records UTC now, increments the sequence and
+prints the exact tag and CHANGELOG heading; `show` reuses that reservation.
+The helper never tags, pushes or publishes.
 
-Before publication the coordinator commits the reservation and notes with DCO
-sign-off, runs the checks and release builds, verifies the annotated SSH
-signature, and publishes one immutable release set. Its manifest must record
-the four release fields, migration anchor, source commit/tree, dependency-lock
-digest, and each enumerated output's artifact coordinate and digest. GitHub
-release notes carry the same version/metadata; retained source archives and
-their digests belong to that set. Record the validation run, signature result,
-consumer pin upgrade and exact-artifact rollback evidence on INSPR-458 before
-claiming adoption. Never add or replace outputs under a reserved/published
-coordinate; changed artifacts require a later reservation. Builds consume the
-recorded coordinate, never their own clock. Historical tags, releases and
-CHANGELOG sections stay unchanged.
+Tags are annotated and named `vYYMMDDhhmmss.0.0`; signing is optional.
+If a tag is signed, verify it. Record the tag → commit mapping and the
+source-archive digest as immutability evidence on INSPR-458.
 
-Consumers select a published signed tag or exact commit and retain the resolved
-commit in `flake.lock` or the `doctrine` submodule gitlink. Existing examples
-below/above retain published legacy tags until a calendar release exists;
-`vYYMMDDhhmmss.0.0` describes the future tag grammar, not an available tag.
-When both consumption paths exist, update both to the same reviewed commit and
-run `scripts/doctrine-check.sh --multipath-only` in the consumer. Rollback
-re-pins the prior immutable commit (or its verified signed tag), verifies the
-recorded source/artifact digest, and records a deployment event. It never
-changes `RELEASE.json`, release ordering or existing tags. A rollback fix gets
-a new coordinate.
+Consumers select a published tag or exact commit and retain the resolved
+commit in `flake.lock` or the `doctrine` gitlink. Existing examples use published
+legacy tags. Update both consumption paths together when both exist, then run
+`scripts/doctrine-check.sh --multipath-only` in the consumer.
 
-The compatibility window retains legacy tags and exact commit pins until an
-owner-approved removal backed by consumer inventory. The helper's `compare
-LEFT.json RIGHT.json` reads the source anchor and compares explicit release
-records; legacy 0.17.0 is the mapped boundary. Earlier historical pins stay
-usable as opaque immutable references; ordering an unmapped legacy record
-fails closed. This repository never released v1. Name-only Nix derivations
-remain name-only; bundled external runtime versions and dependency locks keep
-their own schemes. Repository release surfaces are canonical text (JSON, tags,
-notes, archives and CLI output); no web version UI or shared presentation
-bundle applies here. Exported display data remains a separate consumer pin.
+Rollback re-pins a prior immutable tag or commit, verifies its recorded mapping
+and source-archive digest, and records a deployment event. It leaves release
+metadata, ordering and existing tags unchanged.
 
-Option renames retain a **deprecation window**: the deprecated option remains
-an alias (`visible = false`, with eval warnings), and its replacement and
-eventual removal are documented in CHANGELOG. The legacy policy promised at
-least one MINOR cycle and removal at the next MAJOR. Calendar migration alone
-does not satisfy that promise: translating an existing SemVer removal milestone
-requires explicit owner review. New deprecations require at least one published
-release before an explicitly announced breaking removal.
-
-**Example** (current — `inspr.secrets.agents.identityFile` → `identityFiles`):
-```nix
-# Old (still works, emits eval warning). The legacy v1.0.0 removal milestone
-# requires owner review before translation to a calendar release:
-inspr.secrets.agents.identityFile = "$HOME/.ssh/id_rsa";
-
-# New (preferred):
-inspr.secrets.agents.identityFiles = [
-  "$HOME/.ssh/id_ed25519"
-  "$HOME/.ssh/id_rsa"
-];
-```
+Option renames retain a **deprecation window**: deprecated options stay aliases
+with eval warnings, and replacements/removals are documented in CHANGELOG.
+Legacy promises of at least one MINOR cycle and removal at the next MAJOR
+require owner review before translation to calendar releases. New deprecations
+require at least one published release before an announced breaking removal.
 
 ## Recovery scenarios
 
@@ -491,8 +435,8 @@ and used in production since.
 | Platforms | `aarch64-darwin`, `x86_64-darwin`, `x86_64-linux` |
 | Not tested | `aarch64-linux` |
 
-SemVer ends at 0.17.0; the next release uses Calendar v2 after its migration
-gates pass. Pin a published signed tag or exact commit; `main` moves. See
+SemVer ends at 0.17.0; the next release uses INSPR Calendar Versioning after
+its migration gates pass. Pin a published tag or exact commit; `main` moves. See
 [Versioning + deprecation policy](#versioning--deprecation-policy).
 
 Roadmap:

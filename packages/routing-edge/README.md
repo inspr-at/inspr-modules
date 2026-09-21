@@ -141,9 +141,9 @@ else at build time or at run time.
 GitHub Release is published. A prepared source branch alone is not release
 availability.
 
-`v0.15.1` is a legacy SemVer pin. After the repository's Calendar v2 cutover,
-select a published `vYYMMDDhhmmss.0.0` tag or exact commit and retain its resolved
-commit in `flake.lock`; no calendar tag is implied by this example. Repository
+`v0.15.1` is a legacy SemVer pin. After the repository's INSPR Calendar Versioning
+cutover, select a published `vYYMMDDhhmmss.0.0` tag or exact commit and retain its
+resolved commit in `flake.lock`; no calendar tag is implied by this example. Repository
 release metadata and rollback policy live in the root README and `RELEASE.json`.
 
 ### Package

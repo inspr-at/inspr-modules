@@ -2,7 +2,7 @@
 """Calendar release, source archive, consumer pin and rollback gates (INSPR-458).
 
 Fixtures use local Git objects, never commits/tags in the working repository.
-Signing and forge publication are coordinator release gates, not simulated here.
+Forge publication is a coordinator gate; verify signatures when present.
 SPDX-License-Identifier: AGPL-3.0-only
 """
 
