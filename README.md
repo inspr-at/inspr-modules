@@ -442,6 +442,8 @@ its migration gates pass. Pin a published tag or exact commit; `main` moves. See
 Roadmap:
 - NixOS counterparts for the remaining Home Manager modules — `ssh-authorized` has one and a VM test; `agent-secrets`, `paimos-config` and `git-identity` do not yet
 - 1Password tag-export integration (Phase 2 secrets graduation)
+- `ssh-authorized` keyring layout: file-per-key under `keys/<alias>.pub` for fleet scale; the inline form stays supported (INSPR-74)
+- `ssh-authorized` build-time validation: check each key with `ssh-keygen -l` at eval, to catch typos before activation (INSPR-75)
 - Remove the ignored `paimos-config` `apiKeyEnvFile` / `apiKeyVar` compatibility options after their one-release deprecation window (INSPR-225)
 
 ## Running `inspr check` on your own fleet
