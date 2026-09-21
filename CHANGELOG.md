@@ -18,6 +18,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Scheme display labels (INSPR-457).** `AGENTS-VERSIONING.md` names the
+  short UI label of each version scheme: `inspr-calendar-v2` → `INSPR-VER2`,
+  `inspr-calendar-v1` → `INSPR-VER1`, `legacy` → `Legacy`. Surfaces that name
+  the scheme MUST use it, read at build time from the presentation bundle's
+  `schemes.json` (inspr-at/inspr), and MUST NOT invent one. Machine
+  identifiers are unchanged.
+
 - **Four-CLI kernel injection (INSPR-449).** `inspr.agent-kernel` concatenates
   optional `extraSources`, keeps Pi as the default replace harness, and can
   upsert a marker block in existing Codex/Claude user files. README How to
