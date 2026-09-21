@@ -62,7 +62,9 @@
 #                                       with lock-integrity-pinned dependencies.
 #
 # Consumer pattern (in your flake.nix):
-#   inputs.inspr-modules.url = "github:inspr-at/inspr-modules/v0.16.1";  # pin a tag; main moves
+#   # Published legacy pin; future calendar tags use vYYMMDDhhmmss.0.0.
+#   # Keep the resolved commit in flake.lock; main moves.
+#   inputs.inspr-modules.url = "github:inspr-at/inspr-modules/v0.16.1";
 #   inputs.inspr-modules.inputs.nixpkgs.follows = "nixpkgs";
 #
 #   home.imports = [
@@ -283,6 +285,25 @@
               }
               ''
                 bash ${./tests/calendar-version-doctrine.sh} ${self}
+                touch $out
+              '';
+
+            # This repository's own release source, reservation, source archive,
+            # mixed-era ordering, dependency pins and exact rollback (INSPR-458).
+            calendar-release = pkgs.runCommand "calendar-release"
+              {
+                nativeBuildInputs = [
+                  pkgs.bash
+                  pkgs.coreutils
+                  pkgs.gawk
+                  pkgs.git
+                  pkgs.gnugrep
+                  pkgs.gnused
+                  pkgs.python3
+                ];
+              }
+              ''
+                python3 ${./tests/calendar-release.py} ${self}
                 touch $out
               '';
 

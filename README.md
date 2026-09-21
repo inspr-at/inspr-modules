@@ -113,8 +113,8 @@ In your `flake.nix`:
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     home-manager.url = "github:nix-community/home-manager";
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
-    # Pin to a tag. Tracking `main` means every `nix flake update`
-    # can change doctrine and module behaviour under you.
+    # Published legacy tag; calendar tags use vYYMMDDhhmmss.0.0 after cutover.
+    # Keep the resolved commit in flake.lock; main moves.
     inspr-modules.url = "github:inspr-at/inspr-modules/v0.16.1";
     inspr-modules.inputs.nixpkgs.follows = "nixpkgs";
   };
@@ -213,6 +213,7 @@ eval fails on purpose:
 {
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    # Published legacy pin; see Versioning for calendar tags and commit pins.
     inspr-modules.url = "github:inspr-at/inspr-modules/v0.16.1";
     inspr-modules.inputs.nixpkgs.follows = "nixpkgs";
   };
@@ -351,29 +352,96 @@ nix build .#secrets-audit
 
 ## Versioning + deprecation policy
 
-Semantic versioning: **MAJOR.MINOR.PATCH** per [semver.org](https://semver.org/).
+Releases through **0.17.0** use Semantic Versioning (`legacy`): PATCH for
+bugfixes/docs, MINOR for compatible additions/deprecations, MAJOR for breaking
+changes. **0.17.0 is the last SemVer release.** INSPR-458, owner-approved on
+2026-09-21, prepares the next release for `inspr-calendar-v2` under the normative
+[Versioning Doctrine](docs/AGENTS-VERSIONING.md).
 
-This repository remains on that legacy scheme until an owner-approved
-repository migration is completed. The estate-wide gradual default and its
-mixed-era requirements are defined in the normative
-[Versioning Doctrine](docs/AGENTS-VERSIONING.md); publishing that doctrine does
-not itself migrate this or any consuming repository.
+[`RELEASE.json`](RELEASE.json) is the sole release-coordinate source. The
+calendar version is `YYMMDDhhmmss.0.0`, reserved once from UTC; stored values
+omit `v`, annotated SSH-signed tags use `vYYMMDDhhmmss.0.0`. The stable channel's
+migration anchor assigns legacy `0.17.0` sequence **0** and the first calendar
+release sequence **1**. This is an ordinal baseline, not a count of historical
+tags. `version`, `first_calendar_version` and `first_calendar_release_sequence`
+remain null until the first reservation. This prepared state is a **candidate**;
+the migration becomes authoritative only after the immutable candidate and
+consumer gates are verified and recorded on INSPR-458. The in-flight 0.17.0
+release completes under SemVer.
 
-- **PATCH** — bugfixes, doc improvements, no API surface changes
-- **MINOR** — new options, new modules, deprecations (still backward-compatible)
-- **MAJOR** — breaking changes (removals, semantic changes, renames without aliases)
+Calendar coordinates convey order, not compatibility. MINOR/PATCH stay `0.0`;
+no prerelease/build suffix, caret/tilde range or 32-bit segment parser applies.
+Breaking changes and migration instructions belong in [CHANGELOG.md](./CHANGELOG.md).
+Within v2, validate the date then compare the first segment as one integer.
+Across eras, use explicit `version_scheme`, the migration anchor and
+`release_sequence`; never infer an era from shape or use `sort -V`.
 
-Option renames go through a **deprecation window**:
+Release preparation (Python 3, offline):
 
-1. New option lands in a MINOR release; old option is marked deprecated (`visible = false` in option docs; emits a `warnings = [ ... ]` at eval time) and continues to work as an alias.
-2. Old option is **removed** in the next MAJOR release; consumers have at least one MINOR cycle to migrate.
-3. Each deprecation + removal is recorded in [CHANGELOG.md](./CHANGELOG.md).
+```sh
+python3 scripts/reserve-release.py validate
+python3 scripts/reserve-release.py reserve
+python3 scripts/reserve-release.py show
+```
+
+Run `reserve` once in the coordinator's serialized release lane, from the
+latest stable release metadata, after 0.17.0 has been published. It atomically
+updates the source, increments the sequence, preserves the first-calendar
+anchor and prints the exact tag and CHANGELOG heading. Same-second reuse and
+clock regression fail; wait for a later UTC second before retrying. `show`
+reuses the recorded coordinate for every build and refuses an unreserved
+candidate. The helper does not tag, push or publish. Its adjacent
+`RELEASE.json.lock` rejects concurrent writers; after an interrupted run,
+inspect the source and establish that no writer remains before clearing the
+lock. The lock does not coordinate separate worktrees or machines.
+
+Before publication the coordinator commits the reservation and notes with DCO
+sign-off, runs the checks and release builds, verifies the annotated SSH
+signature, and publishes one immutable release set. Its manifest must record
+the four release fields, migration anchor, source commit/tree, dependency-lock
+digest, and each enumerated output's artifact coordinate and digest. GitHub
+release notes carry the same version/metadata; retained source archives and
+their digests belong to that set. Record the validation run, signature result,
+consumer pin upgrade and exact-artifact rollback evidence on INSPR-458 before
+claiming adoption. Never add or replace outputs under a reserved/published
+coordinate; changed artifacts require a later reservation. Builds consume the
+recorded coordinate, never their own clock. Historical tags, releases and
+CHANGELOG sections stay unchanged.
+
+Consumers select a published signed tag or exact commit and retain the resolved
+commit in `flake.lock` or the `doctrine` submodule gitlink. Existing examples
+below/above retain published legacy tags until a calendar release exists;
+`vYYMMDDhhmmss.0.0` describes the future tag grammar, not an available tag.
+When both consumption paths exist, update both to the same reviewed commit and
+run `scripts/doctrine-check.sh --multipath-only` in the consumer. Rollback
+re-pins the prior immutable commit (or its verified signed tag), verifies the
+recorded source/artifact digest, and records a deployment event. It never
+changes `RELEASE.json`, release ordering or existing tags. A rollback fix gets
+a new coordinate.
+
+The compatibility window retains legacy tags and exact commit pins until an
+owner-approved removal backed by consumer inventory. The helper's `compare
+LEFT.json RIGHT.json` reads the source anchor and compares explicit release
+records; legacy 0.17.0 is the mapped boundary. Earlier historical pins stay
+usable as opaque immutable references; ordering an unmapped legacy record
+fails closed. This repository never released v1. Name-only Nix derivations
+remain name-only; bundled external runtime versions and dependency locks keep
+their own schemes. Repository release surfaces are canonical text (JSON, tags,
+notes, archives and CLI output); no web version UI or shared presentation
+bundle applies here. Exported display data remains a separate consumer pin.
+
+Option renames retain a **deprecation window**: the deprecated option remains
+an alias (`visible = false`, with eval warnings), and its replacement and
+eventual removal are documented in CHANGELOG. The legacy policy promised at
+least one MINOR cycle and removal at the next MAJOR. Calendar migration alone
+does not satisfy that promise: translating an existing SemVer removal milestone
+requires explicit owner review. New deprecations require at least one published
+release before an explicitly announced breaking removal.
 
 **Example** (current — `inspr.secrets.agents.identityFile` → `identityFiles`):
 ```nix
-# Old (still works, emits eval warning; removed in the next MAJOR, i.e. v1.0.0 —
-# an earlier revision of this line said v0.2.0, which contradicted the policy
-# above and was simply wrong):
+# Old (still works, emits eval warning). The legacy v1.0.0 removal milestone
+# requires owner review before translation to a calendar release:
 inspr.secrets.agents.identityFile = "$HOME/.ssh/id_rsa";
 
 # New (preferred):
@@ -410,7 +478,7 @@ data, and third-party components retain their own licensing boundaries.
 
 ## Status
 
-**v0.16.1.** Extracted from a working NixOS + Home Manager fleet on 2026-05-02
+Extracted from a working NixOS + Home Manager fleet on 2026-05-02
 and used in production since.
 
 ### Supported
@@ -423,7 +491,9 @@ and used in production since.
 | Platforms | `aarch64-darwin`, `x86_64-darwin`, `x86_64-linux` |
 | Not tested | `aarch64-linux` |
 
-Versioning is SemVer over tags. Pin a tag; `main` moves.
+SemVer ends at 0.17.0; the next release uses Calendar v2 after its migration
+gates pass. Pin a published signed tag or exact commit; `main` moves. See
+[Versioning + deprecation policy](#versioning--deprecation-policy).
 
 Roadmap:
 - NixOS counterparts for the remaining Home Manager modules — `ssh-authorized` has one and a VM test; `agent-secrets`, `paimos-config` and `git-identity` do not yet
@@ -600,7 +670,8 @@ The check assumes a specific layout, and until now nothing told you how to
 create it. From your repository root:
 
 ```bash
-# 1. Vendor the doctrine as a submodule at ./doctrine, pinned to a tag.
+# 1. Vendor the doctrine at ./doctrine; the gitlink records the exact commit.
+# This is a published legacy tag. Calendar tags use vYYMMDDhhmmss.0.0.
 git submodule add https://github.com/inspr-at/inspr-modules.git doctrine
 git -C doctrine checkout v0.16.1
 git add doctrine .gitmodules
