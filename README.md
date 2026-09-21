@@ -115,7 +115,7 @@ In your `flake.nix`:
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
     # Published legacy tag; calendar tags use vYYMMDDhhmmss.0.0 after cutover.
     # Keep the resolved commit in flake.lock; main moves.
-    inspr-modules.url = "github:inspr-at/inspr-modules/v0.16.1";
+    inspr-modules.url = "github:inspr-at/inspr-modules/v0.17.0";
     inspr-modules.inputs.nixpkgs.follows = "nixpkgs";
   };
 
@@ -214,7 +214,7 @@ eval fails on purpose:
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     # Published legacy pin; see Versioning for calendar tags and commit pins.
-    inspr-modules.url = "github:inspr-at/inspr-modules/v0.16.1";
+    inspr-modules.url = "github:inspr-at/inspr-modules/v0.17.0";
     inspr-modules.inputs.nixpkgs.follows = "nixpkgs";
   };
 
@@ -673,7 +673,7 @@ create it. From your repository root:
 # 1. Vendor the doctrine at ./doctrine; the gitlink records the exact commit.
 # This is a published legacy tag. Calendar tags use vYYMMDDhhmmss.0.0.
 git submodule add https://github.com/inspr-at/inspr-modules.git doctrine
-git -C doctrine checkout v0.16.1
+git -C doctrine checkout v0.17.0
 git add doctrine .gitmodules
 
 # 2. Load the kernel from your agent instruction file. @-refs resolve from the

@@ -64,7 +64,7 @@
 # Consumer pattern (in your flake.nix):
 #   # Published legacy pin; future calendar tags use vYYMMDDhhmmss.0.0.
 #   # Keep the resolved commit in flake.lock; main moves.
-#   inputs.inspr-modules.url = "github:inspr-at/inspr-modules/v0.16.1";
+#   inputs.inspr-modules.url = "github:inspr-at/inspr-modules/v0.17.0";
 #   inputs.inspr-modules.inputs.nixpkgs.follows = "nixpkgs";
 #
 #   home.imports = [

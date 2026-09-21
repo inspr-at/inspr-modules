@@ -22,12 +22,23 @@ their original versions.
   exact rollback. Existing releases and historical CHANGELOG sections stay
   unchanged; candidate publication and consumer verification gate adoption.
 
+## [0.17.0] - 2026-09-21
+
+### Changed
+
 - **Retired OpenClaw slash commands (INSPR-446).** `/inspr` and the kernel
   router no longer list `/ocbots`, `/modelhelp`, or `/oc-modelupdate`.
   `AGENTS-VERSIONING.md` remains the normative versioning policy; kernel
   routing and `calendar-version-doctrine` still enforce it.
 
 ### Added
+
+- **Scheme display labels (INSPR-457).** `AGENTS-VERSIONING.md` names the
+  short UI label of each version scheme: `inspr-calendar-v2` → `INSPR-VER2`,
+  `inspr-calendar-v1` → `INSPR-VER1`, `legacy` → `Legacy`. Surfaces that name
+  the scheme MUST use it, read at build time from the presentation bundle's
+  `schemes.json` (inspr-at/inspr), and MUST NOT invent one. Machine
+  identifiers are unchanged.
 
 - **Four-CLI kernel injection (INSPR-449).** `inspr.agent-kernel` concatenates
   optional `extraSources`, keeps Pi as the default replace harness, and can

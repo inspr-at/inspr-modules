@@ -11,7 +11,8 @@ RFC 2119 sense.
 
 The INSPR default version scheme is **INSPR Calendar Version v2**, identified
 in machine-readable metadata as `inspr-calendar-v2` and written as
-`YYMMDDhhmmss.0.0`.
+`YYMMDDhhmmss.0.0`. Its short display label is **`INSPR-VER2`** (see
+"Scheme display labels"); the label never replaces the identifier.
 
 It supersedes **INSPR Calendar Version v1** (`inspr-calendar-v1`,
 `YY.MM.DD[.hh.mm.ss]`). v1 was not syntactically valid SemVer because its
@@ -106,8 +107,9 @@ manifest digest. Verify the complete file set, sizes and hashes on every
 normal build, including builds outside CI; reject missing, extra, altered or
 untracked payloads. Do not calculate expected pins from candidate bytes in the
 same validation step. Keep renderer, presentation, interaction, animation
-library and license together as listed by the manifest. Do not substitute the
-legacy doctrine-file checker for this different source/closure contract.
+library, license and scheme label table together as listed by the manifest.
+Do not substitute the legacy doctrine-file checker for this different
+source/closure contract.
 
 Use one thin product adapter around the shared renderer and interaction helper
 at all applicable version surfaces. Do not reimplement separator geometry or
@@ -134,7 +136,8 @@ existing deployed artifacts keep their bundled bytes until their next release.
 Saving in the editor makes data available for the next reviewed consumer build;
 it does not prove that any product has consumed it. A named template is an
 explicit product choice, with separate provenance: the current bundle CLI
-packages only global `display.json`, not `templates.json` or a selected template.
+packages only global `display.json` (beside the scheme label table), not
+`templates.json` or a selected template.
 For a named-template consumer, pin the catalog at the same source commit,
 the template ID and the exact selected config bytes with their own independently
 reviewed SHA256 digest. Store and verify that selected configuration separately
@@ -143,6 +146,24 @@ Its normal build checks MUST verify both pins and reject a missing template or
 mismatched config. The global bundle digest alone does not verify a template.
 Refreshing such a consumer must retain its template selection, never silently
 replace it with global defaults.
+
+### Scheme display labels
+
+A surface that names the version scheme, such as a release dialog's "Scheme"
+field, MUST show the doctrine label and MUST NOT invent one:
+
+| Machine scheme | Display label |
+|---|---|
+| `inspr-calendar-v2` | `INSPR-VER2` |
+| `inspr-calendar-v1` | `INSPR-VER1` |
+| `legacy` | `Legacy` |
+
+The machine-readable source is `packages/versioning/config/schemes.json`
+(`inspr.version-scheme-labels.v1`) in `inspr-at/inspr`, shipped as
+`schemes.json` in the presentation bundle and read at build time like
+`display.json`. A label is presentation only. Metadata, manifests, tags, APIs,
+logs and the clipboard keep the machine scheme identifier. An unknown scheme
+is an error, never a fallback label.
 
 ## Calendar coordinate
 
