@@ -27,7 +27,7 @@ Index: [`docs/AGENTS-INDEX.md`](docs/AGENTS-INDEX.md) tracks all layer files + P
 
 **Version-bearing work:** load `AGENTS-VERSIONING.md` (or the installed `inspr-worker-doctrine` reference) at project bootstrap and before release/deployment. INSPR Calendar Versioning is the default: pick up existing adoption tickets for the next deployment; without one, propose and track adoption; adopted projects review their saved presentation pin. Preserve migration/review gates and historical artifacts.
 
-**Model choice:** evaluate the task, pick a role — `scout` · `mechanical` · `build` · `build-hard` · `review-gate` — and resolve it with `paimos model resolve <role> [--author-family <yours>]`; run the command it prints. Never name a concrete model in doctrine, skills or prompts: Paimos owns the catalog, the cross-family review ladder and expiring availability overrides (PAI-1048). Detail: `/dev` § model choice by role.
+**Model choice:** evaluate the task, pick a role — `scout` · `mechanical` · `build` · `build-hard` · `review-gate` — and resolve it with `paimos model resolve <role> [--author-family <yours>]`; run the command it prints. Model names live in the Paimos registry (catalog, cross-family review ladder, expiring overrides — PAI-1048), never in doctrine, skills or prompts; the only exceptions are lenses defined by one exact model, enumerated in `/dev` § model choice by role.
 
 ## Hard safety (kernel mirror — 🔴 only)
 
@@ -50,7 +50,7 @@ Index: [`docs/AGENTS-INDEX.md`](docs/AGENTS-INDEX.md) tracks all layer files + P
 - 🔴 Never create new `.md` files unless explicitly asked; prefer editing an existing in-scope doc. **Durable knowledge → a PPM Knowledge entry** (architecture, rationale, positioning, playbooks, field notes, how-tos) when PPM writes are authorized (`/ppm` for mechanics), otherwise report the intended entry and ask. Stays local: `README`, `AGENTS.md` / `CLAUDE.md` + doctrine packs, `RUNBOOK.md`, `CHANGELOG.md`, `RESUMING-*`, `LICENSE`, code comments.
 
 <!-- KERNEL-MIRROR-END -->
-<!-- KERNEL-MIRROR-OF: sha256:3e9cd81d690525ca0c836a2539cc3403c25370e3b4f23066ee89c6adfd127d14 — attestation that the mirror block above reflects this exact kernel revision. Update via: sha256sum docs/AGENTS-KERNEL.md (enforced by the kernel-mirror-stamp flake check, INSPR-278). -->
+<!-- KERNEL-MIRROR-OF: sha256:24f4d3bf987bb36c818f8dde9c133580b0bae2c1a26602b7ba813b98ece6419f — attestation that the mirror block above reflects this exact kernel revision. Update via: sha256sum docs/AGENTS-KERNEL.md (enforced by the kernel-mirror-stamp flake check, INSPR-278). -->
 
 ## Editing rules
 

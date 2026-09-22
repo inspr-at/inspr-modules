@@ -38,7 +38,7 @@ Each finding needs: id, category, severity, location, evidence, impact, suggeste
 
 ## 3. Challenge
 Resolve the challenger with the `review-gate` role, which is always another model family than yours:
-`paimos model resolve review-gate --author-family <yours> --json` (Claude → `anthropic`, Codex → `openai`, Grok → `xai`). Run the read-only command it prints; never pick a model yourself (kernel: model choice by role).
+`paimos model resolve review-gate --author-family <yours> --json` (Claude → `anthropic`, Codex → `openai`, Grok → `xai`). Run the read-only command it prints; never pick a model yourself (kernel: model choice by role). Without an installed `model resolve`, use the hand fallback in `/dev` § model choice by role: the other family's highest frontier route at xhigh, run read-only, with the skip reasons recorded.
 
 Prompt for the challenger (same in both directions):
 ```

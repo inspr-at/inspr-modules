@@ -61,10 +61,10 @@ Prefer **processes**. In-process subagents only for judgement/review/synthesis.
 | Mechanical, well-specified, fixtures, docs, inventory | `mechanical` — cheapest capable tier. Never a frontier route. |
 | Backend / tests / one-surface implementation | `build`. Focused tests only until slice gate. |
 | Architecture, schema, security, concurrency | `build-hard` (its xhigh effort is for seams that are actually hard), **one** `review-gate` at slice gate |
-| UX copy / visual taste | `build` on the family the owner designates for taste (`--harness`); the other family implements. One `review-gate` critic pass at slice gate if no oracle. |
+| UX copy / visual taste | `build`; the family designated for taste writes, the other family implements. One `review-gate` critic pass at slice gate if no oracle. |
 | Review | `review-gate` — always another family than the builder. Review the signed SHA. Do not rewrite unless AC fails. |
 
-Resolve every role with `paimos model resolve <role> --author-family <controller's family>` and run the command it prints (kernel: model choice by role). The included Cursor pool is valid for isolated UI when the resolver's harness filter selects it. Do not spend premium other-family routes on mechanical tickets.
+Resolve every role with `paimos model resolve <role>` and run the command it prints (kernel: model choice by role). For `review-gate` pass `--author-family <the builder's family>` — whoever authored the change under review, not the controller. Without an installed `model resolve`, use the hand fallback in `/dev` § model choice by role. The registry currently offers Cursor routes for review only; do not spend premium other-family routes on mechanical tickets.
 
 Record routing on the ticket in the mandatory `I work on this` marker.
 
