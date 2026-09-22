@@ -44,7 +44,7 @@ Harness-neutral: whichever harness you are in is the controller; the other is a 
 | Spawn Claude | `claude -p` background (prefer process over in-process) | `claude -p --model <m>` background |
 | Progress | tail the output file | tail redirected stdout |
 | Report | event-driven; optional heartbeat file if the human named a cadence | same |
-| Quota reader | Codex: last `token_count` event in the current `~/.codex/sessions/…/rollout-*.jsonl`, field `rate_limits.primary.used_percent`. Grok: `grok usage`. Claude: no non-interactive reader; the human states the budget in the kickoff brief and the controller counts spawns against it. Cursor: same as Claude. | same |
+| Quota reader | Codex: last `token_count` event in the current `~/.codex/sessions/…/rollout-*.jsonl`; of `rate_limits.primary` and `rate_limits.secondary`, take the one whose `window_minutes` is 10080 and read its `used_percent` (percent used). Claude, Cursor, Grok: no weekly reader exists (`grok usage` is per session); the human states a weekly spawn budget in the kickoff brief, the controller counts spawns on the ticket, and percent used is spawns over that budget. No budget in the brief counts as a failed read. | same |
 
 Useful: `codex exec -m <model> -c model_reasoning_effort=<level> -s workspace-write -i <image> -o <file>` and prompt via stdin. `claude -p --permission-mode auto --output-format stream-json`.
 
@@ -57,7 +57,7 @@ Prefer **processes**. In-process subagents only for judgement/review/synthesis.
 3. Tracker: one epic, tickets with AC **before** a worker sees them. Reuse existing tickets; never duplicate work across PPM/PMA. `--parent`, `--agent-name` / `--session-id`.
 4. Before dispatch, write `I work on this — session: <session-name> (<session-UUID>); role: builder; started: <ISO-8601>` on each worker's ticket. Preserve prior markers; add reviewer/operator markers when those roles begin.
 5. Cross-repo work is a blocked ticket on the owning tracker. Do not author into a foreign repo.
-6. Preflight the environment (the speed rule). Quota check: run the quota reader from the harness-bindings table before the first spawn, every 60 minutes of a live slice, and before every later spawn. At or under 20% of the weekly window remaining, or on a failed read, stop every worker and ask before any further spawn, review, or deploy. Then spawn.
+6. Preflight the environment (the speed rule). Quota check: run the quota reader from the harness-bindings table before the first spawn, every 60 minutes of a live slice, and before every later spawn. When the reader reports 80% or more of the weekly budget used, or the read fails, stop every worker and ask before any further spawn, review, or deploy. If the check passes, spawn.
 
 ## Routing (speed first)
 
