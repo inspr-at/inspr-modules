@@ -26,12 +26,13 @@ repo_exempt=(CHANGELOG.md
   skills/design-frontier-gauntlet/scripts/build_gallery.py
   skills/design-frontier-gauntlet/scripts/test_build_gallery.py)
 
-die() { printf 'model-role-doctrine: %s\n' "$*" >&2; exit "${2:-1}"; }
+die() { printf 'model-role-doctrine: %s\n' "$1" >&2; exit "${2:-1}"; }
 
-# scan <root> <exempt-list-name> <path>… ; prints offending "path:line:text" lines
+# scan <root> <path>… ; prints offending "path:line:text" lines. Exemptions
+# come from the EXEMPT array (root-relative prefixes); bash 3.2 has no namerefs.
+EXEMPT=()
 scan() {
-  local root=$1 exempt_name=$2; shift 2
-  local -n exempt_ref=$exempt_name
+  local root=$1; shift
   local p rc out
   [[ -d $root ]] || die "root is not a directory: $root" 2
   for p in "$@"; do [[ -e "$root/$p" ]] || die "path does not exist: $root/$p" 2; done
@@ -45,7 +46,7 @@ scan() {
     [[ -n $line ]] || continue
     path=${line%%:*}; path=${path#./}
     keep=1
-    for p in "${exempt_ref[@]}"; do
+    for p in "${EXEMPT[@]+"${EXEMPT[@]}"}"; do
       [[ $path == "$p" || $path == "$p"/* ]] && { keep=0; break; }
     done
     [[ $keep -eq 1 ]] || continue
@@ -68,16 +69,16 @@ lint() {
 
 self_test() {
   local d; d=$(mktemp -d); trap 'rm -rf "$d"' RETURN
-  local none=()
+  EXEMPT=()
   printf '%s\n' 'use gpt-6-astra at xhigh' 'Grok 4.7 via cursor' 'claude-opus-5 please' 'Composer 2.5' \
     'claude --model fable' 'codex exec -m gpt-4.1' 'Opus 5 as reviewer' 'run sonnet at high effort' 'gpt-4o' > "$d/bad.txt"
   printf '%s\n' 'Shakespeare Sonnet 18 is fine' 'the magnum opus of the fleet' 'a haiku about autumn' 'a fable for children' \
     'resolve the review-gate role' 'families: openai, anthropic, xai' > "$d/good.txt"
-  local n; n=$(scan "$d" none bad.txt | wc -l | tr -d ' ')
+  local n; n=$(scan "$d" bad.txt | wc -l | tr -d ' ')
   [[ $n -eq 9 ]] || die "self-test: expected 9 flagged lines in bad.txt, got $n"
-  n=$(scan "$d" none good.txt | wc -l | tr -d ' ')
-  [[ $n -eq 0 ]] || die "self-test: false positives in good.txt: $(scan "$d" none good.txt)"
-  local ex=(bad.txt); n=$(scan "$d" ex bad.txt good.txt | wc -l | tr -d ' ')
+  n=$(scan "$d" good.txt | wc -l | tr -d ' ')
+  [[ $n -eq 0 ]] || die "self-test: false positives in good.txt: $(scan "$d" good.txt)"
+  EXEMPT=(bad.txt); n=$(scan "$d" bad.txt good.txt | wc -l | tr -d ' '); EXEMPT=()
   [[ $n -eq 0 ]] || die "self-test: exemption by path did not apply"
   printf 'model-role-doctrine: self-test ok\n'
 }
@@ -94,7 +95,7 @@ case ${1:-} in
       esac
     done
     [[ ${#paths[@]} -gt 0 ]] || die 'usage: --lint <root> [--exempt <path>]… <path>…' 2
-    lint "$root" consumer_exempt "${paths[@]}"; printf 'model-role-doctrine: lint ok\n'; exit 0 ;;
+    EXEMPT=("${consumer_exempt[@]+"${consumer_exempt[@]}"}"); lint "$root" "${paths[@]}"; printf 'model-role-doctrine: lint ok\n'; exit 0 ;;
 esac
 
 repo_root=${1:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}
@@ -132,5 +133,6 @@ grep -Fq -- "--author-family <the builder's family>" "$repo_root/skills/product-
 
 for p in "${repo_exempt[@]}"; do [[ -e "$repo_root/$p" ]] || die "exempt path no longer exists (drop it): $p"; done
 self_test
-lint "$repo_root" repo_exempt docs commands skills README.md AGENTS.md CONTRIBUTING.md SECURITY.md
+EXEMPT=("${repo_exempt[@]}")
+lint "$repo_root" docs commands skills README.md AGENTS.md CONTRIBUTING.md SECURITY.md
 printf 'model-role-doctrine: ok\n'
