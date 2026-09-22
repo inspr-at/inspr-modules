@@ -60,12 +60,30 @@ Before project bootstrap or release/deployment, read [AGENTS-VERSIONING.md](AGEN
 - 🟡 After shipping anything claimed-as-done, do a structured C/H/M/O severity pass through the artifacts: "would this withstand a tough security and validity audit?".
 - 🟡 A claimed-as-done change must name its durable, inspectable artifact evidence. For code, record the repository plus commit or commit range; for deployments, bind the exact release/image/digest to a live behavior check; for documents and generated assets, name the durable artifact/version. Status prose, timestamps, and “tests passed” without the resulting artifact are not a completion trail.
 
+## Pattern: model choice by role
+
+Paimos is the single source of truth for which model runs what (PAI-1048). Doctrine, skills, commands and prompts name **roles**, never models; the catalog, tiers, efforts, the cross-family review ladder and expiring availability overrides live in the instance registry (`GET /api/models/catalog`, admin-only `PUT /api/models/overrides`).
+
+- 🟡 **Evaluate, then resolve.** Read the task (ticket, prompt, diff) and choose one role by its traits:
+
+| Role | Pick when | Tier · effort |
+|---|---|---|
+| `scout` | read-only survey, triage, inventory; a wrong answer is cheap to catch | fast · medium |
+| `mechanical` | well-specified and reversible: fixtures, docs, renames, pin bumps; the spec is the hard part and it is done | fast · high |
+| `build` | ordinary implementation with tests on one surface, with clear acceptance criteria | standard · high |
+| `build-hard` | ambiguous or cross-cutting; security, concurrency or schema; high blast radius or hard to reverse | strong · xhigh |
+| `review-gate` | any merge, release or deploy approval, and taste verdicts | frontier · xhigh, read-only, other family |
+
+  Then `paimos model resolve <role> [--author-family <yours>] [--harness <cli>] [--json]` prints the pinned dispatch profile, the ladder with skip reasons and the exact command; `paimos worker start --role <role>` uses the same resolver. Offline, the `paimos sync` model-catalog cache answers and marks the result stale. Until the installed `paimos` has `model resolve`, apply this table by hand and record the role and the chosen profile on the ticket.
+- 🔴 **Never hardcode a model.** No model id, product name or version in doctrine, skills, commands or prompts; `tests/model-role-doctrine.sh` fails the build on one. The only exception is a lens that is *defined* by one exact model (the design-frontier gauntlet), allowlisted there with its reason. Temporary availability ("conserve X until …") is an expiring override in Paimos, never a memory note or a doc edit.
+- 🟡 **Record the routing** on the ticket next to the worker marker: role, resolved profile id and version, effort, and the skip reasons the resolver printed.
+
 ## Pattern: adversarial review gates
 
 - 🔴 **Whoever implements does not review.** Product-delivery taste, review and merge gates go to a frontier model from a **different model family** than the author. A model of the same family (any size, any tier) is still the author's family and is never the gate.
-- 🟡 **Walk the ladder top-down, in the order listed, skipping the author's family.** League 1: (1) Codex `gpt-6-astra` at xhigh reasoning; (2) Claude Fable 5.1 at xhigh, falling back to Claude Opus 5 at xhigh on the same rung when Fable is unavailable (usage cap) — both are the Claude family. League 2: (3) Grok 4.7 at xhigh. Select the first eligible reviewer available at the specified model and reasoning effort. If none is available, ask the owner; the gate stays closed until the owner's explicit `ok`.
+- 🟡 **Walk the ladder the resolver prints.** `paimos model resolve review-gate --author-family <author's family>` walks the registry ladder top-down — the OpenAI frontier route, then the Anthropic frontier route with its same-rung strong fallback, then the xAI frontier route (currently via the Cursor CLI), then `owner` — skipping the author's family and any route under an active override, and prints a **read-only** command for the first eligible route. If it resolves to `owner`, ask the owner; the gate stays closed until the owner's explicit `ok`.
 - 🟡 The reviewer runs **read-only** (Bash / CLI sandbox), gets the diff, the ticket and the acceptance criteria, and returns a verdict. Only an explicit `ok` opens the gate; any other verdict keeps it closed and the findings go back to the author.
-- 🟡 **Evidence on the ticket, recorded by the coordinator**: reviewer model, reasoning effort, reviewed commit, verdict, each preceding ladder entry skipped with its reason (author's family or unavailable), and any in-rung fallback (Opus for Fable) with its reason. For owner fallback, record reviewer `owner`, model and effort `not applicable`, reviewed commit, the owner's explicit verdict, and why every ladder entry was ineligible or unavailable. A gate without evidence did not happen.
+- 🟡 **Evidence on the ticket, recorded by the coordinator**: reviewer profile id and version, reasoning effort, reviewed commit, verdict, each preceding ladder entry skipped with the resolver's reason (author's family, active override, unavailable), and any same-rung fallback with its reason. For owner fallback, record reviewer `owner`, profile and effort `not applicable`, reviewed commit, the owner's explicit verdict, and why every ladder entry was ineligible or unavailable. A gate without evidence did not happen.
 
 ## Pattern: critical thinking & editing discipline
 

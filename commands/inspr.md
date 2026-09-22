@@ -30,7 +30,7 @@ Three tiers:
 | Command            | What it loads (on demand)                                            | When to use                                              |
 | ------------------ | -------------------------------------------------------------------- | -------------------------------------------------------- |
 | `/inspr`           | This guide                                                           | Anytime you need the map                                 |
-| `/dev`             | `AGENTS-DOMAIN-DEV.md`                                               | Code, tests, refactor, git workflow depth                |
+| `/dev`             | `AGENTS-DOMAIN-DEV.md`                                               | Code, tests, refactor, git workflow, model choice by role |
 | `/ops`             | `AGENTS-DOMAIN-OPS.md` (private) + `AGENTS-AGENT-SYSOP.md` (private)                     | Fleet ops, SSH between hosts, NixOS deploys              |
 | `/secrets`         | `AGENTS-DOMAIN-SECRETS.md`                                           | agenix, 1P CLI, env-file pipeline, secrets rotation      |
 | `/nix`             | `AGENTS-DOMAIN-NIX.md`                                               | nix-darwin, Home Manager, devenv, NixOS modules          |

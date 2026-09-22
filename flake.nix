@@ -478,6 +478,21 @@
                 touch $out
               '';
 
+            # Doctrine names model roles, never models (INSPR-463): the kernel,
+            # mirror, DEV pack and skills route through `paimos model resolve`,
+            # and no concrete model identifier appears outside the registry.
+            model-role-doctrine = pkgs.runCommand "model-role-doctrine"
+              {
+                nativeBuildInputs = [
+                  pkgs.bash
+                  pkgs.gnugrep
+                ];
+              }
+              ''
+                bash ${./tests/model-role-doctrine.sh} ${self}
+                touch $out
+              '';
+
             # inspr --help must tell the truth (INSPR-258): every dispatch
             # command appears and no stale NOT-YET-IMPLEMENTED claims remain.
             inspr-help-surface =

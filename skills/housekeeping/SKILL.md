@@ -37,10 +37,8 @@ Scan the whole tree (respect ignores). Look for:
 Each finding needs: id, category, severity, location, evidence, impact, suggested-fix.
 
 ## 3. Challenge
-Detect which agent you are and call the other with its strongest high-reasoning model available:
-
-- If you are Claude → call Codex (`codex`) with its best high / max reasoning model.
-- If you are Codex → call Claude (`claude`) with its best xhigh / max reasoning model.
+Resolve the challenger with the `review-gate` role, which is always another model family than yours:
+`paimos model resolve review-gate --author-family <yours> --json` (Claude → `anthropic`, Codex → `openai`, Grok → `xai`). Run the read-only command it prints; never pick a model yourself (kernel: model choice by role).
 
 Prompt for the challenger (same in both directions):
 ```
@@ -48,7 +46,7 @@ Adversarial review. Reply only: KEEP | DOWNGRADE | DISCARD
 then one short paragraph + refined fix if KEEP.
 ```
 
-Keep only KEEP results. Discard aggressively. If the preferred model is unavailable, fall back to the next-strongest high-reasoning option on that side. Stop if no model is available and ask user how to proceed.
+Keep only KEEP results. Discard aggressively. The resolver already applies availability overrides and the ladder order; if it resolves to `owner`, stop and ask the user how to proceed. Record the challenger's profile id and any skip reasons in the report.
 
 ## 4. PPM tickets
 Turn survivors into PPM tickets (using paimos cli).
