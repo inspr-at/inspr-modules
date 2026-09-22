@@ -12,12 +12,14 @@
 set -euo pipefail
 
 # Always a model reference: vendor ids and versioned product names.
-strict='gpt-[0-9][a-z0-9.-]*|grok[- ]?[0-9]+(\.[0-9]+)?|claude-(opus|sonnet|haiku|fable)-[0-9]|composer[- ]?[0-9]+(\.[0-9]+)?'
-# Family words need routing context on the same line (Shakespeare's sonnets are fine).
-family='(^|[^a-z0-9-])(opus|sonnet|haiku|fable)([- ]?[0-9]+(\.[0-9]+)?)?([^a-z0-9]|$)'
-context='claude|anthropic|--model|model[ =:]|xhigh|reasoning|effort|harness|codex|route|reviewer|worker'
-# Routing syntax that names a model directly.
-routing='(--model|-m)[= ]+[a-z0-9]'
+strict='gpt[ -]?[0-9][a-z0-9.-]*|grok[- ]?[0-9]+(\.[0-9]+)?|claude-(opus|sonnet|haiku|fable)-[0-9]|composer[- ]?[0-9]+(\.[0-9]+)?'
+# Family words and Codex codenames need routing context on the same line
+# (Shakespeare's sonnets and terraform are fine).
+family='(^|[^a-z0-9-])(opus|sonnet|haiku|fable|luna|terra|sol|astra)([- ]?[0-9]+(\.[0-9]+)?)?([^a-z0-9]|$)'
+context='claude|anthropic|codex|gpt|--model|model[ =:]|xhigh|reasoning|effort|harness|route|review|mechanical|worker'
+# Routing syntax that names a model directly: --model anywhere; -m only on a codex line
+# (python -m, pytest -m and git commit -m are not model selectors).
+routing='--model[= ]+[a-z0-9]|codex[^|]* -m [a-z0-9]'
 
 repo_exempt=(CHANGELOG.md
   skills/design-frontier-gauntlet/SKILL.md
@@ -71,11 +73,13 @@ self_test() {
   local d; d=$(mktemp -d); trap 'rm -rf "$d"' RETURN
   EXEMPT=()
   printf '%s\n' 'use gpt-6-astra at xhigh' 'Grok 4.7 via cursor' 'claude-opus-5 please' 'Composer 2.5' \
-    'claude --model fable' 'codex exec -m gpt-4.1' 'Opus 5 as reviewer' 'run sonnet at high effort' 'gpt-4o' > "$d/bad.txt"
+    'claude --model fable' 'codex exec -m gpt-4.1' 'Opus 5 as reviewer' 'run sonnet at high effort' 'gpt-4o' \
+    'Codex sol/high' 'Not Sol xhigh' 'Use GPT 6 Astra for review' 'Use Codex Luna for mechanical changes' 'codex -m terra' > "$d/bad.txt"
   printf '%s\n' 'Shakespeare Sonnet 18 is fine' 'the magnum opus of the fleet' 'a haiku about autumn' 'a fable for children' \
-    'resolve the review-gate role' 'families: openai, anthropic, xai' > "$d/good.txt"
+    'resolve the review-gate role' 'families: openai, anthropic, xai' 'python3 -m unittest discover' 'pytest -m smoke' \
+    'git commit -m "fix: sol invariant"' 'terraform apply' 'the sun (sol) rises' > "$d/good.txt"
   local n; n=$(scan "$d" bad.txt | wc -l | tr -d ' ')
-  [[ $n -eq 9 ]] || die "self-test: expected 9 flagged lines in bad.txt, got $n"
+  [[ $n -eq 14 ]] || die "self-test: expected 14 flagged lines in bad.txt, got $n"
   n=$(scan "$d" good.txt | wc -l | tr -d ' ')
   [[ $n -eq 0 ]] || die "self-test: false positives in good.txt: $(scan "$d" good.txt)"
   EXEMPT=(bad.txt); n=$(scan "$d" bad.txt good.txt | wc -l | tr -d ' '); EXEMPT=()
