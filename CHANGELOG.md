@@ -12,8 +12,11 @@ their original versions.
 
 ## [Unreleased]
 
+## [260922101217.0.0] - 2026-09-22
+
 ### Changed
 
+<<<<<<< HEAD
 - **product-gauntlet: six gates from the Harbor post-mortem (INSPR-470).** A UI
   slice does not deploy before the human accepts the compare page; one
   review-gate per slice SHA plus one delta review, then stop; a slice whose
@@ -21,6 +24,16 @@ their original versions.
   at most two repos in flight even under cross-repo authorization; one
   ticket owns a UI surface's composition; harness usage is read at setup
   and at every slice gate.
+=======
+- **Restricted Aithema projects (INSPR-466).** Pin the verified Aithema 0.10.1
+  runtime and matching dependency lock. Its optional project-creation ceiling
+  supports mapped human reviewers without granting new-project authority; the
+  offline provisioner inserts one empty mapped project without a creator grant.
+  Package proof checks the installed restriction and provisioner. Deploy this
+  package before adding restricted memberships; remove those memberships before
+  rolling back to a version that does not enforce the ceiling.
+
+>>>>>>> origin/main
 - **Model choice by role, never by name (INSPR-463).** The kernel routes
   every model decision through `paimos model resolve <role>` (scout,
   mechanical, build, build-hard, review-gate); `AGENTS-DOMAIN-DEV.md` carries
