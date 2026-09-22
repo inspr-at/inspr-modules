@@ -14,6 +14,13 @@ their original versions.
 
 ### Changed
 
+- **product-gauntlet: six gates from the Harbor post-mortem (INSPR-470).** A UI
+  slice does not deploy before the human accepts the compare page; one
+  review-gate per slice SHA plus one delta review, then stop; a slice whose
+  ETA doubles or whose percent stalls for an hour is stopped and reported;
+  at most two repos in flight even under cross-repo authorization; one
+  ticket owns a UI surface's composition; harness usage is read at setup
+  and at every slice gate.
 - **Model choice by role, never by name (INSPR-463).** The kernel routes
   every model decision through `paimos model resolve <role>` (scout,
   mechanical, build, build-hard, review-gate); `AGENTS-DOMAIN-DEV.md` carries

@@ -15,7 +15,7 @@ Harness-neutral: whichever harness you are in is the controller; the other is a 
 
 1. Everything lives in the product's designated tracker (PPM or PMA, never both): epics, tickets, worker attribution, and evidence. Controller writes the tracker; workers do not.
 2. Report on **events** (`DONE`, `BLOCKED`, quiet >15 min, slice gate). Do not poll every 10 minutes unless the human named a cadence. If they named one (hourly, etc.), keep it with no misses.
-3. You certify **parity and correctness at slice end**. The human accepts **taste**.
+3. You certify **parity and correctness at slice end**. The human accepts **taste**. A slice with a user-visible surface does **not deploy** until the human has seen the compare page and replied `accepted`, or has explicitly said to deploy unseen. "Later, after live proof" is not a taste gate.
 4. Recap when the slice lands, not as a daily ritual that stalls work.
 
 ## Speed rules (non-negotiable)
@@ -25,10 +25,14 @@ Harness-neutral: whichever harness you are in is the controller; the other is a 
 3. **Dirty-tree review is advisory.** Accept only a signed commit. Do not wait on in-flight file reads.
 4. **Workers never flip PPM, never merge, never bump VERSION, never deploy.** Brief carries the full ticket contract. Controller does attributed PPM after the slice gate (or a mid-slice status comment if the human asked).
 5. **Stop a doomed agent immediately.** Sandbox cannot do it → you do it. Do not let it thrash.
+   **Stop a doomed slice too.** ETA past twice the original, or percent unmoved for 60 minutes: stop every worker, write the state to the ticket, ask the human. Percent is acceptance criteria met over total, never a feeling.
 6. **Never wait on a file.** Polling loops belong to the controller.
 7. **No critic loop where an oracle exists.** Byte-diff / test / OpenAPI beats a taste round.
+   **Review budget:** one `review-gate` per slice SHA, one delta review after a bounce. After the second bounce the controller stops and reports; it does not spawn a third reviewer. Per-PR reviews in foreign repos draw on the same budget.
 8. **Early restart** if a new invariant changes schema or architecture. Cheaper than retrofitting a running worker.
 9. **Parallel by ownership.** One writer per path set. Shared shell/sidebar/schema gets its own ticket. Named integration pass at the end, not merge-and-hope.
+   **Composition owner for UI.** One ticket owns the markup and CSS of a surface; feature tickets deliver data and handlers into named slots of that markup. The spec or prototype is the pixel bar and is attached before any worker sees a brief.
+   **Fan-out cap.** Even with cross-repo authorization: at most two repos in flight, one deploy at a time, each repo change its own slice with its own gate. More than three repos → re-plan as sequential slices before the first spawn.
 10. **Browser is controller-owned**, one headless Chromium (or pinned Playwright container). Never native Firefox/Playwright on the human desktop. Kill unused browser MCP helpers. Visual proof is part of the **slice gate**, not every ticket.
 11. **Long prompts live in a file.** `codex exec … - < brief.txt`. Never inline a novel on the shell line.
 
@@ -52,7 +56,7 @@ Prefer **processes**. In-process subagents only for judgement/review/synthesis.
 3. Tracker: one epic, tickets with AC **before** a worker sees them. Reuse existing tickets; never duplicate work across PPM/PMA. `--parent`, `--agent-name` / `--session-id`.
 4. Before dispatch, write `I work on this — session: <session-name> (<session-UUID>); role: builder; started: <ISO-8601>` on each worker's ticket. Preserve prior markers; add reviewer/operator markers when those roles begin.
 5. Cross-repo work is a blocked ticket on the owning tracker. Do not author into a foreign repo.
-6. Preflight the environment (the speed rule). Then spawn.
+6. Preflight the environment (the speed rule). Read the harness usage; below 20 percent of the weekly window, stop and ask. Then spawn.
 
 ## Routing (speed first)
 
@@ -126,7 +130,7 @@ When the train is feature-complete (or a named midpoint the human asked for), **
 5. Ownership + constraint audit.
 6. One other-family review of the **exact SHA**.
 7. Visual/a11y only if the slice has a UI surface, still controller-owned, still once.
-8. Then PPM → `qa` (and later `done` / `accepted` after live proof). Bounce with a specific reason, not a new 30-minute ritual per nit.
+8. Then PPM → `qa` (and later `done` / `accepted` after live proof). Bounce with a specific reason, not a new 30-minute ritual per nit. Before the next slice spawns: harness usage check again (setup rule 6).
 
 Be willing to disconfirm. Measure, then drop a false suspicion.
 
