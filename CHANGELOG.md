@@ -12,6 +12,19 @@ their original versions.
 
 ## [Unreleased]
 
+### Changed
+
+- **product-gauntlet: six gates from the Harbor post-mortem (INSPR-470).** A UI
+  slice does not merge or deploy before the human accepts its compare page;
+  one review counter per slice (one gate, one delta, then stop and ask); a
+  slice whose wall clock passes twice its recorded ETA or whose AC count
+  stalls for an hour is stopped and reported; at most two repos in flight
+  even under cross-repo authorization; one ticket is the sole writer of a
+  UI surface's markup and CSS; a per-harness quota reader runs at setup,
+  hourly and before every spawn.
+
+---
+
 ## [260922101217.0.0] - 2026-09-22
 
 ### Changed
