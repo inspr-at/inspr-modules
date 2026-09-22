@@ -14,6 +14,15 @@ their original versions.
 
 ### Changed
 
+- **Model choice by role, never by name (INSPR-463).** The kernel routes
+  every model decision through `paimos model resolve <role>` (scout,
+  mechanical, build, build-hard, review-gate); `AGENTS-DOMAIN-DEV.md` carries
+  the evaluation rubric, and the adversarial review ladder is expressed as
+  families and roles resolved by the Paimos registry (PAI-1048). The
+  housekeeping and product-gauntlet skills resolve their routes the same way.
+  New check `model-role-doctrine` fails the build on a concrete model
+  identifier outside the CHANGELOG and the design-frontier lens; consumers
+  can run its `--lint` mode on their own surfaces.
 - **Review-gate ladder names Grok 4.7 (INSPR-462).** League 2 of the
   adversarial review ladder in `AGENTS-DOMAIN-DEV.md` is now Grok 4.7 at
   xhigh; Grok 4.6 is no longer offered on the Cursor route. A model registry
