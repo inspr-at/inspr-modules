@@ -12,7 +12,17 @@ their original versions.
 
 ## [Unreleased]
 
+## [260922101217.0.0] - 2026-09-22
+
 ### Changed
+
+- **Restricted Aithema projects (INSPR-466).** Pin the verified Aithema 0.10.1
+  runtime and matching dependency lock. Its optional project-creation ceiling
+  supports mapped human reviewers without granting new-project authority; the
+  offline provisioner inserts one empty mapped project without a creator grant.
+  Package proof checks the installed restriction and provisioner. Deploy this
+  package before adding restricted memberships; remove those memberships before
+  rolling back to a version that does not enforce the ceiling.
 
 - **Model choice by role, never by name (INSPR-463).** The kernel routes
   every model decision through `paimos model resolve <role>` (scout,

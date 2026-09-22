@@ -58,7 +58,7 @@
 #                                       Replaces the older inspr-doctor.sh probe.
 #   packages.<system>.routing-edge     Traefik file-provider compiler built from
 #                                       this flake (`insprSource = self`).
-#   packages.<system>.aithema-workspace Immutable public Aithema 0.10.0 runtime
+#   packages.<system>.aithema-workspace Immutable public Aithema 0.10.1 runtime
 #                                       with lock-integrity-pinned dependencies.
 #
 # Consumer pattern (in your flake.nix):
@@ -596,20 +596,41 @@ EOF
                 set -eu
 
                 test "${aithemaWorkspacePkg.passthru.release.sourceRev}" = \
-                  d9591b440fdcfa68a2217dd2aefbd92310d151b7
+                  e89c1cdad0c3f608f2ae06fb0cfc87d9048b1ca0
                 test "${aithemaWorkspacePkg.passthru.release.runtimeSha256}" = \
-                  2a4deb70f34c525dbd74b23283b67ca69073f9a764d2ed719c8f29d790bca203
+                  1d22ca6c6215d96c5bad4cdefcfc4dbb24b20d2bec865ee03c942e5573fd514b
                 test "$(sha256sum ${./packages/aithema-workspace/package-lock.json} | cut -d' ' -f1)" = \
-                  e3d3826a85f08bbeeff960abd6c457ec96177f00e275c557962a7c88e6f97e81
+                  8e6cea451f6f02161cfdc2135ebdc8c1703fb04a12cfe6d7642058fc41d13103
                 test "$(sha256sum ${./packages/aithema-workspace/package.json} | cut -d' ' -f1)" = \
-                  ec8193c039578dd61270a1322e8a554a75a4102be908c5069909755bd5686910
+                  5b60ad18735a07e4d76fed5a01ca4e72219333245a0aa89162e6823aad2212dd
                 ${pkgs.nodejs_24}/bin/node -e '
                   const fs = require("node:fs");
                   const installed = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
-                  if (installed.version !== "0.10.0") throw new Error("installed Aithema manifest version drift");
+                  if (installed.version !== "0.10.1") throw new Error("installed Aithema manifest version drift");
                 ' ${aithemaWorkspacePkg}/lib/node_modules/@inspr/aithema-core/package.json
                 ${aithemaWorkspacePkg}/bin/aithema-workspace --help \
                   | grep -q 'Usage: aithema-workspace --config FILE'
+                test "${if (aithemaWorkspacePkg.passthru.supportsRestrictedProjects or false) then "true" else "false"}" = true
+                ${pkgs.nodejs_24}/bin/node \
+                  ${aithemaWorkspacePkg}/lib/node_modules/@inspr/aithema-core/bin/aithema-provision-project.js --help \
+                  | grep -q 'Usage: node bin/aithema-provision-project.js'
+                ${pkgs.nodejs_24}/bin/node --input-type=module -e '
+                  import assert from "node:assert/strict";
+                  const { SqliteProjectStore } = await import(process.argv[1]);
+                  const actor = {
+                    subject: "proof-restricted-reviewer", party_ref: "party:proof-restricted-reviewer",
+                    actor_kind: "human", roles: ["requirements_approver"],
+                    projects: ["project:proof-sandbox"], can_create_projects: false,
+                  };
+                  const store = new SqliteProjectStore(":memory:");
+                  try {
+                    assert.throws(() => store.createProject({
+                      actor, title: "Forbidden", projectKinds: ["integration"],
+                    }), { code: "forbidden" });
+                    assert.equal(store.db.prepare("SELECT COUNT(*) AS n FROM projects").get().n, 0);
+                    assert.equal(store.db.prepare("SELECT COUNT(*) AS n FROM members").get().n, 0);
+                  } finally { store.close(); }
+                ' ${aithemaWorkspacePkg}/lib/node_modules/@inspr/aithema-core/runtime/store.js
 
                 run_dir="$TMPDIR/aithema-proof"
                 mkdir -p "$run_dir/state"

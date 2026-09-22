@@ -2,9 +2,9 @@
   "schema": "inspr.release-coordinate.v2",
   "schema_version": 2,
   "version_scheme": "inspr-calendar-v2",
-  "version": "260921084702.0.0",
+  "version": "260922101217.0.0",
   "release_channel": "stable",
-  "release_sequence": 1,
+  "release_sequence": 2,
   "migration_anchor": {
     "legacy_version_scheme": "legacy",
     "last_legacy_version": "0.17.0",
