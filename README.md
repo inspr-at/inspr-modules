@@ -530,7 +530,9 @@ project, current runtime ID/generation, account, immutable dispatch-profile
 version, workspace handle/identity/mode and baseline digest. Populate it from
 the approved Paimos lifecycle configuration; the example uses synthetic values.
 The CLI asks the owned daemon's private socket for the latest server-accepted
-receipt for that exact tuple through `paimos-agentd readiness-receipt`. It does
+receipt for that exact tuple through `paimos-agentd readiness-receipt`
+(classic receipt verb; the live supervisor package is `aeon-agentd` and does
+not yet expose this command — INSPR-483). It does
 not create a readiness intent, reserve a workspace or start a worker.
 
 The receipt must be unexpired, match the independently observed physical Git
@@ -599,8 +601,9 @@ still selects the workstation/server **doctor** class; `inspr readiness
 --profile PATH` is a different flag on a different sub-command.
 
 What this command does **not** prove: live customer acceptance, Paimos
-launch gating, or a named-account match that requires Paimos agentd
-`account/read`. Missing native integrations are reported as
+launch gating, or a named-account match that required classic Paimos agentd
+`account/read` (retired with the personal classic tracker; Aeon-agentd has
+not replaced that probe — INSPR-483). Missing native integrations are reported as
 `unavailable` with a `missing_integration_*` reason; they are never
 fabricated as pass.
 

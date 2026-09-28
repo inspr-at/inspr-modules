@@ -1,5 +1,9 @@
 # SPDX-License-Identifier: AGPL-3.0-only
-"""Exercise the real readiness CLI with isolated deterministic fixtures."""
+"""Exercise the real readiness CLI with isolated deterministic fixtures.
+
+The fixture binary name `paimos-agentd` is the classic readiness-receipt
+contract (INSPR-483); Aeon-agentd does not yet expose that verb.
+"""
 
 from __future__ import annotations
 
