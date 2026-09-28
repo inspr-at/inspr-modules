@@ -602,8 +602,8 @@ still selects the workstation/server **doctor** class; `inspr readiness
 
 What this command does **not** prove: live customer acceptance, Paimos
 launch gating, or a named-account match that required classic Paimos agentd
-`account/read` (retired with classic Paimos; Aeon-agentd has not replaced
-that probe — INSPR-483). Missing native integrations are reported as
+`account/read` (retired with the personal classic tracker; Aeon-agentd has
+not replaced that probe — INSPR-483). Missing native integrations are reported as
 `unavailable` with a `missing_integration_*` reason; they are never
 fabricated as pass.
 

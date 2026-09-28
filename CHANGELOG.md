@@ -18,7 +18,8 @@ their original versions.
   Leak-guard also refuses the classic read-only fallback hostname. Exclusive-workspace
   receipts still speak the classic `paimos-agentd readiness-receipt` contract until
   Aeon ships that verb; the YAML `api_key` functional fixture is the pre-keyring
-  config shape, not the retired product.
+  config shape, not the retired product. This does not retire the classic CLI
+  on instances that have not moved.
 
 - **product-gauntlet: six gates from the Harbor post-mortem (INSPR-470).** A UI
   slice does not merge or deploy before the human accepts its compare page;

@@ -28,7 +28,7 @@ Phase 4 (synthesized 2026-05-14) produced **521 canonical rules across 12 layer 
 | AGENTS-DOMAIN-SECRETS.md | `/secrets`, `/incident` | agenix pipeline, env-file pattern, 1P CLI, secret-leak protocol |
 | AGENTS-DOMAIN-NIX.md | `/nix` | nix-darwin, Home Manager, devenv, NixOS modules + activation |
 | AGENTS-DOMAIN-OPS.md (private) | `/ops` | Fleet ops, SSH matrix, infra, tailscale, fleet-state |
-| AGENTS-DOMAIN-PPM.md (private) | `/ppm` | Paimos/Aeon CLI, ticket conventions, project landscape, API endpoints. Classic instance hostnames live only in the private pack (retired INSPR-483). |
+| AGENTS-DOMAIN-PPM.md (private) | `/ppm` | Paimos/Aeon CLI, ticket conventions, project landscape, API endpoints. Retired personal-tracker hostnames live only in the private pack (INSPR-483); the classic CLI remains for instances that have not moved. |
 | AGENTS-DOMAIN-IAC.md (private) | `/iac` | L5 service config (Terraform for Zitadel/Cloudflare/GitHub/Headscale + inspr-services repo) |
 
 ### On-demand reference / role overlays
