@@ -1,5 +1,9 @@
 # SPDX-License-Identifier: AGPL-3.0-only
-"""Adversarial acceptance of exact managed-workspace receipts, not local Git guesses."""
+"""Adversarial acceptance of exact managed-workspace receipts, not local Git guesses.
+
+The fixture binary name `paimos-agentd` is the classic readiness-receipt
+contract (INSPR-483); Aeon-agentd does not yet expose that verb.
+"""
 import json
 import unittest
 from copy import deepcopy

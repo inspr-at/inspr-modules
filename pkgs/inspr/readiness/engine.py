@@ -717,6 +717,9 @@ def probe_workspace_isolation(profile: Profile, host: ProbeHost, *, now: datetim
         native_identity = digest_text("paimos:agentd-workspace:v1\0" + host.realpath(top) + "\0" + canonical_git)[7:]
         if native_identity != binding["workspace_identity"]:
             return CheckResult("workspace_isolation", "fail", "readiness_receipt_workspace_mismatch")
+        # Classic receipt contract (INSPR-483): still `paimos-agentd
+        # readiness-receipt`. Aeon-agentd does not yet expose that verb.
+        # A missing binary is unavailable — do not talk to retired classic Paimos.
         daemon = _pinned_tool(profile, host, "paimos-agentd")
         if daemon is None:
             return CheckResult("workspace_isolation", "unknown", "readiness_consumer_unavailable")
@@ -910,8 +913,10 @@ def probe_paimos_account(profile: Profile, host: ProbeHost) -> CheckResult:
     harness = profile.expected["harness"]
     expected_label = profile.expected["account_label"]
     if profile.expected.get("account_key") or "named_account" in profile.requested_capabilities:
-        # Named-account proof lives in Paimos agentd (account/read / registry).
-        # This CLI must not start a worker/model turn or read the private registry.
+        # Named-account proof lived in classic Paimos agentd (account/read).
+        # That product is retired; Aeon-agentd has not replaced this probe
+        # (INSPR-483). This CLI must not start a worker/model turn or read a
+        # private registry.
         return CheckResult("paimos_account", "unsupported", "missing_integration_paimos_named_account_probe")
     if harness == "claude":
         return _claude_account_label(profile, host, expected_label)

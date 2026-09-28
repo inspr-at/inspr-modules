@@ -80,7 +80,9 @@ let
   emptyScript = pkgs.writeText "paimos-empty-url-activation.sh" emptyActivation;
   validScript = pkgs.writeText "paimos-valid-url-activation.sh" validActivation;
 
-  legacyConfig = pkgs.writeText "paimos-legacy-config.yaml" ''
+  # Fixture for the pre-keyring config.yaml shape (api_key in YAML, INSPR-225).
+  # Not the retired classic Paimos product (inspr-at/paimos-legacy).
+  legacyConfig = pkgs.writeText "paimos-apikey-config.yaml" ''
     default_instance: "legacy"
     instances:
       "legacy":

@@ -1,5 +1,9 @@
 # SPDX-License-Identifier: AGPL-3.0-only
-"""Focused readiness contract, probe, cache, and redaction tests."""
+"""Focused readiness contract, probe, cache, and redaction tests.
+
+The fixture binary name `paimos-agentd` is the classic readiness-receipt
+contract (INSPR-483); Aeon-agentd does not yet expose that verb.
+"""
 
 from __future__ import annotations
 

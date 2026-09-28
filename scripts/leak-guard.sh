@@ -39,7 +39,7 @@ PATTERNS=(
   '(api[_-]?key|token|password|secret)["'"'"' ]*[:=]["'"'"' ]*[A-Za-z0-9/+=_-]{16,}'
   'hsb[0-9]'          'csb[0-9]'          'mbp[0-9]{4}'
   'agm[0-9]'          'dsc[0-9]'          'imac0'
-  'pm\.barta'         'paimos\.agm'       'hs\.barta'
+  'pm\.barta'         'pml\.barta'        'paimos\.agm'       'hs\.barta'
 )
 
 # Substring matching, deliberately not regex: an earlier version escaped the
