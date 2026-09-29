@@ -101,8 +101,11 @@ presentation = policy.split('## Shared presentation from INSPR Calendar Versioni
 for requirement in ('packages/versioning/config/display.json', 'scripts/versioning-bundle.mjs', 'independently reviewed', 'every\nnormal build', '0.7 + 0.3 * configuredOpacity', 'reduced-motion', 'including the year', 'No runtime configuration fetch', 'current bundle CLI', 'global bundle digest alone does not verify a template', 'packages/versioning/config/schemes.json', 'inspr.version-scheme-labels.v2', 'inspr.calver-display.v3'):
     assert requirement in presentation, requirement
 flat = ' '.join(presentation.split())
-for requirement in ('Pretty draws six segments', 'never draws the decorative `v` or the constant `.0.0`, neither at rest nor on reveal', 'A segment configured at 0 takes no width at rest', 'including one configured at 0', 'MUST carry the exact canonical version, `.0.0` included', 'On a device without hover, one tap reveals and copies', 'Native surfaces (desktop and mobile apps) MUST show at least the six-segment Pretty label', 'CLI output and logs print the plain canonical version'):
+for requirement in ('Pretty draws six segments', 'never draws the decorative `v` or the constant `.0.0`, neither at rest nor on reveal', 'A segment configured at 0 takes no width at rest', 'including one configured at 0', 'MUST carry the exact canonical version, `.0.0` included', 'MUST add the human-readable UTC date and time', 'On a device without hover, one tap reveals and copies', 'Native surfaces (desktop and mobile apps) MUST show at least the six-segment Pretty label', 'CLI output and logs print the plain canonical version'):
     assert requirement in flat, requirement
+whole = ' '.join(policy.split())
+for requirement in ('a new reservation declaring `inspr-calendar-v2` is invalid', 'historical CalVer2 records stay valid and readable in every case'):
+    assert requirement in whole, requirement
 for surface in (kernel, mirror):
     assert '**Version-bearing work:**' in surface
     assert 'without one, propose and track adoption' in surface

@@ -71,10 +71,12 @@ identifier and the shared presentation contract differ.
 - During the alias period `inspr-calendar-v2` is a valid, deprecated
   declaration. Validators MUST accept it in existing metadata and history and
   MUST treat it as the same coordinate as `inspr-calver-3`.
-- New adoptions and new release reservations MUST declare `inspr-calver-3`.
+- New adoptions and new release reservations MUST declare `inspr-calver-3`
+  from now on; a new reservation declaring `inspr-calendar-v2` is invalid.
 - Only a later doctrine revision ends the alias period, after inventory
-  evidence shows that every enrolled consumer has migrated. CalVer2 history
-  stays readable after that; only new CalVer2 reservations become invalid.
+  evidence shows that every enrolled consumer has migrated. That revision MAY
+  restrict remaining active `inspr-calendar-v2` declarations; historical
+  CalVer2 records stay valid and readable in every case.
 - A repository on v1, SemVer, or another legacy scheme migrates directly to
   `inspr-calver-3` through the per-repository migration gate below.
 
@@ -180,7 +182,7 @@ animation and reduced-motion support. Revealed segment opacity is
 0, retaining the rhythm within 70–100 percent.
 
 The accessible name and the tooltip MUST carry the exact canonical version,
-`.0.0` included, and SHOULD add the UTC date and time. Click, keyboard
+`.0.0` included, and MUST add the human-readable UTC date and time. Click, keyboard
 activation, and a touch tap copy the exact canonical version, without a
 decorative `v` or Pretty separators; `.0.0` stays. On a device without hover,
 one tap reveals and copies, shows a short confirmation, and returns to rest
