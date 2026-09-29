@@ -15,7 +15,10 @@ import sys
 import tempfile
 
 
-SCHEME = "inspr-calendar-v2"
+# New reservations declare the current scheme (INSPR-CalVer3). CalVer2 shares
+# the identical coordinate, so existing records stay valid, immutable history.
+SCHEME = "inspr-calver-3"
+CALENDAR_SCHEMES = ("inspr-calendar-v2", SCHEME)
 CALENDAR = re.compile(
     r"[1-9][0-9](?:0[1-9]|1[0-2])(?:0[1-9]|[12][0-9]|3[01])"
     r"(?:[01][0-9]|2[0-3])(?:[0-5][0-9])(?:[0-5][0-9])\.0\.0"
@@ -42,7 +45,7 @@ def validate(data, *, reserved=False):
         raise ValueError("release metadata must be an object")
     if data.get("schema") != "inspr.release-coordinate.v2" or type(data.get("schema_version")) is not int or data["schema_version"] != 2:
         raise ValueError("absent or unsupported release schema")
-    if data.get("version_scheme") != SCHEME:
+    if not isinstance(data.get("version_scheme"), str) or data["version_scheme"] not in CALENDAR_SCHEMES:
         raise ValueError("absent or unsupported version_scheme")
     if data.get("release_channel") != "stable":
         raise ValueError("inspr-modules releases use the stable channel")
@@ -81,6 +84,7 @@ def next_release(data, now):
     if data["version"] is not None and now <= calendar_time(data["version"]):
         raise ValueError("same-second collision or clock regression; wait for a later UTC second")
     result = copy.deepcopy(data)
+    result["version_scheme"] = SCHEME
     result["version"] = version
     result["release_sequence"] += 1
     if result["migration_anchor"]["first_calendar_version"] is None:
@@ -105,13 +109,14 @@ def compare(left, right, source):
             if version != anchor["last_legacy_version"] or sequence != anchor["last_legacy_release_sequence"]:
                 raise ValueError("legacy release has no sequence mapping in this migration anchor")
             return scheme, tuple(int(part) for part in version.split(".")), sequence
-        if scheme != SCHEME:
+        if not isinstance(scheme, str) or scheme not in CALENDAR_SCHEMES:
             raise ValueError("absent or unsupported version_scheme (this repository never released v1)")
         calendar_time(version)
         first = anchor["first_calendar_version"]
         if sequence < 1 or version < first or (sequence == 1) != (version == first):
             raise ValueError("release contradicts the migration anchor")
-        return scheme, int(version.split(".")[0]), sequence
+        # CalVer2 and CalVer3 are one coordinate space: one era for ordering.
+        return "calendar", int(version.split(".")[0]), sequence
 
     ls, lv, lseq = key(left)
     rs, rv, rseq = key(right)
