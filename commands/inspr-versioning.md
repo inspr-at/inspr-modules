@@ -17,10 +17,13 @@ On invocation, **do not** edit files, commit, push, or open a PR.
    ticket, implicit proposal, already adopted, or blocked/excepted.
 4. Reply with a short **TL;DR** of what you would do in *this* repo. Cover,
    as applicable:
-   - `inspr-calendar-v2` coordinates (`YYMMDDhhmmss.0.0`)
-   - Pretty display via the shared presentation bundle (not handwritten CSS)
-   - click and keyboard copy the **canonical** version (`.0.0` stays; no
-     decorative `v`)
+   - `inspr-calver-3` (`INSPR-CalVer3`) coordinates (`YYMMDDhhmmss.0.0`);
+     a repo on `inspr-calendar-v2` switches with its next reservation and
+     keeps its CalVer2 history unchanged
+   - six-segment Pretty display via the shared presentation bundle (not
+     handwritten CSS); `v` and `.0.0` are never drawn
+   - click, keyboard and touch tap copy the **canonical** version (`.0.0`
+     stays; no decorative `v`)
    - visitor-facing history that is positive and feature-oriented, in the
      visitor's language — not a git log
    - pin of the shared renderer/config, with build checks
@@ -34,9 +37,10 @@ Ticket first in this product's designated PPM or PMA tracker, never both.
 Then implement the classified outcome in this repo and open a PR.
 
 Web products default to Pretty with SemVer as the reduced display, one thin
-adapter around the shared renderer, hover/focus reveal, and copy-to-clipboard
-of the canonical string. Native/CLI-only surfaces keep canonical text and
-record where Pretty does not apply.
+adapter around the shared renderer, hover/focus/tap reveal, and
+copy-to-clipboard of the canonical string. Native apps show at least the
+six-segment label and copy the canonical string; CLI output stays plain
+canonical. Record applicability per surface.
 
 Do not rewrite published tags, releases, or deployed versions. Work already
 in flight keeps the scheme it started under. Do not merge the PR unless the

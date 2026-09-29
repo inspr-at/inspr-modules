@@ -4,15 +4,32 @@ All notable changes to **inspr-modules** are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 with [Semantic Versioning](https://semver.org/spec/v2.0.0.html) through 0.17.0
-and [INSPR Calendar Versioning](docs/AGENTS-VERSIONING.md) (`inspr-calendar-v2`)
-from the next release once its migration gates pass. Historical sections retain
-their original versions.
+and [INSPR Calendar Versioning](docs/AGENTS-VERSIONING.md) after it: first as
+`inspr-calendar-v2` (`INSPR-CalVer2`), then `inspr-calver-3` (`INSPR-CalVer3`)
+with the identical coordinate. Historical sections retain their original
+versions.
 
 ---
 
 ## [Unreleased]
 
 ### Changed
+
+- **INSPR-CalVer3: new scheme ID and six-segment presentation (INSPR-486).**
+  The current scheme is `inspr-calver-3` (label `INSPR-CalVer3`) with the
+  unchanged `YYMMDDhhmmss.0.0` coordinate. `inspr-calendar-v2` becomes
+  `INSPR-CalVer2`: a deprecated but valid declaration whose history is never
+  rewritten; a repository switches by declaring `inspr-calver-3` with its next
+  reservation, without a new migration gate. Labels `INSPR-VER2` and
+  `INSPR-VER1` are retired for `INSPR-CalVer2` and `INSPR-CalVer1`. Shared
+  Pretty draws six segments and never the decorative `v` or `.0.0`; a segment
+  at 0 % takes no width at rest and reveals at 70 %; the accessible name and
+  tooltip carry the canonical version; touch tap reveals and copies; native
+  apps show at least the six-segment label. Display schema
+  `inspr.calver-display.v3` and label table `inspr.version-scheme-labels.v2`
+  live in `inspr-at/inspr`. `scripts/reserve-release.py` now reserves
+  `inspr-calver-3` and accepts the repository's CalVer2 history. The legacy
+  display-v1 data and checks are unchanged.
 
 - **Classic Paimos endpoints swept from the public surface (INSPR-483, AEON-261).**
   Leak-guard also refuses the classic read-only fallback hostname. Exclusive-workspace

@@ -27,6 +27,14 @@ grep -Fq 'AGENTS-VERSIONING.md' "$command" || fail "inspr-versioning command doe
 grep -Fq 'reply **`ok`**' "$command" || fail "inspr-versioning command lacks the ok confirmation gate"
 
 for required in \
+  'inspr-calver-3' \
+  'INSPR Calendar Versioning 3' \
+  '### From CalVer2 to CalVer3' \
+  'New adoptions and new release reservations MUST declare `inspr-calver-3`' \
+  'MUST NOT be rewritten, retagged, or relabelled as' \
+  'MUST treat it as the same coordinate as `inspr-calver-3`' \
+  'does not repeat' \
+  'version_scheme   = inspr-calver-3' \
   'inspr-calendar-v2' \
   'inspr-calendar-v1' \
   'YYMMDDhhmmss.0.0' \
@@ -60,14 +68,21 @@ for required in \
   'display design revision 3' \
   'Weighting MUST NOT split, reorder, or annotate the' \
   '### Scheme display labels' \
-  '| `inspr-calendar-v2` | `INSPR-VER2` |' \
-  '| `inspr-calendar-v1` | `INSPR-VER1` |' \
+  '| `inspr-calver-3` | `INSPR-CalVer3` |' \
+  '| `inspr-calendar-v2` | `INSPR-CalVer2` |' \
+  '| `inspr-calendar-v1` | `INSPR-CalVer1` |' \
   '| `legacy` | `Legacy` |' \
   'MUST show the doctrine label and MUST NOT invent one' \
   'An unknown scheme' \
   'never from the shape of the string'
 do
   grep -Fq "$required" "$policy" || fail "missing normative surface: $required"
+done
+
+for retired in '| `INSPR-VER2` |' '| `INSPR-VER1` |' 'The machine scheme remains `inspr-calendar-v2`' 'All eight segment opacities'; do
+  if grep -Fq "$retired" "$policy"; then
+    fail "retired naming or presentation rule is back: $retired"
+  fi
 done
 
 if grep -Fq 'same version MUST NOT identify different bytes' "$policy"; then
@@ -83,13 +98,16 @@ for outcome in ('New project', 'Existing adoption ticket (explicit)', 'No adopti
 for requirement in ('next normal deployment', 'proactively propose', 'recorded owner', 'never follow a mutable branch', 'designated PPM or PMA', 'trust context'):
     assert requirement in adoption, requirement
 presentation = policy.split('## Shared presentation from INSPR Calendar Versioning\n', 1)[1].split('## Calendar coordinate', 1)[0]
-for requirement in ('packages/versioning/config/display.json', 'scripts/versioning-bundle.mjs', 'independently reviewed', 'every\nnormal build', '0.7 + 0.3 * configuredOpacity', 'reduced-motion', 'including the year', 'No runtime configuration fetch', 'current bundle CLI', 'global bundle digest alone does not verify a template', 'packages/versioning/config/schemes.json', 'inspr.version-scheme-labels.v1'):
+for requirement in ('packages/versioning/config/display.json', 'scripts/versioning-bundle.mjs', 'independently reviewed', 'every\nnormal build', '0.7 + 0.3 * configuredOpacity', 'reduced-motion', 'including the year', 'No runtime configuration fetch', 'current bundle CLI', 'global bundle digest alone does not verify a template', 'packages/versioning/config/schemes.json', 'inspr.version-scheme-labels.v2', 'inspr.calver-display.v3'):
     assert requirement in presentation, requirement
+flat = ' '.join(presentation.split())
+for requirement in ('Pretty draws six segments', 'never draws the decorative `v` or the constant `.0.0`, neither at rest nor on reveal', 'A segment configured at 0 takes no width at rest', 'including one configured at 0', 'MUST carry the exact canonical version, `.0.0` included', 'On a device without hover, one tap reveals and copies', 'Native surfaces (desktop and mobile apps) MUST show at least the six-segment Pretty label', 'CLI output and logs print the plain canonical version'):
+    assert requirement in flat, requirement
 for surface in (kernel, mirror):
     assert '**Version-bearing work:**' in surface
     assert 'without one, propose and track adoption' in surface
 legacy = policy.split('#### Legacy display-v1 compatibility contract', 1)[1]
-assert 'do not apply to the shared presentation-v2 bundle above' in legacy
+assert 'do not apply to the shared presentation-v3 bundle above' in legacy
 assert 'Legacy display-v1' not in presentation
 print('calendar-version-adoption: routing, five outcomes and compatibility boundary ok')
 PY_ADOPTION
@@ -98,7 +116,8 @@ python3 - <<'PY'
 import datetime
 import re
 
-# Canonical inspr-calendar-v2 grammar, verbatim from the doctrine.
+# Canonical calendar grammar (inspr-calver-3, identical for inspr-calendar-v2),
+# verbatim from the doctrine.
 pattern = re.compile(
     r"^(?:[1-9][0-9])(?:0[1-9]|1[0-2])(?:0[1-9]|[12][0-9]|3[01])"
     r"(?:[01][0-9]|2[0-3])(?:[0-5][0-9])(?:[0-5][0-9])\.0\.0$"
