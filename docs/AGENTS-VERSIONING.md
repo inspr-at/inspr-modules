@@ -127,11 +127,15 @@ These rules apply within each project's own trust context and review path.
 
 ## Shared presentation from INSPR Calendar Versioning
 
-The editor at `https://inspr.at/versioning/` saves approved presentation data
-in `inspr-at/inspr`, `packages/versioning/config/display.json`, with schema
-`inspr.calver-display.v3`. Shared named templates live alongside it
-in `packages/versioning/config/templates.json`. This saved configuration and
-its shared renderer are the default presentation source for new adoptions;
+The approved presentation lives in `inspr-at/inspr`,
+`packages/versioning/config/display.json`, with schema
+`inspr.calver-display.v3`. Shared named templates live alongside it in
+`packages/versioning/config/templates.json`. The presentation is a doctrine
+standard: it changes only through a reviewed pull request to those files, not
+through a web editor. `https://inspr.at/versioning/` documents the current
+scheme and look, with a read-only archive of CalVer2 and the CalVer1 history.
+This configuration and its shared renderer are the default presentation
+source for new adoptions;
 the legacy display-v1 data later in this document is compatibility material.
 A presentation schema upgrade is not a change of version scheme. A consumer
 pinned to schema `inspr.calendar-version-display.v2` keeps its pinned bytes
@@ -145,8 +149,9 @@ the full source commit, expected config digest and independently reviewed
 manifest digest. Verify the complete file set, sizes and hashes on every
 normal build, including builds outside CI; reject missing, extra, altered or
 untracked payloads. Do not calculate expected pins from candidate bytes in the
-same validation step. Keep renderer, presentation, interaction, animation
-library, license and scheme label table together as listed by the manifest.
+same validation step. Keep the renderer, presentation, interaction helper,
+display configuration and scheme label table together as listed by the
+manifest; the reveal uses CSS transitions and needs no animation library.
 Do not substitute the legacy doctrine-file checker for this different
 source/closure contract.
 
@@ -185,10 +190,10 @@ accessible feedback.
 Machine versions, logs, tags, manifests, APIs and clipboard values remain
 canonical. Never parse Pretty text or derive a calendar version from a commit
 hash. Legacy versions stay explicitly discriminated and render plain until
-migration completes. No runtime configuration fetch to the editor is allowed:
+migration completes. No runtime configuration fetch from the site is allowed:
 existing deployed artifacts keep their bundled bytes until their next release.
-Saving in the editor makes data available for the next reviewed consumer build;
-it does not prove that any product has consumed it. A named template is an
+Merging a presentation change makes it available for the next reviewed
+consumer build; it does not prove that any product has consumed it. A named template is an
 explicit product choice, with separate provenance: the current bundle CLI
 packages only global `display.json` (beside the scheme label table), not
 `templates.json` or a selected template.

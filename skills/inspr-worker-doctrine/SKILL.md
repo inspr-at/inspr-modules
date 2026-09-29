@@ -32,7 +32,7 @@ material work or versioning decisions:
   runtime never fetches mutable settings. Preserve historical versions.
   Pretty draws six segments and never the `v` or `.0.0`; copy stays canonical.
 - [Display weights data](references/calendar-version-display.json): legacy
-  display-v1 compatibility data, not the new editor's saved defaults. Existing
+  display-v1 compatibility data, not the shared presentation defaults. Existing
   consumers preserve their pin until the reviewed presentation upgrade. Its
   year floor does not restrict presentation-v3, where all weights are adjustable.
 

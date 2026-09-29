@@ -7,7 +7,7 @@ Reusable Home Manager modules + utilities from the [INSPR](https://inspr.at) ini
 INSPR Calendar Versioning is the standard for new projects and a required
 adoption decision before existing projects deploy. The worker doctrine exposes
 explicit-ticket, implicit-proposal and adopted-consumer refresh outcomes.
-The shared editor/Pretty bundle is pinned from `inspr-at/inspr`; the older
+The shared Pretty presentation bundle is pinned from `inspr-at/inspr`; the older
 `lib/calendar-version-display.json` remains a compatibility API. See the
 [Versioning Doctrine](docs/AGENTS-VERSIONING.md) for gates and rollout evidence.
 
