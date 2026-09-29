@@ -9,15 +9,20 @@ RFC 2119 sense.
 
 ## Default and transition
 
-The INSPR default version scheme is **INSPR Calendar Version v2**, identified
-in machine-readable metadata as `inspr-calendar-v2` and written as
-`YYMMDDhhmmss.0.0`. Its short display label is **`INSPR-VER2`** (see
+The INSPR default version scheme is **INSPR Calendar Versioning 3**,
+identified in machine-readable metadata as `inspr-calver-3` and written as
+`YYMMDDhhmmss.0.0`. Its short display label is **`INSPR-CalVer3`** (see
 "Scheme display labels"); the label never replaces the identifier.
 
-It supersedes **INSPR Calendar Version v1** (`inspr-calendar-v1`,
-`YY.MM.DD[.hh.mm.ss]`). v1 was not syntactically valid SemVer because its
-zero-padded segments are illegal SemVer numeric identifiers, and its variable
-segment count let the first two adopting repositories drift apart. v1 is now a
+It succeeds **INSPR Calendar Versioning 2** (`inspr-calendar-v2`, label
+`INSPR-CalVer2`), which uses the identical coordinate. CalVer3 changes the
+declared identifier and the shared presentation contract, not the coordinate;
+see "From CalVer2 to CalVer3".
+
+CalVer2 superseded **INSPR Calendar Version v1** (`inspr-calendar-v1`, label
+`INSPR-CalVer1`, `YY.MM.DD[.hh.mm.ss]`). v1 was not syntactically valid SemVer
+because its zero-padded segments are illegal SemVer numeric identifiers, and
+its variable segment count let the first two adopting repositories drift apart. v1 is now a
 legacy scheme like any other: repositories that adopted it keep it until their
 own migration is complete, and every v1 coordinate they published stays exactly
 as published.
@@ -33,7 +38,7 @@ This is a gradual default, not an estate-wide cutover:
   versions, and signed attestations MUST NOT be renamed, rewritten, retagged,
   or republished to resemble calendar versions.
 - A repository on v1 MUST NOT patch v1 grammar deviations in place; the
-  deviation is resolved by that repository's v2 migration.
+  deviation is resolved by that repository's migration to `inspr-calver-3`.
 - Every product, service, package, image, configuration, schema, protocol,
   dataset, and other release-bearing artifact in a public, work, or private
   repository is in scope. A documented ecosystem exception MAY preserve a
@@ -44,19 +49,51 @@ Until a repository completes its own migration, its established release
 policy remains authoritative. There is no implicit migration merely because a
 dependency, sibling repository, or deployment target has migrated.
 
+### From CalVer2 to CalVer3
+
+`inspr-calver-3` and `inspr-calendar-v2` share one coordinate: the same
+syntax, grammar, UTC basis, reservation rules, and ordering. Only the declared
+identifier and the shared presentation contract differ.
+
+- A repository on `inspr-calendar-v2` migrates by declaring `inspr-calver-3`
+  with its next release reservation. The first CalVer3 coordinate MUST be
+  strictly later than the last CalVer2 coordinate, and `release_sequence`
+  continues without a gap or reset.
+- This switch needs no legacy-to-calendar migration anchor and does not repeat
+  the per-repository migration gate. The owning ticket MUST record the last
+  CalVer2 version and the first CalVer3 version.
+- Every reader and validator the repository ships MUST accept both
+  identifiers before its first CalVer3 reservation.
+- Existing CalVer2 tags, releases, manifests, and metadata are immutable
+  history. They keep declaring `inspr-calendar-v2`, display as
+  `INSPR-CalVer2`, and MUST NOT be rewritten, retagged, or relabelled as
+  CalVer3.
+- During the alias period `inspr-calendar-v2` is a valid, deprecated
+  declaration. Validators MUST accept it in existing metadata and history and
+  MUST treat it as the same coordinate as `inspr-calver-3`.
+- New adoptions and new release reservations MUST declare `inspr-calver-3`
+  from now on; a new reservation declaring `inspr-calendar-v2` is invalid.
+- Only a later doctrine revision ends the alias period, after inventory
+  evidence shows that every enrolled consumer has migrated. That revision MAY
+  restrict remaining active `inspr-calendar-v2` declarations; historical
+  CalVer2 records stay valid and readable in every case.
+- A repository on v1, SemVer, or another legacy scheme migrates directly to
+  `inspr-calver-3` through the per-repository migration gate below.
+
 ## Adoption at project start and before deployment
 
 **INSPR Calendar Versioning** is the default for new and existing projects.
-The machine scheme remains `inspr-calendar-v2`; the product name is not a new
-scheme. This is an automatic agent workflow requirement, not a claim that
-publishing this document migrated every consumer.
+The current machine scheme is `inspr-calver-3` (label `INSPR-CalVer3`); the
+product name is not a scheme identifier. This is an automatic agent workflow
+requirement, not a claim that publishing this document migrated every
+consumer.
 
 At project bootstrap, at worker start for release-bearing work, and before
 every normal release/deployment, the harness agent MUST read this policy and
 record one of these outcomes in the owning project's designated PPM or PMA
 tracker (never both), reusing existing adoption work rather than duplicating it:
 
-- **New project:** include `inspr-calendar-v2` in the initial version source,
+- **New project:** include `inspr-calver-3` in the initial version source,
   release pipeline, explicit scheme metadata and applicable UI surfaces. Use
   the shared presentation bundle below. Record the initial release anchor;
   do not invent a legacy release for a project without one.
@@ -75,7 +112,9 @@ tracker (never both), reusing existing adoption work rather than duplicating it:
   digest closure, review the pin change and include it in the next release.
   An unchanged upstream pin requires no artificial update. Build and runtime
   never follow a mutable branch. Explicitly selected named templates remain
-  selected; a global-default consumer follows saved global defaults.
+  selected; a global-default consumer follows saved global defaults. A
+  project still declaring `inspr-calendar-v2` switches to `inspr-calver-3`
+  with its next reservation (see "From CalVer2 to CalVer3").
 - **Blocked or excepted:** identify the missing gate or supported ecosystem
   exception, owning ticket, retained scheme/pin and next action. An existing
   explicit adoption commitment may be deferred only by a recorded owner
@@ -90,13 +129,19 @@ These rules apply within each project's own trust context and review path.
 
 ## Shared presentation from INSPR Calendar Versioning
 
-The editor at `https://inspr.at/versioning/` saves approved presentation data
-in `inspr-at/inspr`, `packages/versioning/config/display.json`, with schema
-`inspr.calendar-version-display.v2`. Shared named templates live alongside it
-in `packages/versioning/config/templates.json`. This saved configuration and
-its shared renderer are the default presentation source for new adoptions;
+The approved presentation lives in `inspr-at/inspr`,
+`packages/versioning/config/display.json`, with schema
+`inspr.calver-display.v3`. Shared named templates live alongside it in
+`packages/versioning/config/templates.json`. The presentation is a doctrine
+standard: it changes only through a reviewed pull request to those files, not
+through a web editor. `https://inspr.at/versioning/` documents the current
+scheme and look, with a read-only archive of CalVer2 and the CalVer1 history.
+This configuration and its shared renderer are the default presentation
+source for new adoptions;
 the legacy display-v1 data later in this document is compatibility material.
-A presentation schema upgrade is not a change of version scheme.
+A presentation schema upgrade is not a change of version scheme. A consumer
+pinned to schema `inspr.calendar-version-display.v2` keeps its pinned bytes
+until its next reviewed pin upgrade.
 
 During release preparation, resolve the approved source once, then vendor an
 immutable offline bundle using the source repository's
@@ -106,8 +151,9 @@ the full source commit, expected config digest and independently reviewed
 manifest digest. Verify the complete file set, sizes and hashes on every
 normal build, including builds outside CI; reject missing, extra, altered or
 untracked payloads. Do not calculate expected pins from candidate bytes in the
-same validation step. Keep renderer, presentation, interaction, animation
-library, license and scheme label table together as listed by the manifest.
+same validation step. Keep the renderer, presentation, interaction helper,
+display configuration and scheme label table together as listed by the
+manifest; the reveal uses CSS transitions and needs no animation library.
 Do not substitute the legacy doctrine-file checker for this different
 source/closure contract.
 
@@ -115,26 +161,41 @@ Use one thin product adapter around the shared renderer and interaction helper
 at all applicable version surfaces. Do not reimplement separator geometry or
 copy display settings into handwritten CSS. Web products default to **Pretty**
 with **SemVer** available as the reduced display. Auto colors resolve from the
-product's actual branding. Native/CLI-only surfaces retain canonical text and
-implement equivalent presentation only where supported; record applicability.
+product's actual branding. Native surfaces (desktop and mobile apps) MUST show
+at least the six-segment Pretty label and MUST copy the exact canonical
+version; they implement the reveal where the toolkit supports it. CLI output
+and logs print the plain canonical version. Record applicability per surface.
 
-All eight segment opacities, including the year, may range from 0 to 100 percent
-according to the saved configuration. Pretty may use independent Unicode
-separators, colors, size, spacing, raised/lowered placement and optical offsets.
-Hover or keyboard focus reveals the usable version and reverses on exit, using
-the shared roughly one-second ease-in/ease-out animation and reduced-motion
-support. Revealed segment opacity is `0.7 + 0.3 * configuredOpacity`, retaining
-the rhythm within 70–100 percent. Click and keyboard activation copy the exact
-canonical version, without a decorative `v` or Pretty separators; `.0.0` stays.
-Preserve surrounding navigation/button behavior and accessible feedback.
+Pretty draws six segments: `YY`, `MM`, `DD`, `hh`, `mm`, and `ss`. It never
+draws the decorative `v` or the constant `.0.0`, neither at rest nor on
+reveal. The reduced SemVer display and every machine-facing surface keep the
+full canonical version.
+
+All six segment opacities, including the year, may range from 0 to 100 percent
+according to the saved configuration. A segment configured at 0 takes no width
+at rest; its width and opacity animate in on reveal. Pretty may use independent
+Unicode separators, colors, size, spacing, raised/lowered placement and optical
+offsets. Hover, keyboard focus, or a touch tap reveals the usable version and
+reverses on exit, using the shared roughly one-second ease-in/ease-out
+animation and reduced-motion support. Revealed segment opacity is
+`0.7 + 0.3 * configuredOpacity` for every segment, including one configured at
+0, retaining the rhythm within 70–100 percent.
+
+The accessible name and the tooltip MUST carry the exact canonical version,
+`.0.0` included, and MUST add the human-readable UTC date and time. Click, keyboard
+activation, and a touch tap copy the exact canonical version, without a
+decorative `v` or Pretty separators; `.0.0` stays. On a device without hover,
+one tap reveals and copies, shows a short confirmation, and returns to rest
+after about two seconds. Preserve surrounding navigation/button behavior and
+accessible feedback.
 
 Machine versions, logs, tags, manifests, APIs and clipboard values remain
 canonical. Never parse Pretty text or derive a calendar version from a commit
 hash. Legacy versions stay explicitly discriminated and render plain until
-migration completes. No runtime configuration fetch to the editor is allowed:
+migration completes. No runtime configuration fetch from the site is allowed:
 existing deployed artifacts keep their bundled bytes until their next release.
-Saving in the editor makes data available for the next reviewed consumer build;
-it does not prove that any product has consumed it. A named template is an
+Merging a presentation change makes it available for the next reviewed
+consumer build; it does not prove that any product has consumed it. A named template is an
 explicit product choice, with separate provenance: the current bundle CLI
 packages only global `display.json` (beside the scheme label table), not
 `templates.json` or a selected template.
@@ -154,12 +215,17 @@ field, MUST show the doctrine label and MUST NOT invent one:
 
 | Machine scheme | Display label |
 |---|---|
-| `inspr-calendar-v2` | `INSPR-VER2` |
-| `inspr-calendar-v1` | `INSPR-VER1` |
+| `inspr-calver-3` | `INSPR-CalVer3` |
+| `inspr-calendar-v2` | `INSPR-CalVer2` |
+| `inspr-calendar-v1` | `INSPR-CalVer1` |
 | `legacy` | `Legacy` |
 
+The earlier labels `INSPR-VER2` and `INSPR-VER1`, and informal names such as
+"Calendar v2" or "CalendarV2", are retired. New and updated surfaces MUST NOT
+show them.
+
 The machine-readable source is `packages/versioning/config/schemes.json`
-(`inspr.version-scheme-labels.v1`) in `inspr-at/inspr`, shipped as
+(`inspr.version-scheme-labels.v2`) in `inspr-at/inspr`, shipped as
 `schemes.json` in the presentation bundle and read at build time like
 `display.json`. A label is presentation only. Metadata, manifests, tags, APIs,
 logs and the clipboard keep the machine scheme identifier. An unknown scheme
@@ -207,7 +273,7 @@ dates that do not exist in the proleptic Gregorian calendar, such as
 
 ### SemVer syntax without SemVer semantics
 
-A canonical v2 coordinate is a syntactically valid Semantic Versioning 2.0.0
+A canonical calendar coordinate is a syntactically valid Semantic Versioning 2.0.0
 string. This is deliberate: SemVer-enforcing consumers (chart repositories,
 package registries, compliance scanners, generic release tooling) accept it,
 and their precedence rules yield chronological order because only the first
@@ -249,10 +315,10 @@ forbidden.
 
 The remainder of this section applies only to consumers still pinned to the
 legacy `inspr-modules` display-v1 bundle. Its fixed defaults, year floor and
-markup constraints do not apply to the shared presentation-v2 bundle above.
+markup constraints do not apply to the shared presentation-v3 bundle above.
 Retain these bytes and checks for compatibility until each consumer upgrades.
 
-A user interface MAY render a v2 coordinate with per-segment weight so that
+A user interface MAY render a calendar coordinate with per-segment weight so that
 the twelve digits read as date, time, and suffix instead of one number.
 Display weighting is presentation only and changes nothing about the
 coordinate.
@@ -295,8 +361,8 @@ drift test that compares the values it ships against its pinned source.
 
 The file carries an explicit `design_revision`. The legacy authoritative
 design is **display design revision 3**. A design revision is a presentation
-change only: it is not a version scheme, the scheme stays
-`inspr-calendar-v2`, the data schema stays `inspr.calendar-version-display.v1`,
+change only: it is not a version scheme, it does not change the declared
+scheme, the data schema stays `inspr.calendar-version-display.v1`,
 and no coordinate, tag, manifest, or published artifact changes because of it.
 Revision 3 supersedes the visual defaults of revisions 1 and 2 as the
 authoritative design; those earlier numbers have no remaining normative force.
@@ -328,7 +394,8 @@ upstream edit MUST NOT be reported as a fleet-wide visual rollout.
   string.
 - Weighted coordinates use a monospace face with tabular numerals so segments
   align across rows.
-- Weighting applies to `inspr-calendar-v2` only. Legacy v1 and SemVer-legacy
+- Weighting applies to calendar coordinates (`inspr-calver-3` and
+  `inspr-calendar-v2`) only. Legacy v1 and SemVer-legacy
   versions render plain, and the scheme MUST come from the release record,
   never from the shape of the string.
 - Each project implements exactly one helper that emits the weighted markup
@@ -354,13 +421,15 @@ Reference implementation for the web, rendered from the data file:
 
 ## Ordering, immutability, and rollback
 
-Within `inspr-calendar-v2`, compare the first segment as one integer. Because
+Within the calendar schemes, compare the first segment as one integer.
+`inspr-calendar-v2` and `inspr-calver-3` share one coordinate space, so a
+CalVer2 and a CalVer3 coordinate compare directly. Because
 every canonical coordinate has the same width, this is identical to plain
 lexical ordering of the canonical strings, so `git tag`, registry listings,
 and directory listings order chronologically without a scheme-aware sorter.
 Comparison MUST nevertheless occur only after full grammar and calendar
 validation; invalid input has no ordering. Lexical order across eras
-(SemVer-legacy, v1, v2) is meaningless and MUST NOT be used.
+(SemVer-legacy, v1, calendar) is meaningless and MUST NOT be used.
 
 A reserved or published version is immutable:
 
@@ -389,9 +458,11 @@ A reserved or published version is immutable:
 
 ## Mixed-era contract
 
-Legacy versions, `inspr-calendar-v1` versions, and `inspr-calendar-v2`
-versions are different tagged types. Tooling MUST NOT infer the scheme from
-punctuation, segment count, or width: a v2 coordinate is also a syntactically
+Legacy versions, `inspr-calendar-v1` versions, and calendar versions are
+different tagged types. Calendar versions carry one of two identifiers,
+`inspr-calver-3` or `inspr-calendar-v2`, for one coordinate type. Tooling MUST
+NOT infer the scheme from punctuation, segment count, or width: a calendar
+coordinate is also a syntactically
 valid SemVer string, and strings such as `26.10.31` are plausible under more
 than one scheme. Shape is provably insufficient.
 
@@ -399,7 +470,7 @@ Every migrated release surface MUST provide, directly or through an immutable
 release manifest:
 
 ```text
-version_scheme   = inspr-calendar-v2
+version_scheme   = inspr-calver-3
 version          = <canonical calendar version>
 release_channel  = <stable channel identifier>
 release_sequence = <monotonically increasing channel ordinal>
@@ -417,11 +488,12 @@ fields into `MAJOR.MINOR.PATCH`.
 During the compatibility window, readers that can encounter more than one era
 MUST:
 
-1. parse a discriminated `legacy`, `inspr-calendar-v1`, or `inspr-calendar-v2`
-   value;
+1. parse a discriminated `legacy`, `inspr-calendar-v1`, `inspr-calendar-v2`,
+   or `inspr-calver-3` value;
 2. preserve and display the original version string;
 3. compare within a scheme using that scheme's rules (v1 keeps its six-field
-   normalized comparison; v2 compares the first segment as one integer);
+   normalized comparison; CalVer2 and CalVer3 compare the first segment as one
+   integer, across both identifiers);
 4. compare across an era boundary only through the migration anchor and
    release sequence; and
 5. fail closed on an absent, unknown, ambiguous, or invalid scheme.
@@ -449,7 +521,7 @@ ticket MUST account for and test every applicable surface:
   scheme it was not told about, or sorts unvalidated strings.
 
 Executable tests MUST cover valid and invalid calendar dates, rejection of v1
-and SemVer-legacy strings by the v2 parser, rejection of prerelease and
+and SemVer-legacy strings by the calendar parser, rejection of prerelease and
 build-metadata suffixes, same-second collisions, mixed-era ordering,
 absent/unknown scheme values, dependency and pin updates, a release build, and
 an exact-artifact rollback. Release evidence MUST identify the version, source
@@ -457,18 +529,19 @@ commit, immutable artifact digest, and validation run without exposing
 secrets.
 
 CI, APIs, release tooling, update checks, telemetry, and documentation MUST
-never silently interpret `inspr-calendar-v2` as a semantic version, a legacy
-version as a calendar version, or v1 as v2.
+never silently interpret a calendar scheme as a semantic version, a legacy
+version as a calendar version, or v1 as a calendar coordinate.
 Generic utilities such as `sort -V` are not acceptable scheme-aware
-comparators, even though they happen to order canonical v2 strings correctly;
-a comparator MUST validate first.
+comparators, even though they happen to order canonical calendar strings
+correctly; a comparator MUST validate first.
 
 ### Ecosystem exceptions
 
-`inspr-calendar-v2` needs no exception for SemVer-syntax ecosystems, OCI tags,
-Git tags, URLs, or file names. If an external ecosystem still requires another
-syntax (for example a bounded integer field or a fixed digit count), the owning
-migration ticket MUST document:
+`inspr-calver-3`, like `inspr-calendar-v2`, needs no exception for
+SemVer-syntax ecosystems, OCI tags, Git tags, URLs, or file names. If an
+external ecosystem still requires another syntax (for example a bounded
+integer field or a fixed digit count), the owning migration ticket MUST
+document:
 
 - the external constraint and the smallest compatibility representation;
 - an injective mapping from the canonical calendar release to the external
@@ -499,7 +572,9 @@ tracker. The ticket MUST:
 A repository MUST remain on its current scheme if any required consumer,
 mapping, rollback path, or validation is unknown or red. Adoption by one
 repository does not authorize another repository's migration. A repository
-already on v1 goes through this same gate to reach v2.
+already on v1 goes through this same gate to reach `inspr-calver-3`. A
+repository on `inspr-calendar-v2` does not repeat this gate; it follows "From
+CalVer2 to CalVer3".
 
 ## Value-free estate inventory
 
@@ -511,7 +586,7 @@ credentials. Use one row per independently versioned surface:
 | Repository alias | Stable non-sensitive alias; never a private remote URL |
 | Visibility class | `public`, `work`, or `private` |
 | Artifact class | Product, service, package, image, config, schema, protocol, dataset, or other |
-| Current scheme | Scheme identifier (`legacy`, `inspr-calendar-v1`, `inspr-calendar-v2`), not an inferred label |
+| Current scheme | Scheme identifier (`legacy`, `inspr-calendar-v1`, `inspr-calendar-v2`, `inspr-calver-3`), not an inferred label |
 | Version source | Repository-relative path or value-free source class |
 | Release surfaces | Tag, forge release, archive, package, image, manifest, API, UI, or telemetry classes |
 | Consumers | Value-free parser, updater, dependency, pin, and support-tool classes |
@@ -551,4 +626,5 @@ be both fixed-width sortable and SemVer-syntactic, because SemVer forbids
 leading zeros and only the year segment can never start with one. INSPR
 deliberately omits TrunkVer's mandatory `-SOURCEREF-BUILDREF` suffix (it is a
 SemVer prerelease and is unknown at reservation time) and uses a two-digit
-year so that canonical v2 strings sort after a repository's existing v1 tags.
+year so that canonical calendar strings sort after a repository's existing v1
+tags.

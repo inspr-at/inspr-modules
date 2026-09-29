@@ -14,8 +14,10 @@ material work or versioning decisions:
   `I work on this — session: <session-name> (<session-UUID>); role: <builder|reviewer|operator>; started: <ISO-8601>`
   marker before any participating worker makes a state change.
 - [Versioning doctrine](references/AGENTS-VERSIONING.md):
-  `YYMMDDhhmmss.0.0` (`inspr-calendar-v2`, SemVer-syntactic, fixed-width)
-  is the gradual INSPR default; `YY.MM.DD[.hh.mm.ss]` (v1) is superseded.
+  `YYMMDDhhmmss.0.0` (`inspr-calver-3`, label `INSPR-CalVer3`,
+  SemVer-syntactic, fixed-width) is the gradual INSPR default. New
+  reservations declare `inspr-calver-3`; `inspr-calendar-v2` history stays
+  valid and is never rewritten; `YY.MM.DD[.hh.mm.ss]` (v1) is superseded.
   Every repository remains on its current scheme until its own approved
   migration is complete.
   At project bootstrap and before every release/deployment, apply the
@@ -28,10 +30,11 @@ material work or versioning decisions:
   in `inspr-at/inspr` are the default for new presentation adoptions. Vendor
   the exact source and verified complete bundle offline at release preparation;
   runtime never fetches mutable settings. Preserve historical versions.
+  Pretty draws six segments and never the `v` or `.0.0`; copy stays canonical.
 - [Display weights data](references/calendar-version-display.json): legacy
-  display-v1 compatibility data, not the new editor's saved defaults. Existing
+  display-v1 compatibility data, not the shared presentation defaults. Existing
   consumers preserve their pin until the reviewed presentation upgrade. Its
-  year floor does not restrict presentation-v2, where all weights are adjustable.
+  year floor does not restrict presentation-v3, where all weights are adjustable.
 
 These references are normative. A worker marker identifies ownership; it does
 not grant approval, acceptance, merge, release, deployment, or secret access.

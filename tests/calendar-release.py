@@ -158,6 +158,29 @@ class CalendarRelease(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "no sequence mapping"):
             release.compare(unmapped, first, second)
 
+    def test_calver2_history_and_calver3_reservation(self):
+        first = release.next_release(initial(), NOW)
+        self.assertEqual(first["version_scheme"], "inspr-calver-3")
+        history = {**first, "version_scheme": "inspr-calendar-v2"}
+        # A CalVer2 record stays valid history and is never rewritten by validation.
+        release.validate(history, reserved=True)
+        self.assertEqual(history["version_scheme"], "inspr-calendar-v2")
+        # The next reservation from CalVer2 history declares CalVer3; the anchor is unchanged.
+        second = release.next_release(history, NOW + dt.timedelta(seconds=1))
+        self.assertEqual(second["version_scheme"], "inspr-calver-3")
+        self.assertEqual(second["release_sequence"], 2)
+        self.assertEqual(second["migration_anchor"], history["migration_anchor"])
+        # One coordinate space: CalVer2 and CalVer3 compare directly and agree with the sequence.
+        self.assertEqual(release.compare(history, second, second), -1)
+        self.assertEqual(release.compare(second, history, second), 1)
+        self.assertEqual(release.compare(legacy(), history, second), -1)
+        bad = {**second, "release_sequence": 1}
+        with self.assertRaises(ValueError):
+            release.compare(history, bad, second)
+        for scheme in ("inspr-calver-2", "inspr-calendar-v3", "INSPR-CalVer3", "inspr-calver-3 "):
+            with self.subTest(scheme=scheme), self.assertRaises(ValueError):
+                release.validate({**second, "version_scheme": scheme})
+
     def test_file_reservation_cli_and_no_overwrite(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "RELEASE.json"

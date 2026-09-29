@@ -7,7 +7,7 @@ Reusable Home Manager modules + utilities from the [INSPR](https://inspr.at) ini
 INSPR Calendar Versioning is the standard for new projects and a required
 adoption decision before existing projects deploy. The worker doctrine exposes
 explicit-ticket, implicit-proposal and adopted-consumer refresh outcomes.
-The shared editor/Pretty bundle is pinned from `inspr-at/inspr`; the older
+The shared Pretty presentation bundle is pinned from `inspr-at/inspr`; the older
 `lib/calendar-version-display.json` remains a compatibility API. See the
 [Versioning Doctrine](docs/AGENTS-VERSIONING.md) for gates and rollout evidence.
 
@@ -354,9 +354,12 @@ nix build .#secrets-audit
 ## Versioning + deprecation policy
 
 **0.17.0 is the last SemVer release** (`legacy`). The next release adopts
-INSPR Calendar Versioning (`INSPR-VER2`, machine id `inspr-calendar-v2`) under
-INSPR-458, owner-approved on 2026-09-21. General rules and migration gates are
-in the normative [Versioning Doctrine](docs/AGENTS-VERSIONING.md).
+INSPR Calendar Versioning under INSPR-458, owner-approved on 2026-09-21. The
+first calendar releases declared `inspr-calendar-v2` (`INSPR-CalVer2`); new
+reservations declare `inspr-calver-3` (`INSPR-CalVer3`, INSPR-486) with the
+identical coordinate, and the CalVer2 history stays as published. General
+rules and migration gates are in the normative
+[Versioning Doctrine](docs/AGENTS-VERSIONING.md).
 
 [`RELEASE.json`](RELEASE.json) is the sole release-coordinate source; versions
 use UTC `YYMMDDhhmmss.0.0`. The stable-channel anchor maps legacy `0.17.0` to
