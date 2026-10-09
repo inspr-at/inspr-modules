@@ -1,0 +1,9 @@
+{
+  "fixture_version": "inspr.routing-invalid-patch/0.1-draft",
+  "base": "../valid/standalone-aithema.json",
+  "expected_codes": ["LANDING_MISMATCH"],
+  "operations": [
+    { "op": "replace", "path": "/landing/kind", "value": "connected_default_app" },
+    { "op": "replace", "path": "/landing/app", "value": "paimos" }
+  ]
+}

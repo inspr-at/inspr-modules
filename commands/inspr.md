@@ -1,0 +1,83 @@
+# /inspr — INSPR doctrine & slash-command guide
+
+TL;DR map of available slash commands and what each loads. Run `/inspr` anytime you're not sure which context to pull in.
+
+## What is INSPR?
+
+The INSPR umbrella initiative — broader than Paimos. Mission: _"inspiration is the only limit."_
+
+Shared public agent doctrine is published from the **`inspr-modules`** repo and vendored as `./doctrine/` git submodule in each consuming repo. Per-repo deltas live in `<repo>/AGENTS.md`.
+
+## Doctrine architecture (post-Phase-6, 2026-05-15)
+
+Three tiers:
+
+1. **KERNEL** (`AGENTS-KERNEL.md`, currently ~5.5 k; budget ≤12 000 bytes, `wc -c`, enforced by `inspr check`) — auto-loaded by `CLAUDE.md @-ref` in every session. Carries hard-safety irreversibles + identity + slash-command router. ALWAYS in context.
+2. **DOMAIN PACKS** (`AGENTS-DOMAIN-*.md`, ~5–10 k each) — loaded **on demand** when you run a slash command. Each pack contains depth, technique, and workflow guidance for one area (secrets, nix, dev, ops, ppm).
+3. **PER-REPO DELTA** (`<repo>/AGENTS.md`) — auto-loaded alongside kernel via `CLAUDE.md @-ref`. Carries rules unique to each consuming repository.
+
+### Comprehensive references (also on-demand)
+
+- `AGENTS-CORE.md` — full universal-rules reference (199 rules, 64 k chars). Source for the kernel's safety subset; load if you need exhaustive citation.
+- the operator profile (private, `/style`) — the operator's full style and pacing preferences (153 rules, 47 k chars).
+- `AGENTS-AGENT-*.md` — per-role overlays: `AGENTS-AGENT-DEV.md` here; operator role overlays in the private doctrine. Loaded by relevant slash commands.
+
+**Pre-Phase-6 budget**: ~127 k chars auto-loaded per session in the operator's host-configuration repository.
+**Post-Phase-6 auto-load**: kernel + per-repo AGENTS.md. The kernel is budgeted (≤12 000 bytes, enforced); per-repo deltas are not — measured sizes and the audit history live in `AGENTS-INDEX.md` (the original "≤25 k combined" claim was debunked there 2026-07-26).
+
+## Slash commands
+
+| Command            | What it loads (on demand)                                            | When to use                                              |
+| ------------------ | -------------------------------------------------------------------- | -------------------------------------------------------- |
+| `/inspr`           | This guide                                                           | Anytime you need the map                                 |
+| `/dev`             | `AGENTS-DOMAIN-DEV.md`                                               | Code, tests, refactor, git workflow, model choice by role |
+| `/ops`             | `AGENTS-DOMAIN-OPS.md` (private) + an operator role overlay (private)                     | Fleet ops, SSH between hosts, NixOS deploys              |
+| `/secrets`         | `AGENTS-DOMAIN-SECRETS.md`                                           | agenix, 1P CLI, env-file pipeline, secrets rotation      |
+| `/nix`             | `AGENTS-DOMAIN-NIX.md`                                               | nix-darwin, Home Manager, devenv, NixOS modules          |
+| `/iac`             | `AGENTS-DOMAIN-IAC.md` (private)                                               | Terraform, Zitadel, Cloudflare — L5 declarative services |
+| `/ppm`             | `AGENTS-DOMAIN-PPM.md` (private) + an operator role overlay (private)                     | Project planning, ticket triage, dashboards              |
+| `/style`           | the operator profile (private, `/style`)                             | Need the operator's full style and pacing preferences    |
+| `/incident`        | Incident-response section of CORE + secret-leak protocol             | Security incident, suspected secret leak                 |
+| `/push`            | Single-repo commit + push helper                                     | Wrap up a single-repo change                             |
+| `/inspr-versioning` | `AGENTS-VERSIONING.md` + adoption procedure                          | New or existing repo: calendar v2, Pretty display, PR    |
+
+Bundled **skills** (under `skills/`, not `commands/`) also show up as slash commands in Claude Code. They were easy to miss on this map:
+
+| Skill              | What it does                                                         | When to use                                              |
+| ------------------ | -------------------------------------------------------------------- | -------------------------------------------------------- |
+| `/ship-next`       | Propose one next change; wait for `go`; then ship it                 | What should we ship?                                     |
+| `/tidyrepo`        | State hygiene only (worktrees, merged branches, ticket metadata)     | End of a session or after a release train                |
+
+## Key references
+
+- **Doctrine source**: <https://github.com/inspr-at/inspr-modules/tree/main/docs>
+- **Versioning**: [`docs/AGENTS-VERSIONING.md`](../docs/AGENTS-VERSIONING.md) — load before version-bearing work. Enforced by `calendar-version-doctrine` (file present, index/README/kernel/mirror still route to it).
+- **Field notes / runbooks**: per-repo `docs/`
+
+Studio repositories also load a private kernel, which names the tracker, the
+fleet-inventory service and the agent-secrets path. Run `/ppm` or `/ops` there;
+they do not exist in a repository that vendors only the public half.
+
+## Adding new doctrine
+
+| Where it goes                                            | What it is                                                         |
+| -------------------------------------------------------- | ------------------------------------------------------------------ |
+| `inspr-modules/docs/AGENTS-KERNEL.md`                    | New safety irreversibles or new global protocol changes only       |
+| `inspr-modules/docs/AGENTS-DOMAIN-<area>.md`             | Domain-specific workflow, technique, or pattern                    |
+| the operator profile (private, `/style`)                | the operator's full style and pacing preferences                  |
+| `inspr-modules/docs/AGENTS-AGENT-<ROLE>.md`              | Per-role overlays (DEV here; operator roles private)                             |
+| `<repo>/AGENTS.md`                                       | Per-repo delta unique to that repo                                 |
+
+**Gatekeeper rule**: the kernel grows ONLY for new safety irreversibles, new global protocol changes, or new slash commands (router updates). Everything else goes to a domain pack. Default to a domain pack; promote to kernel only when the cost of NOT having it always-loaded exceeds the auto-load cost.
+
+After upstream change, bump submodule in each consuming repo:
+
+```sh
+cd <workspace>/<repo>
+git submodule update --remote doctrine
+git commit doctrine -m "doctrine: bump to <short-sha>"
+```
+
+## How `/inspr` itself stays in sync
+
+`/inspr.md` lives canonically in `inspr-modules/commands/inspr.md` and is symlinked into each consuming repo's `+agents/commands/` or `.claude/commands/` directory through the `./doctrine/` submodule. Edit it once upstream, bump the submodule, every repo gets the update.

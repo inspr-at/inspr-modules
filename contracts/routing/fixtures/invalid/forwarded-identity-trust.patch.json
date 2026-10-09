@@ -1,0 +1,8 @@
+{
+  "fixture_version": "inspr.routing-invalid-patch/0.1-draft",
+  "base": "../valid/combined-connected.json",
+  "expected_codes": ["FORBIDDEN_EDGE_TRUST"],
+  "operations": [
+    { "op": "replace", "path": "/edge/trust/forwarded_identity_trust", "value": true }
+  ]
+}

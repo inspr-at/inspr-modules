@@ -1,0 +1,20 @@
+# Drop into a consuming repo as .github/workflows/doctrine-check.yml
+#
+# Every failure this catches is invisible at runtime: a dangling @-ref loads
+# nothing silently, a broken command symlink means the command just does not
+# appear. Cheap to run, and the alternative is finding out weeks later.
+name: doctrine-check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  doctrine-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive   # required: the check resolves submodule paths
+      - run: ./doctrine/scripts/doctrine-check.sh

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Design Frontier Gauntlet"
+  short_description: "Compare five bold, buildable interface concepts"
+  default_prompt: "Use $design-frontier-gauntlet to create five isolated interface concepts and a local comparison gallery."

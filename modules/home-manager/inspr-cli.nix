@@ -1,0 +1,210 @@
+# inspr-modules/modules/home-manager/inspr-cli.nix
+#
+# Render the `inspr` CLI's fleet configuration declaratively.
+#
+# The CLI ships with every fleet endpoint and repository path EMPTY, because
+# it is a public library and whose Headscale or tracker you run is yours to say.
+# Checks that need an unset value report SKIP rather than FAIL. This module
+# is how a studio flake supplies its own values — the same atelier/studio split the rest of the
+# repository uses: parameterised primitive here, values in your config.
+#
+# Usage:
+#   imports = [ inputs.inspr-modules.homeManagerModules.inspr-cli ];
+#   inspr.cli.fleet = {
+#     headscaleUrl = "https://headscale.example.org";
+#     tailnetName  = "headscale.example.org";
+#     paimosUrl    = "https://tracker.example.org";
+#     paimosInstance = "main";
+#     pharosUrl    = "https://pharos.example.org";
+#     pharosHost   = "manifest-host";
+#     gitIdentityName = "Someone Example";
+#     gitIdentityEmail = "someone@example.com";
+#     exampleHost  = "web1";
+#     nixcfgDir    = "/home/example/src/host-config";
+#     insprDir     = "/home/example/src/inspr";
+#     nixcfgRepoUrl = "https://git.example.org/you/host-config.git";
+#   };
+#
+# Nothing here is a credential. Every value is an endpoint, name or path, and the
+# rendered file is world-readable. Auth lives in the OS keyring.
+#
+# Optional `inspr.cli.readiness` materializes an operator-owned JSON profile
+# for `inspr readiness`. That file is never sourced as shell; the CLI validates
+# a closed contract before any probe.
+{ config, lib, ... }:
+let
+  cfg = config.inspr.cli;
+  f = cfg.fleet;
+  line = name: value:
+    lib.optionalString (value != null && value != "")
+      "${name}=${lib.escapeShellArg value}";
+  readinessJson =
+    if cfg.readiness.profile == null then
+      null
+    else
+      builtins.toJSON cfg.readiness.profile;
+in
+{
+  options.inspr.cli = {
+    enable = lib.mkEnableOption "declarative fleet config for the inspr CLI";
+
+    readiness = {
+      enable = lib.mkEnableOption "declarative JSON profile for inspr readiness";
+      profile = lib.mkOption {
+        type = lib.types.nullOr lib.types.attrs;
+        default = null;
+        example = {
+          contract_version = "inspr.readiness.v1";
+          profile_id = "studio-dev";
+        };
+        description = ''
+          Operator-owned readiness profile as a Nix attrset, serialized to
+          JSON at `xdg.configFile."inspr/readiness.json"`. Customer-specific
+          identities and expected revisions belong here. The file is never
+          sourced as shell and must not contain credentials, emails, or
+          command fields. `inspr readiness` validates the closed contract
+          before running built-in probes.
+        '';
+      };
+    };
+
+    fleet = {
+      nixcfgDir = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        example = "/home/example/src/host-config";
+        description = ''
+          Absolute path of the host-configuration checkout. Use a string, not
+          a Nix path, so the checkout is never copied to the store. Enables
+          repository, drift and doctrine checks and post-deploy evaluation;
+          dependent checks report SKIP when unset.
+        '';
+      };
+      insprDir = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        example = "/home/example/src/inspr";
+        description = ''
+          Absolute path of the INSPR umbrella checkout. Use a string, not a
+          Nix path, so the checkout is never copied to the store. Enables
+          repository and doctrine checks and the VISION.md lookup;
+          dependent checks report SKIP when unset.
+        '';
+      };
+      nixcfgRepoUrl = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        example = "https://git.example.org/you/host-config.git";
+        description = ''
+          Host-configuration repository clone URL. Enables exact clone hints
+          in checks and onboarding; unset values use a generic instruction.
+          Must not contain credentials.
+        '';
+      };
+      headscaleUrl = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        example = "https://headscale.example.org";
+        description = ''
+          Headscale SERVICE url, not the host it runs on. Enables the
+          `headscale_reachable` check.
+        '';
+      };
+      tailnetName = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        example = "headscale.example.org";
+        description = ''
+          Expected tailnet name. Enables `tailscale_control_url`, which is the
+          only check that distinguishes your Headscale from Tailscale SaaS — a
+          host pointed at the wrong control server passes every other check.
+        '';
+      };
+      paimosUrl = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        example = "https://tracker.example.org";
+        description = "Paimos instance url, shown in onboarding instructions.";
+      };
+      paimosInstance = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        example = "main";
+        description = "Local instance alias used by `paimos auth login --name`.";
+      };
+      pharosHost = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        example = "manifest-host";
+        description = ''
+          Host whose checkout holds generated Pharos manifests. Used by
+          `inspr post-deploy`; the comparison is skipped when unset.
+        '';
+      };
+      pharosUrl = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        example = "https://pharos.example.org";
+        description = ''
+          Pharos base url. Enables Pharos registration, beacon deployment,
+          and the Pharos checks in `inspr post-deploy`.
+        '';
+      };
+      gitIdentityName = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        example = "Someone Example";
+        description = "Expected default git author name.";
+      };
+      gitIdentityEmail = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        example = "someone@example.com";
+        description = "Expected default git author email.";
+      };
+      exampleHost = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        example = "web1";
+        description = "Host slug shown in `inspr --help`. Cosmetic only.";
+      };
+    };
+  };
+
+  config = lib.mkMerge [
+    (lib.mkIf cfg.enable {
+      xdg.configFile."inspr/fleet.conf".text = ''
+        # Rendered by inspr-modules homeManagerModules.inspr-cli — do not edit.
+        # Change the values in your Home Manager configuration instead.
+      '' + lib.concatStringsSep "\n" (lib.filter (l: l != "") [
+        (line "INSPR_NIXCFG_DIR" f.nixcfgDir)
+        (line "INSPR_DIR" f.insprDir)
+        (line "INSPR_NIXCFG_REPO_URL" f.nixcfgRepoUrl)
+        (line "INSPR_HEADSCALE_URL" f.headscaleUrl)
+        (line "INSPR_TAILNET_NAME" f.tailnetName)
+        (line "INSPR_PAIMOS_URL" f.paimosUrl)
+        (line "INSPR_PAIMOS_INSTANCE" f.paimosInstance)
+        (line "INSPR_PHAROS_URL" f.pharosUrl)
+        (line "INSPR_PHAROS_HOST" f.pharosHost)
+        (line "INSPR_GIT_IDENTITY_NAME" f.gitIdentityName)
+        (line "INSPR_GIT_IDENTITY_EMAIL" f.gitIdentityEmail)
+        (line "INSPR_EXAMPLE_HOST" f.exampleHost)
+      ]) + "\n";
+    })
+    (lib.mkIf cfg.readiness.enable {
+      assertions = [
+        {
+          assertion = cfg.readiness.profile != null;
+          message = "inspr.cli.readiness.profile must be set when inspr.cli.readiness.enable is true";
+        }
+        {
+          assertion = readinessJson == null || builtins.stringLength readinessJson <= 65536;
+          message = "inspr.cli.readiness.profile exceeds the 64KiB readiness profile bound";
+        }
+      ];
+      xdg.configFile = lib.optionalAttrs (readinessJson != null) {
+        "inspr/readiness.json".text = readinessJson + "\n";
+      };
+    })
+  ];
+}

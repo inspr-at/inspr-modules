@@ -1,0 +1,17 @@
+{
+  "fixture_version": "inspr.routing-invalid-patch/0.1-draft",
+  "base": "../valid/combined-connected.json",
+  "expected_codes": ["DISCONNECTED_CONFLICT"],
+  "operations": [
+    {
+      "op": "replace",
+      "path": "/apps/pharos/disconnected",
+      "value": {
+        "external_origin": {
+          "scheme": "https",
+          "host": "pharos.fixture.test"
+        }
+      }
+    }
+  ]
+}

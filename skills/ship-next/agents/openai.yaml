@@ -1,0 +1,4 @@
+interface:
+  display_name: "Ship Next"
+  short_description: "Propose and ship the right next change"
+  default_prompt: "Use $ship-next to propose the single right next item and wait for my go."

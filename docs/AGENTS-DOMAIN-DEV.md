@@ -1,0 +1,175 @@
+# AGENTS — Domain: Dev
+
+*Layer: `domain:dev` · INSPR-189 Phase 6 · Loaded on demand by `/dev`.*
+
+Detailed rules for code work: git, build/test gates, adversarial review gates, style, refactor, gh CLI, just, scripts, editing discipline, web cookie-consent tiers. Kernel (auto-loaded) covers destructive-git irreversibles and basic identity/style. This pack adds daily-workflow depth.
+
+**Load before**: code editing, refactor, multi-commit work, PR work, test/lint gates. Pair with `/secrets` for credentials, `/nix` for nix code.
+
+---
+
+## Pattern: git workflow
+
+### Identity (kernel + extras)
+
+Identity comes from the private kernel; never invent placeholders. Extras:
+
+- 🟡 Identity/dev config lives **declaratively** in the operator's host-configuration repository. `git config --global` or any fleet-wide imperative move requires confirmation.
+- 🟡 Per-repo git config (no `--global`) on bootstrap; the operator's host-configuration repository is canonical for fleet-wide.
+- 🟡 PAT identity: entity that makes decisions while no human is present → its own GitHub account; otherwise human's account is fine.
+
+### Multi-org auth
+
+- Use alias form `git@<alias>:<owner>/<repo>.git` for pushes; never bare `git@github.com:`. Example: `git@<alias>:<owner>/...`.
+- Declare credential helpers via HM `programs.git.settings.credential`, not `gh auth setup-git` (collides with HM read-only config).
+- Auto-generated `includeIf hasconfig:remote.*.url` rules MUST be paired HTTPS+SSH — `*` doesn't cross URL component boundaries. Prefer content-derived rules over gitdir lists.
+- Migrating to HM-managed git config: **rename** legacy `~/.gitconfig` (don't delete) — silently shadows `~/.config/git/config`.
+
+### Commit safety (extras beyond kernel)
+
+Kernel: scan diff + status before every commit; never amend; never destructive ops. Extras:
+
+- 🔴 On potential secret in diff: STOP → alert → suggest env var → wait for confirmation.
+- 🟡 Re-`git add` edited files before commit, or use `git commit -a` for tracked files. `AM` letter combination warns of stale staged versions.
+- 🟡 When commit appears to silently abort + push says "Everything up-to-date", check `git status` for `MM` state — pre-commit linter ate the staged diff.
+- 🟡 Group into logical commits; don't lump unrelated changes. Use the repo's existing commit message style (`git log --oneline -10`). Branch changes require user consent.
+
+### Push flow & `/push`-family
+
+- Push is normal flow on agreed changes — do it without asking. After commits: `git pull --rebase && git push`.
+- For big review: `git --no-pager diff --color=never`.
+- Multi-agent repos with not-yours dirt: `git stash push -- <paths>` (path-scoped), pull/push/pop. Don't `git stash` everything.
+- `/push`: commit and push current working directory repo only.
+- On `/push`: STOP and alert if diff or working tree shows potential secrets or unexpected files before any push.
+
+## Pattern: PR and gh CLI
+
+- 🟡 Use `gh pr view/diff` for PRs — never paste GitHub URLs.
+- 🟡 In PR replies cite fix and file/line. Resolve threads only after the fix lands.
+- 🟡 On CI red: `gh run list/view`, rerun, fix, push, repeat to green.
+
+## Pattern: Calendar Versioning adoption
+
+Before project bootstrap or release/deployment, read [AGENTS-VERSIONING.md](AGENTS-VERSIONING.md) and record the applicable adoption outcome. Existing adoption tickets belong in the next deployment; without one, propose the standard and track it. Already-adopted projects review the current saved presentation bundle pin before building. Use immutable offline inputs, preserve historical releases and report actual active coverage.
+
+## Pattern: Build / test / docs gates
+
+- 🟡 Before handoff, run the full gate: lint, typecheck, tests, docs.
+- 🟡 Use the repo's package manager and runtime; no swaps without approval.
+- 🟡 Update docs (README/RUNBOOK) when behavior or API changes — no ship without docs.
+- 🟡 After shipping anything claimed-as-done, do a structured C/H/M/O severity pass through the artifacts: "would this withstand a tough security and validity audit?".
+- 🟡 A claimed-as-done change must name its durable, inspectable artifact evidence. For code, record the repository plus commit or commit range; for deployments, bind the exact release/image/digest to a live behavior check; for documents and generated assets, name the durable artifact/version. Status prose, timestamps, and “tests passed” without the resulting artifact are not a completion trail.
+
+## Pattern: model choice by role
+
+Paimos is the single source of truth for which model runs what (PAI-1048). Doctrine, skills, commands and prompts name **roles**, never models; the catalog, tiers, efforts, the cross-family review ladder and expiring availability overrides live in the instance registry (`GET /api/models/catalog`, admin-only `PUT /api/models/overrides`).
+
+- 🟡 **Evaluate, then resolve.** Read the task (ticket, prompt, diff) and choose one role by its traits:
+
+| Role | Pick when | Tier · effort |
+|---|---|---|
+| `scout` | read-only survey, triage, inventory; a wrong answer is cheap to catch | fast · medium |
+| `mechanical` | well-specified and reversible: fixtures, docs, renames, pin bumps; the spec is the hard part and it is done | fast · high |
+| `build` | ordinary implementation with tests on one surface, with clear acceptance criteria | standard · high |
+| `build-hard` | ambiguous or cross-cutting; security, concurrency or schema; high blast radius or hard to reverse | strong · xhigh |
+| `review-gate` | any merge, release or deploy approval, and taste verdicts | frontier · xhigh, read-only, other family |
+
+  Then `paimos model resolve <role> [--author-family <yours>] [--harness <cli>] [--json]` prints the pinned dispatch profile, the ladder with skip reasons and the exact command. For implementation roles `paimos worker start --role <role>` applies the same resolution; a `review-gate` MUST run the resolver's printed read-only command itself — `worker start` does not yet carry the read-only constraint. Offline, the `paimos sync` model-catalog cache answers and marks the result stale.
+- 🟡 **Hand fallback** while the installed `paimos` lacks `model resolve`: read the registry (`GET /api/models/catalog`, or this table), pick the route the ladder would pick — for a gate, the highest-ranked frontier route of another family than the author, at xhigh, run read-only — record role, profile id and the reason for every skipped route on the ticket, and ask the owner when no route is available.
+- 🔴 **Never hardcode a model.** No model id, product name or version in doctrine, skills, commands or prompts; `tests/model-role-doctrine.sh` fails the build on one. The only exceptions are lenses *defined* by one exact model; the enumeration is the exemption list in `tests/model-role-doctrine.sh` (today: the design-frontier gauntlet's Claude lens), each with its reason. Temporary availability ("conserve X until …") is an expiring override in Paimos, never a memory note or a doc edit.
+- 🟡 **Record the routing** on the ticket next to the worker marker: role, resolved profile id and version, effort, and the skip reasons the resolver printed.
+
+## Pattern: adversarial review gates
+
+- 🔴 **Whoever implements does not review.** Product-delivery taste, review and merge gates go to a frontier model from a **different model family** than the author. A model of the same family (any size, any tier) is still the author's family and is never the gate.
+- 🟡 **Walk the ladder the resolver prints.** `paimos model resolve review-gate --author-family <author's family>` walks the registry ladder top-down — the OpenAI frontier route, then the Anthropic frontier route with its same-rung strong fallback, then the xAI frontier route (currently via the Cursor CLI), then `owner` — skipping the author's family and any route under an active override, and prints a **read-only** command for the first eligible route. If it resolves to `owner`, ask the owner; the gate stays closed until the owner's explicit `ok`.
+- 🟡 The reviewer runs **read-only** (Bash / CLI sandbox), gets the diff, the ticket and the acceptance criteria, and returns a verdict. Only an explicit `ok` opens the gate; any other verdict keeps it closed and the findings go back to the author.
+- 🟡 **Evidence on the ticket, recorded by the coordinator**: reviewer profile id and version, reasoning effort, reviewed commit, verdict, each preceding ladder entry skipped with the resolver's reason (author's family, active override, unavailable), and any same-rung fallback with its reason. For owner fallback, record reviewer `owner`, profile and effort `not applicable`, reviewed commit, the owner's explicit verdict, and why every ladder entry was ineligible or unavailable. A gate without evidence did not happen.
+
+## Pattern: critical thinking & editing discipline
+
+- 🔴 **Read before replacing.** Verify full context of edits.
+- 🔴 **Clarity over speed.** Uncertain? Ask first — one question beats three bugs.
+- 🟡 Verify post-action (`git status`, `ls -la`, decrypt-test); verification is part of the operation. Verify outputs **structurally** (size, content sniff), not just by exit code.
+- 🟡 Fix root cause, not band-aid. Honor existing patterns. On conflicts, call them out and pick the safer path. When unsure, read more code; if still stuck, ask with a short option list.
+- 🟡 **Match the evidence to the shape of the claim.** Each claim shape has a minimum evidence bar, and weaker evidence supports only a weaker claim:
+  - **Identity** ("X is Y") — an observed stable identifier: bundle/package id, image digest, repo remote, service unit. A nickname, a product name, or a plausible match is not an identification. If unresolved, ask.
+  - **Capability, impossibility, mechanism** ("it cannot", "it only does") — shipped implementation or a runtime probe. Documentation proves documented behaviour; it cannot prove absence, and vendor docs lag what shipped. If the artifact is on disk, read it before declaring what it cannot do.
+  - **Exhaustive or counted** ("all", "none", "N places") — declare the search roots and the query set, then account for every match. A path list you assembled earlier is not a search. State the unit being counted and keep it constant.
+  - **Completion** ("done") — acceptance criteria and the open-children/blocker graph. An existing artifact proves activity, not completion.
+  - **Environment-dependent verdicts** — record the sandbox/privilege context and confirm in the target context before generalising. A negative from a restricted context is a fact about that context.
+  When the bar is not met, say so and label the result an inference. Do not reach for "cannot", "only", "all", "none", or "complete".
+- 🟡 Vendor advice = useful signal, not authoritative. Re-derive against own axes (portability, rotation, scope).
+- 🟡 "Smaller=safer vs bigger=right": verify bigger option is feasible TODAY; defer for brittleness, not size.
+- 🟡 Probe actual endpoint behavior before designing idempotency strategy on unfamiliar APIs.
+- 🟡 Re-survey tooling with `--help` before scoping any "extend X" ticket.
+- 🟡 Web research: search early; never invent URLs; quote exact errors. Source preference 2026+ → 2025+ → older.
+- 🟢 Treat unrecognized changes as another agent's work; keep going on your scope; stop+ask only on issues.
+
+## Pattern: refactor & script design
+
+- 🟡 No repo-wide search/replace scripts. Keep edits small and reviewable.
+- 🟡 Joining an existing repo with its own pattern: prefer **hybrid coexistence + a follow-up ticket** over unilateral refactor on prod code.
+- 🟡 sed-renaming functions across a known set: ALWAYS use `comm(1)` over BOTH function-name lists to find the FULL collision set BEFORE writing the rename loop.
+- 🔴 Every script touching a remote auth system defaults to **read-only/preserve**; require explicit opt-in for any state change.
+- 🔴 Any script that prints secrets to stdout defaults to redacted (`<redacted, length=N>`); cleartext via opt-in only (`--print-secret`).
+- 🟡 Auto-detect heuristics that depend on tool presence: normalize PATH BEFORE probing with `command -v`.
+- 🟡 For self-hostable systems with non-obvious init traps, maintain ONE executable bootstrap as canonical state spec.
+
+## Pattern: shell/just gotchas
+
+- 🟡 Avoid English-contraction apostrophes (`don't`, `won't`) in awk/shell embedded in single-quoted strings — they prematurely terminate the quoted region.
+- 🟡 In `just` recipe docstrings, show invocations with **positional args only** — never `name=value` syntax.
+
+## Pattern: file & workspace conventions
+
+- 🟡 The operator's repositories live in the workspace directory their private doctrine names; if one is missing, ask before cloning. Third-party clones go to a separate directory the private doctrine names. Never create a scratch directory inside the workspace.
+- 🟡 Edit the `+agents/` directory only when user explicitly permits.
+- 🟡 Use `paimos onboard --project INSPR` for current INSPR state.
+- 🟡 For "use a screenshot": pick newest PNG in `~/Desktop` or `~/Downloads`, verify by content (ignore filename), size-check via `sips`, optimize via `imageoptim`. STOP if tool missing.
+- 🟡 Use `rsync --checksum` reflexively for any file that "should have changed but didn't seem to".
+
+## Pattern: markdown policy (kernel + extras)
+
+Kernel: never create new `.md` files unless explicitly requested; prefer editing existing docs. Extras: when tempted, ask first **which existing doc to update**. "Document X" → update `README.md` or `RUNBOOK.md`. No markdown backlog files in the operator's host-configuration repository — backlog is in PPM.
+
+## Pattern: naming conventions
+
+- 🟡 In SSH pubkey comments and 1P entry titles, use the FULL local hostname + FULL local username (`user@host`), NOT chip codenames.
+
+## Pattern: long-running commands
+
+- 🟡 Prefix commands >10s with `date &&` (bash) or `date; and` (fish) for timestamping. Applies to nix builds, docker ops, large file ops, test suites, package installs.
+- 🟡 Background or zellij session for jobs >30s.
+- 🟡 Terminal multiplexer is **zellij**, NOT tmux. Layouts in `~/.config/zellij/`. _(Was a kernel rule until the INSPR-189 budget audit; demoted here because it is a preference, not a turn-1 irreversible.)_
+
+## Pattern: web surfaces — cookies & consent
+
+Applies to every browser-facing deployment: product UIs, marketing sites, docs, landing pages, self-hosted installs. Determine the ePrivacy implementing law of the **deployment** (not only the operator's seat; for an Austrian deployment § 165 Abs 3 TKG 2021) and assess GDPR lawful basis, transparency and international transfers separately. The tiers below are implementation patterns, not legal exemptions. Primary sources: TKG 2021 § 165 (ris.bka.gv.at) · EDPB Guidelines 05/2020 on consent · EDPB Guidelines 2/2023 on the technical scope of Art. 5(3) ePrivacy · EDPB cookie-banner taskforce report 2023-01-18 · BVwG 2026-04-23, W171 2303402-1 (equivalent first-layer choices, equivalent prominence). Working notes: umbrella knowledge entry `web-cookie-consent-tiers` (INSPR-429).
+
+- 🔴 **Inventory before classification.** Record every device read/write (cookie, storage key, identifier) and every runtime resource or service: trigger, purpose, provider, host/path scope, duration, recipients, exemption or consent requirement, separate GDPR basis. Cover authenticated routes, redirects, optional features, server-set cookies and infrastructure-injected resources. An unclassified operation stays disabled.
+- 🔴 **Tier 0 (no prompt) needs evidence per operation.** Show no prompt only where every operation falls outside the applicable consent requirement or has a documented statutory exemption. Under § 165 Abs 3 TKG 2021 the exemption covers storage/access solely for transmitting a communication or strictly necessary for a service the user expressly requested. Session, authentication, security, language and interface preferences require this assessment and a proportionate duration. "Cookieless" analytics is not automatically exempt (browser-attribute identifiers, pixels and URL ids count as device access). Privacy information describes the actual processing and storage, never a boilerplate no-tracking sentence.
+- 🔴 **Tier 1 is service-specific.** A consent-requiring embed (video, map, scheduling, chat) stays unloaded until an informed affirmative action at its own position: provider, purposes and transfers named, external link offered, no provider thumbnail before permission. "Load once" covers that instance; remembered permission covers the named service, its declared purposes and a recorded expiry. May coexist with Tier 2.
+- 🔴 **Tier 2 gates each purpose.** Optional purposes start disabled. First layer: accept-all and reject-all with equivalent prominence, an accessible settings path, accurate information. Dismissal grants nothing (project policy: initial dismissal records refusal). A permanent privacy control offers withdrawal as easily as consent. Google integrations run Consent Mode v2 **basic** (no tag, no ping before consent) and initialise only the consented destinations, each separately.
+- 🔴 **Enforce the lifecycle, fail closed.** Evaluate scope, validity, expiry and privacy signals before initialising optional code. Withdrawal stops further optional processing and clears that purpose's accessible storage without touching authentication state; already-loaded scripts need a teardown or reload strategy. Missing JavaScript, failed consent code, unavailable storage or bot detection never enable optional processing.
+- 🔴 **Scope narrowly, ship disabled.** Consent storage is host-specific by default and carries choices, scope, text version and timestamps, but no generated visitor identifier. Sharing across hosts needs reviewed hosts, controllers, purposes and compatible manifests; a common registrable domain alone is not enough, and third-party tags must not widen their cookie domain beyond the consented host. Optional integrations ship disabled in self-hosted products; enabling one activates its consent enforcement automatically.
+- 🔴 **Verify behaviour, keep accountability.** Test rendered output, requests and device storage along the journeys: fresh visit, refusal, partial grants, reload, navigation, expiry, withdrawal, failures, mixed embed/tracker pages, pre-existing storage. Keep the consent-text versions and a proportionate record that can demonstrate consent. A host blacklist over the served HTML is a smoke test, not the acceptance bar.
+- 🟡 **Privacy-signal and retention policy.** Treat an affirmative GPC or DNT signal as refusal of optional tracking, also over an older grant. Persist that refusal where browser storage permits; signal disappearance must not revive the superseded grant. Absence of a signal is never consent. Remember a refusal for at least six months where browser storage permits; routine text revisions do not reset it. Define permission expiry and material purpose-change handling explicitly, preserving decisions for unchanged purposes.
+- 🟡 **Presentation and delivery.** Prefer a non-modal bar or card plus contextual placeholders. Self-hosted consent assets and fonts (the shared consent primitive once it exists, else a vendored permissively licensed library with its notices kept), the surface's design tokens, all supported languages, reduced motion, keyboard and focus behaviour. Text contrast 4.5:1, non-text indicators 3:1; equivalence of accept and reject is judged on prominence, not on identical CSS.
+
+## Sync triad (Prime Directive)
+
+🔴 **Keep config, docs, and tests in sync.** A change to one without the others is incomplete.
+
+## Workflow: design doctrine & rollout
+
+- 🟡 New credential primitive: first ask "human-owned or machine-owned identity?" — rules out half the options.
+- 🟡 Prefer primitives that NEVER rotate (deploy keys, classic PATs) or auto-rotate invisibly (App tokens, OIDC). Manual rotation only where rotation is the point.
+- 🟡 INSPR-primitive test: "does it survive substrate migration with config-level changes only".
+- 🟡 Capture the pivot trail for any decision that reorientated multiple times — prevents re-litigation.
+- 🟡 Prod-adjacent first cutovers: **1 step = 1 commit = 1 validation gate**. Once proven, subsequent hosts can absorb same N changes as one atomic commit.
+- 🟡 Declarative-replaces-imperative migration: backup → activate → verify → strip unmanaged region. Redundancy over potential lockout.
+
+---
+
+*See also*: `/secrets`, `/nix`, `/ppm`, `/ops`. Full source: `AGENTS-CORE.md` topics `git/*`, `process/*`, `tools/{gh,just,zellij,script-design,shell-quoting,trash}`, `style/{file-operations,markdown-policy,naming-conventions}`.*

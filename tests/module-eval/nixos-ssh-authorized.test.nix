@@ -1,0 +1,371 @@
+# ─────────────────────────────────────────────────────────────────────────
+# tests/module-eval/nixos-ssh-authorized.test.nix
+#
+# Module-eval tests for `nixosModules.ssh-authorized` (INSPR-73 — system-side
+# counterpart to the HM module). Verifies:
+#   - disabled module produces no users.users.* entries
+#   - enabled with empty `users` emits a warning (not an error)
+#   - enabled with valid trust renders the right keys (in sorted order)
+#   - trust referencing an undeclared alias throws at eval time
+#   - revoked alias in trust throws at eval time (the "I forgot to remove
+#     from trust" footgun guard)
+#   - revoked alias NOT in trust evaluates cleanly (declaration preserved)
+#   - extraKeys are appended after the trust-resolved keys (raw, no
+#     status machinery)
+#   - sortedTrust ordering: input order does not affect output (determinism)
+#   - mixed string + rich keys in same keyring map both work
+#   - multi-user: two users get independent rendering
+#   - force = true wraps the rendered list in lib.mkForce (test by
+#     observing it overrides a competing declaration)
+#   - force = false (default) merges with competing declarations
+# ─────────────────────────────────────────────────────────────────────────
+{ harness, lib }:
+
+let
+  inherit (harness) evalNixosModule runTests;
+
+  sshAuthorized = ../../modules/nixos/ssh-authorized.nix;
+
+  # Two-key baseline keyring used by most tests.
+  baseKeys = {
+    "alice@m1" = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA0000000000000000000000000000000000000000000 alice@m1";
+    "bob@m2"   = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA1111111111111111111111111111111111111111111 bob@m2";
+  };
+
+  # Helper: extract the rendered key list for a given user.
+  keysFor = r: uname:
+    r.config.users.users.${uname}.openssh.authorizedKeys.keys or [ ];
+
+  tests = [
+    # ── The DOCUMENTED example must evaluate ───────────────────────────────
+    # An outside reviewer copied the example from this module's own header and
+    # it threw: a user's trust list referenced an alias never
+    # declared in `keys`. The module's undeclared-alias guard was right; the
+    # example was wrong — and this is an SSH admission module, so its first
+    # copy-paste path has to work.
+    #
+    # This is a transcription of that header example. If the example changes,
+    # change this with it. An example nobody executes is a claim, not
+    # documentation.
+    {
+      name = "the example in this module's header evaluates";
+      assertion =
+        let
+          r = evalNixosModule {
+            module = sshAuthorized;
+            config = {
+              inspr.ssh.authorized = {
+                enable = true;
+                keys = {
+                  "alice@laptop" = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA0000000000000000000000000000000000000000000 alice@laptop";
+                  "alice@workstation" = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA1111111111111111111111111111111111111111111 alice@workstation";
+                  "bob@laptop" = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA2222222222222222222222222222222222222222222 bob@laptop";
+                  "shared-rsa-pre-2026" = {
+                    key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAAB0000000000000000000000000000000 shared";
+                    status = "legacy";
+                    note = "shared RSA pre-2026; retire after ed25519 rollout";
+                  };
+                };
+                users.alice = {
+                  trust = [ "alice@laptop" "alice@workstation" "shared-rsa-pre-2026" ];
+                  force = true;
+                  extraKeys = [
+                    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA3333333333333333333333333333333333333333333 container-deploy"
+                  ];
+                };
+                users.bob = {
+                  trust = [ "bob@laptop" ];
+                };
+              };
+            };
+          };
+        in
+        r.success
+        && lib.length (keysFor r "alice") == 4
+        && lib.length (keysFor r "bob") == 1;
+    }
+
+    # ── Disabled-module shape ────────────────────────────────────────────
+    {
+      name = "disabled module evaluates cleanly with no users.users entries";
+      assertion =
+        let r = evalNixosModule { module = sshAuthorized; config = { }; };
+        in r.success
+           && r.config.users.users == { };
+    }
+
+    # ── Enabled with empty users → warning, no error ─────────────────────
+    {
+      name = "enabled with empty users evaluates cleanly with a warning";
+      assertion =
+        let r = evalNixosModule {
+          module = sshAuthorized;
+          config = {
+            inspr.ssh.authorized.enable = true;
+            inspr.ssh.authorized.keys   = baseKeys;
+            # users deliberately omitted (defaults to {})
+          };
+        };
+        in r.success
+           && lib.length r.config.warnings == 1
+           && lib.hasInfix "users` is empty" (lib.elemAt r.config.warnings 0);
+    }
+
+    # ── Enabled with valid trust → keys rendered in sorted order ─────────
+    {
+      name = "enabled with valid trust renders both keys in sorted order";
+      assertion =
+        let r = evalNixosModule {
+          module = sshAuthorized;
+          config = {
+            inspr.ssh.authorized.enable = true;
+            inspr.ssh.authorized.keys   = baseKeys;
+            inspr.ssh.authorized.users.alex.trust = [ "bob@m2" "alice@m1" ];
+          };
+        };
+        in r.success
+           && r.config.warnings == [ ]
+           && keysFor r "alex" == [ baseKeys."alice@m1" baseKeys."bob@m2" ];
+    }
+
+    # ── trust = [ undeclared-alias ] → throws ────────────────────────────
+    {
+      name = "trust referencing undeclared alias fails eval";
+      assertion =
+        let r = evalNixosModule {
+          module = sshAuthorized;
+          config = {
+            inspr.ssh.authorized.enable = true;
+            inspr.ssh.authorized.keys   = baseKeys;
+            inspr.ssh.authorized.users.alex.trust = [ "ghost" ];
+          };
+        };
+        in !r.success;
+    }
+
+    # ── trust referencing one valid + one invalid → still throws ─────────
+    {
+      name = "trust with one valid + one invalid alias fails eval";
+      assertion =
+        let r = evalNixosModule {
+          module = sshAuthorized;
+          config = {
+            inspr.ssh.authorized.enable = true;
+            inspr.ssh.authorized.keys   = baseKeys;
+            inspr.ssh.authorized.users.alex.trust = [ "alice@m1" "ghost" ];
+          };
+        };
+        in !r.success;
+    }
+
+    # ── Determinism: input order does not affect output ──────────────────
+    {
+      name = "trust = [b a] and trust = [a b] produce identical rendered key lists";
+      assertion =
+        let
+          mkR = trust: evalNixosModule {
+            module = sshAuthorized;
+            config = {
+              inspr.ssh.authorized.enable = true;
+              inspr.ssh.authorized.keys   = baseKeys;
+              inspr.ssh.authorized.users.alex.trust = trust;
+            };
+          };
+          rAB = mkR [ "alice@m1" "bob@m2" ];
+          rBA = mkR [ "bob@m2"   "alice@m1" ];
+        in
+          rAB.success && rBA.success
+          && keysFor rAB "alex" == keysFor rBA "alex";
+    }
+
+    # ── Mixed string + rich keys in same keyring ─────────────────────────
+    {
+      name = "mixed string + rich keys in same keyring both work";
+      assertion =
+        let r = evalNixosModule {
+          module = sshAuthorized;
+          config = {
+            inspr.ssh.authorized.enable = true;
+            inspr.ssh.authorized.keys = {
+              "alice@simple" = baseKeys."alice@m1";  # bare string
+              "bob-rich" = {                          # rich form
+                key    = baseKeys."bob@m2";
+                status = "active";
+              };
+            };
+            inspr.ssh.authorized.users.alex.trust = [ "alice@simple" "bob-rich" ];
+          };
+        };
+        in r.success
+           && r.config.warnings == [ ]
+           && lib.length (keysFor r "alex") == 2;
+    }
+
+    # ── status=legacy is admitted (no decoration in NixOS render) ────────
+    {
+      name = "rich form status=legacy is admitted (no decoration in NixOS render)";
+      assertion =
+        let r = evalNixosModule {
+          module = sshAuthorized;
+          config = {
+            inspr.ssh.authorized.enable = true;
+            inspr.ssh.authorized.keys = {
+              "shared-rsa-pre-2026" = {
+                key    = "ssh-rsa AAAAB3NzaC1yc2EAAAA0000 shared";
+                status = "legacy";
+                note   = "shared pre-2026 RSA";
+              };
+            };
+            inspr.ssh.authorized.users.alex.trust = [ "shared-rsa-pre-2026" ];
+          };
+        };
+        in r.success
+           && r.config.warnings == [ ]
+           && keysFor r "alex" == [ "ssh-rsa AAAAB3NzaC1yc2EAAAA0000 shared" ];
+    }
+
+    # ── status=revoked + alias IN trust → throws ─────────────────────────
+    # The "did you forget to remove from trust" footgun guard.
+    {
+      name = "revoked alias in trust fails eval";
+      assertion =
+        let r = evalNixosModule {
+          module = sshAuthorized;
+          config = {
+            inspr.ssh.authorized.enable = true;
+            inspr.ssh.authorized.keys = {
+              "old-deploy-key" = {
+                key    = "ssh-ed25519 AAAA... old-deploy";
+                status = "revoked";
+                note   = "compromised; retired";
+              };
+            };
+            inspr.ssh.authorized.users.alex.trust = [ "old-deploy-key" ];
+          };
+        };
+        in !r.success;
+    }
+
+    # ── status=revoked + alias NOT in trust → succeeds ───────────────────
+    # Intended terminal state for retired keys: declaration preserved as
+    # historical record, but no admittance.
+    {
+      name = "revoked alias absent from trust evaluates cleanly (declaration preserved)";
+      assertion =
+        let r = evalNixosModule {
+          module = sshAuthorized;
+          config = {
+            inspr.ssh.authorized.enable = true;
+            inspr.ssh.authorized.keys = {
+              "old-deploy-key" = {
+                key    = "ssh-ed25519 AAAA... old-deploy";
+                status = "revoked";
+                note   = "compromised; retired";
+              };
+              "current-deploy" = baseKeys."alice@m1";
+            };
+            inspr.ssh.authorized.users.alex.trust = [ "current-deploy" ];
+          };
+        };
+        in r.success
+           && r.config.warnings == [ ]
+           && keysFor r "alex" == [ baseKeys."alice@m1" ];
+    }
+
+    # ── extraKeys are appended after trust-resolved keys ─────────────────
+    {
+      name = "extraKeys are appended (raw, after trust-resolved keys)";
+      assertion =
+        let
+          extra = "ssh-ed25519 AAAA... container-deploy";
+          r = evalNixosModule {
+            module = sshAuthorized;
+            config = {
+              inspr.ssh.authorized.enable = true;
+              inspr.ssh.authorized.keys   = baseKeys;
+              inspr.ssh.authorized.users.alex = {
+                trust     = [ "alice@m1" ];
+                extraKeys = [ extra ];
+              };
+            };
+          };
+        in r.success
+           && keysFor r "alex" == [ baseKeys."alice@m1" extra ];
+    }
+
+    # ── Multi-user: two users get independent rendering ──────────────────
+    {
+      name = "two users with different trust lists render independently";
+      assertion =
+        let r = evalNixosModule {
+          module = sshAuthorized;
+          config = {
+            inspr.ssh.authorized.enable = true;
+            inspr.ssh.authorized.keys   = baseKeys;
+            inspr.ssh.authorized.users = {
+              alex.trust = [ "alice@m1" "bob@m2" ];
+              bob.trust  = [ "alice@m1" ];
+            };
+          };
+        };
+        in r.success
+           && keysFor r "alex" == [ baseKeys."alice@m1" baseKeys."bob@m2" ]
+           && keysFor r "bob"  == [ baseKeys."alice@m1" ];
+    }
+
+    # ── force = true overrides a competing declaration ───────────────────
+    # Simulates a server-home injection scenario: another module
+    # contributes a key, and `force = true` makes ours win (replace, not
+    # merge). We feed in a competing `users.users.alex.openssh.authorizedKeys.keys`
+    # via the test config to mimic that injection.
+    {
+      name = "force = true overrides competing users.users declaration";
+      assertion =
+        let r = evalNixosModule {
+          module = sshAuthorized;
+          config = {
+            inspr.ssh.authorized.enable = true;
+            inspr.ssh.authorized.keys   = baseKeys;
+            inspr.ssh.authorized.users.alex = {
+              trust = [ "alice@m1" ];
+              force = true;
+            };
+            # Competing declaration — should be displaced by mkForce.
+            users.users.alex.openssh.authorizedKeys.keys = [
+              "ssh-rsa AAAA... external-injection"
+            ];
+          };
+        };
+        in r.success
+           && keysFor r "alex" == [ baseKeys."alice@m1" ];
+    }
+
+    # ── force = false (default) merges with competing declarations ───────
+    # NixOS list options merge by concatenation. Without force, both
+    # contributions appear. Order between the two contributions is
+    # implementation-defined; we just check both keys are present.
+    {
+      name = "force = false (default) merges with competing declarations";
+      assertion =
+        let
+          competing = "ssh-rsa AAAA... other-source";
+          r = evalNixosModule {
+            module = sshAuthorized;
+            config = {
+              inspr.ssh.authorized.enable = true;
+              inspr.ssh.authorized.keys   = baseKeys;
+              inspr.ssh.authorized.users.alex.trust = [ "alice@m1" ];
+              # No `force` set; default false. Competing declaration:
+              users.users.alex.openssh.authorizedKeys.keys = [ competing ];
+            };
+          };
+          rendered = keysFor r "alex";
+        in r.success
+           && lib.length rendered == 2
+           && lib.elem baseKeys."alice@m1" rendered
+           && lib.elem competing rendered;
+    }
+  ];
+
+in
+  runTests "nixos-ssh-authorized" tests

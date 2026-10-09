@@ -1,0 +1,14 @@
+{
+  "schema": "inspr-routing-edge-import-metadata-inventory/0.1",
+  "path_count": 8,
+  "paths": [
+    "packages/routing-edge/import/README.md",
+    "packages/routing-edge/import/boundary.py",
+    "packages/routing-edge/import/closed-inventory.json",
+    "packages/routing-edge/import/import-from-source.sh",
+    "packages/routing-edge/import/import-receipt.json",
+    "packages/routing-edge/import/metadata-inventory.json",
+    "packages/routing-edge/import/public-adaptations.json",
+    "packages/routing-edge/import/source-provenance.txt"
+  ]
+}

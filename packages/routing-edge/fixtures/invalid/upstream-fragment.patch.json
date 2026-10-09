@@ -1,0 +1,11 @@
+{
+  "base": "../valid/combined-connected.deployment.json",
+  "operations": [
+    {
+      "op": "replace",
+      "path": "/upstreams/paimos/url",
+      "value": "https://paimos.example.test:8443#frag"
+    }
+  ],
+  "expected_codes": ["UPSTREAM_FRAGMENT"]
+}

@@ -1,0 +1,11 @@
+{
+  "base": "../valid/combined-connected.deployment.json",
+  "operations": [
+    {
+      "op": "replace",
+      "path": "/upstreams/paimos/url",
+      "value": "http://198.51.100.10:8080"
+    }
+  ],
+  "expected_codes": ["INSECURE_TOPOLOGY"]
+}

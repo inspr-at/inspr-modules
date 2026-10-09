@@ -1,0 +1,30 @@
+name: leak-guard
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A public repository is a disclosure surface from the moment it exists.
+# Required status check on main. Note what that means: it blocks a MERGE.
+# It runs after a push has already reached the public repository, so it is a
+# post-push detector plus PR gate, not a pre-publication barrier.
+jobs:
+  leak-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Detect operator-specific content
+        env:
+          LEAK_GUARD_PATTERNS: ${{ secrets.LEAK_GUARD_PATTERNS }}
+          TRUSTED_RUN: ${{ github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository }}
+        run: |
+          if [ "$TRUSTED_RUN" = "true" ] && [ -z "$LEAK_GUARD_PATTERNS" ]; then
+            echo "leak-guard: trusted run requires the LEAK_GUARD_PATTERNS repository secret" >&2
+            exit 1
+          fi
+          if [ "$TRUSTED_RUN" != "true" ]; then
+            echo "leak-guard: fork pull request; private patterns unavailable, running generic-only"
+            unset LEAK_GUARD_PATTERNS
+          fi
+          bash scripts/leak-guard.sh

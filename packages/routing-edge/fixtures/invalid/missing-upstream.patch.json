@@ -1,0 +1,10 @@
+{
+  "base": "../valid/combined-connected.deployment.json",
+  "operations": [
+    {
+      "op": "remove",
+      "path": "/upstreams/janus"
+    }
+  ],
+  "expected_codes": ["MISSING_UPSTREAM"]
+}

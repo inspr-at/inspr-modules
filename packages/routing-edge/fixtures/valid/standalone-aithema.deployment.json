@@ -1,0 +1,13 @@
+{
+  "entrypoint": {
+    "name": "websecure",
+    "address": ":443"
+  },
+  "public_tls": {
+    "cert_file": "/etc/inspr/tls/public.crt",
+    "key_file": "/etc/inspr/tls/public.key"
+  },
+  "upstreams": {
+    "aithema": { "url": "https://aithema.example.test:8443" }
+  }
+}

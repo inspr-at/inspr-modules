@@ -1,0 +1,729 @@
+# inspr-modules
+
+Reusable Home Manager modules + utilities from the [INSPR](https://inspr.at) initiative.
+
+> *"Where your inspirations live."* — democratize software development by giving anyone the same primitives that run a real fleet.
+
+INSPR Calendar Versioning is the standard for new projects and a required
+adoption decision before existing projects deploy. The worker doctrine exposes
+explicit-ticket, implicit-proposal and adopted-consumer refresh outcomes.
+The shared Pretty presentation bundle is pinned from `inspr-at/inspr`; the older
+`lib/calendar-version-display.json` remains a compatibility API. See the
+[Versioning Doctrine](docs/AGENTS-VERSIONING.md) for gates and rollout evidence.
+
+## What's here
+> **About `INSPR-nnn` references.** Ticket keys like these appear throughout
+> the docs and changelog. They point at the maintainer's **private** tracker —
+> you cannot open them, and they carry no information you need. They are kept
+> as provenance, not as links. Anything a consumer must know is stated in the
+> text itself; if it is not, that is a documentation bug worth an issue.
+
+
+### Home Manager modules
+
+| Module | Namespace | What it does |
+|---|---|---|
+| `agent-secrets` | `inspr.secrets.agents` | Materialize agenix-encrypted env files into a per-user "agent-exception" directory at HM activation. Pairs with the env-file pattern (`KEY=value`) for `set -a; source $FILE` consumers. |
+| `agent-kernel` | `inspr.agent-kernel` | Declarative injection of `docs/AGENTS-KERNEL.md` into CLI harnesses that do not follow Claude Code `@-ref`s. Default slot is Pi's global `~/.pi/agent/AGENTS.md`, which Pi always loads; project `CLAUDE.md` does not replace it. Extra harnesses are attrset entries. Never sets Home Manager `force`, so an unmanaged path collision stops activation instead of replacing a user-owned file. Disabled by default. |
+| `agent-skills` | `inspr.agent-skills` | Declarative agent-skill provisioning across CLI harnesses. Materializes skill directories (SKILL.md convention) into every configured harness skills path — Claude Code `$HOME/.claude/skills/` and Codex `~/.codex/skills/` by default, extensible per consumer — as read-only /nix/store symlinks. Skills are either **bundled** (shipped in this repo under `skills/<name>/` — currently `ship-next`, `housekeeping`, `tidyrepo`, `product-gauntlet`, `design-frontier-gauntlet`) or **external** (any pinned path, e.g. a `fetchFromGitHub` of anthropics/skills). Per-skill harness subsetting via `skills.<name>.harnesses`. When enabled, the module also installs the reserved `inspr-worker-doctrine` skill by default, carrying the canonical ticket-attribution mirror and calendar-version policy from the same immutable input revision. It never sets Home Manager's `force`, so an unmanaged path collision stops activation instead of replacing user-owned files. One source of truth per skill; per-harness copies cannot drift. |
+| `devenv-direnv-fix` | `inspr.devenv.direnv-fix` | Declaratively materialize devenv's direnv-lib snippet (`~/.config/direnv/lib/z-devenv.sh`) with its colliding `_nix_direnv_preflight` function renamed to `_devenv_preflight`, so it stops shadowing nix-direnv's preflight when both libs are loaded. Source comes from `devenv direnvrc` at build time + `sed`-rename + sanity-grep — auto-tracks devenv version bumps. Without this, `use nix` in any `.envrc` errors with `--no-warn-dirty: command not found`. INSPR-175. |
+| `git-atelier-credentials` | `inspr.git.atelier` | Per-atelier outbound git credentials, **forge-agnostic** (works on GitHub, Forgejo, Codeberg, GitLab, Gitea, sourcehut, bare-SSH). **Strategy A** (per-repo SSH deploy keys, narrow servers) and **Strategy B** (per-host user SSH key, account-federated for workstations — the canonical answer to "this machine doesn't have permission to that service") both implemented; **Strategy C** (bot user / access token via credential helper) option-typed and throws on use — INSPR-168 follow-up. Strategy A produces per-repo SSH aliases (`<host>-<atelier>-<repo>`) with narrow URL rewrites; Strategy B produces one alias per atelier (`git-<atelier>`) with owner-prefix URL rewrites covering all repos under `forge.owner` automatically. Per-atelier commit author identity (`git.userName`, `git.userEmail`, optional `git.workspacePath`) wires `includeIf` rules so commits attribute correctly per-persona (gitdir-scoped when `workspacePath` set, else `hasconfig:remote.*.url:` match on git 2.36+). All SSH match blocks use `HostKeyAlias` so one known_hosts entry covers all aliased paths; managed `~/.ssh/known_hosts.d/inspr-git-atelier-<name>` files ship vendor-published host keys for github.com + codeberg.org (self-hosted forges supply via `forge.extraKnownHosts`). Multi-atelier per host supported; Strategy A + B coexist on the same atelier with "longest insteadOf wins" precedence. The full design and 4-tier scaling story live in the maintainer's private design notes; the option documentation in `modules/home-manager/git-atelier-credentials.nix` is self-contained. |
+| `git-identity` | `inspr.git-identity` | Multi-identity git config with both `gitdir:` AND `hasconfig:remote.*.url:` includeIf rules. The repo's own remote URL picks the identity automatically — no per-host directory list to maintain. |
+| `inspr-cli` | `inspr.cli` | Renders the `inspr` CLI's fleet configuration (Headscale, tracker, Pharos, expected git identity, checkout paths and clone URL) and, optionally, an operator-owned JSON readiness profile. No credentials. Unset fleet values make the dependent `inspr check` items SKIP rather than FAIL. Readiness JSON is never sourced as shell. |
+| `paimos-config` | `inspr.paimos-cli` | Declaratively materializes routing only (`default_instance` + URLs). URLs may be literals or come from a routing env file. It never handles API credentials: INSPR workstations authenticate interactively into the OS keyring; headless automation injects `PAIMOS_URL` + `PAIMOS_API_KEY` into the running process from approved encrypted storage. |
+| `ssh-authorized` | `inspr.ssh.authorized` | Declarative `~/.ssh/authorized_keys` via aliased key map + trust list. Manages a marker-delimited block; lines outside the markers (Headscale deploy keys, GitHub Actions OIDC, recovery keys) are preserved across activations. Sorted output → byte-identical regardless of input order. Throws at eval time if `trust` references an undeclared alias. **Rich keys form** (since INSPR-77) supports per-key `{ status; note; }` metadata for grandfathering: `legacy` keys render with a `[legacy]` tag for fleet-wide audit, `revoked` keys keep the declaration as historical record but are not admitted (and throw if accidentally left in `trust`). |
+| `default` | (aggregate) | Imports eight of the nine above — **`inspr-cli` is excluded on purpose**, because it writes a `fleet.conf` and should be an explicit opt-in rather than something an aggregate turns on for you. Import it by name if you want it. Consumers wanting à-la-carte should import individual modules. |
+
+### NixOS modules
+
+| Module | Namespace | What it does |
+|---|---|---|
+| `ssh-authorized` | `inspr.ssh.authorized` | System-side counterpart to the HM `ssh-authorized` (since INSPR-73). Same shared keyring (rich-key form, `status: active \| legacy \| revoked`) but renders into `users.users.<u>.openssh.authorizedKeys.keys` (which NixOS materializes as `/etc/ssh/authorized_keys.d/<u>`). **Multi-user**: `inspr.ssh.authorized.users.<name>.{trust, force, extraKeys}`. **`force = true`** wraps the rendered list in `lib.mkForce` to displace upstream-injected keys (e.g. server-home profiles); default `false` merges via list concatenation. Throws at eval time on undeclared alias OR revoked-in-trust. Define the `keys` keyring in a plain-Nix file imported at BOTH NixOS-module scope (for this module) AND HM scope (for the HM module) — single source of truth across both. |
+| `aithema-workspace` | `services.inspr.aithemaWorkspace` | Disabled-by-default service for the immutable public Aithema 0.10.1 runtime. Runs the actual Node 24+ CLI as a dedicated static user, keeps SQLite state in a systemd-owned persistent directory, and loads operator-owned runtime JSON through protected systemd credentials. It does not render auth/provider configuration, open a firewall port, provision TLS/OIDC, or weaken Aithema's production validation. |
+| `default` | (aggregate) | Imports all NixOS modules. |
+
+### Packages
+
+| Package | What it does |
+|---|---|
+| `inspr` | The INSPR CLI (evolved from `inspr-doctor`, INSPR-195): `check` (read-only drift diagnosis, incl. the kernel byte-budget gate), `readiness` (read-only, machine-readable development-machine probe driven by an operator-owned project profile), `heal` (apply mapped fixes with verified-applied semantics), `onboard` (fresh-host walkthrough, optional Pharos registration), `post-deploy` (host configuration → Pharos → HostDash validation). |
+| `secrets-audit` | Bash script: detects drift between `secrets/*.age` files and their declarations in `secrets/secrets.nix`. Three modes: human report, `--quiet`, `--json`. |
+| `consent-gate` | Identity-free consent primitive for browser-facing surfaces (INSPR-431): one manifest per surface → nothing / contextual embed placeholders / non-modal bar with equivalent choices; host-only decision cookie without identifier, GPC/DNT as refusal, fail-closed storage handling, Google Consent Mode v2 basic adapter. Consumers vendor `consent-gate.js`/`.css` and pin the bytes with `scripts/check-consent-gate-vendored.sh`. See `packages/consent-gate/README.md`. |
+| `aithema-workspace` | Actual `aithema-workspace` executable from the immutable public Aithema 0.10.1 runtime archive. Node 24 is part of the closure; every direct and transitive dependency is fetched from the release lockfile by its recorded integrity. |
+
+## How to start — existing project (no Nix required)
+
+An agent session loads **three always-on layers**. Domain packs (`/dev`, `/nix`,
+`/secrets`, …) load only when you invoke them.
+
+```
+1. Public kernel     this repo: docs/AGENTS-KERNEL.md
+2. Private kernel    your studio file (tracker, hosts, secret *paths* — never values)
+3. Repo overlay      AGENTS.md in the product repository
+```
+
+Nix and Home Manager can copy the same files onto a machine. They are not how
+the doctrine loads. A friend with an existing git repo and a tracker only
+needs the steps below.
+
+**Four CLIs (what each actually reads):**
+
+| CLI | Repo overlay | Global kernel (does not follow `@-ref`) |
+| --- | --- | --- |
+| Claude Code | `CLAUDE.md` `@-ref`s kernel + private + `AGENTS.md` | optional marker block in `$HOME/.claude/CLAUDE.md` |
+| Codex | `AGENTS.md` | marker block in `~/.codex/AGENTS.md` |
+| Grok | `AGENTS.md` | `~/.grok/AGENTS.md` (replace) |
+| Pi | `AGENTS.md` (wins over `CLAUDE.md` in the same directory) | `~/.pi/agent/AGENTS.md` (replace) |
+
+Always keep a repo `AGENTS.md` so Pi does not treat `CLAUDE.md` as the overlay.
+`homeManagerModules.agent-kernel` installs the global column. `extraSources`
+holds a studio private kernel; the atelier default does not.
+
+1. **Stay on one tracker.** The product's PMA or PPM instance is the only
+   ticket home. Do not open a second tracker for the same work.
+2. **Pin the public kernel** as `./doctrine` at a **tag**, not `main`.
+3. **Load it** from the repo root. `@-refs` resolve from the repository root,
+   not from the file that contains them:
+   `@./doctrine/docs/AGENTS-KERNEL.md` in `CLAUDE.md`.
+4. **Write a private kernel** in a private repo or `doctrine-private`
+   submodule: instance name, project key, overlay pointer. No credentials.
+5. **Load it** after the public kernel in the same `CLAUDE.md`.
+6. **Write `AGENTS.md`** in the product repo: only rules unique to that
+   product. It may tighten the kernel. It must not relax it.
+7. **Load the overlay** last in `CLAUDE.md` (`@./AGENTS.md`).
+8. **Symlink the commands you want** under `.claude/commands/` (and Pi/Cursor
+   equivalents) to `doctrine/commands/*.md`, including `inspr.md` and
+   `inspr-versioning.md`.
+9. **Prove the wiring:** `./doctrine/scripts/doctrine-check.sh`. Add it to CI
+   (`examples/doctrine-check.yml`, `submodules: recursive`). A green run on an
+   empty layout proves nothing — read skips (`∘`) vs passes.
+10. **Versioning last.** In the product repo run `/inspr-versioning`, read the
+    TL;DR, reply `ok` only if the plan is right. That opens a PR; it does not
+    rewrite published tags.
+
+Worked example of steps 2–3 and 8–9: [Checking that your wiring actually resolves](#checking-that-your-wiring-actually-resolves). Home Manager modules stay in [Consumer pattern](#consumer-pattern) below.
+
+## Consumer pattern
+
+Use the latest release from [GitHub Releases](https://github.com/inspr-at/inspr-modules/releases)
+and replace `v<YYMMDDhhmmss.0.0>` below with its calendar tag.
+
+Tested with the `flake.lock` nixpkgs input from `nixos-unstable`, revision
+`15f4ee454b1dce334612fa6843b3e05cf546efab` (2026-04-30 UTC). Module checks
+use a stub Home Manager harness; this lock does not pin a Home Manager release,
+so no specific Home Manager release is claimed as tested. These describe the
+test baseline, not a compatibility guarantee.
+
+In your `flake.nix`:
+
+```nix
+{
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    home-manager.url = "github:nix-community/home-manager";
+    home-manager.inputs.nixpkgs.follows = "nixpkgs";
+    # Replace the placeholder with the latest calendar release tag.
+    # Keep the resolved commit in flake.lock.
+    inspr-modules.url = "github:inspr-at/inspr-modules/v<YYMMDDhhmmss.0.0>";
+    inspr-modules.inputs.nixpkgs.follows = "nixpkgs";
+  };
+
+  outputs = { self, nixpkgs, home-manager, inspr-modules, ... }: {
+    homeConfigurations.your-host = home-manager.lib.homeManagerConfiguration {
+      pkgs = import nixpkgs { system = "x86_64-linux"; };
+      modules = [
+        inspr-modules.homeManagerModules.git-identity
+        inspr-modules.homeManagerModules.paimos-config   # needed: home.nix below sets inspr.paimos-cli
+        ./your-home.nix   # your existing config — must set home.username,
+                          # home.homeDirectory and home.stateVersion, as any
+                          # Home Manager configuration does
+      ];
+    };
+  };
+}
+```
+
+In your `home.nix`:
+
+> **Paimos authentication boundary:** `inspr.paimos-cli` owns routing only. It
+> does not read or render API keys. Authenticate a workstation
+> interactively after activation; Paimos stores the credential in the OS
+> keyring. For headless automation, inject `PAIMOS_URL` + `PAIMOS_API_KEY` into
+> the process from approved encrypted storage at runtime only—never put the
+> plaintext credential in Nix configuration, the Nix store, or
+> `~/.paimos/config.yaml`.
+
+```nix
+{
+  inspr.git-identity = {
+    enable = true;
+    default = "personal";
+    identities = {
+      personal = { name = "Jane Doe"; email = "jane@example.com"; };
+      work     = { name = "Jane Doe"; email = "jane@work.com"; };
+    };
+    contexts.work = {
+      identity = "work";
+      remoteUrlPatterns = [
+        "https://github.com/your-employer/**"
+        "**:your-employer/**"
+      ];
+    };
+  };
+
+  inspr.paimos-cli = {
+    enable = true;
+    defaultInstance = "mine";
+    instances.mine = {
+      url = "https://your-paimos.example.com";
+    };
+  };
+}
+```
+
+For a fresh config, authenticate the workstation at the hidden prompt after
+Home Manager activation. If activation reports a legacy `api_key`, do **not**
+run this login yet; follow the migration order below first.
+
+```bash
+paimos auth login --url https://your-paimos.example.com --name mine
+```
+
+The deprecated `apiKeyEnvFile` and `apiKeyVar` options remain accepted for one
+compatibility release, emit a warning, and are ignored. This compatibility is
+evaluation-only; it does not migrate or reuse a credential. On an existing
+legacy consumer, **migrate before any new login**. First force Paimos 4.8 to
+load the old config with every auth override unset:
+
+```bash
+env -u PAIMOS_URL -u PAIMOS_API_KEY -u PPM_URL -u PPMAPIKEY \
+  paimos auth whoami
+```
+
+Then retry Home Manager; activation remains fail-closed until the legacy
+`api_key` field is gone. Only after that migration may you use interactive
+`paimos auth login` if authentication still fails. This order matters because
+logging in first can let the subsequent legacy migration overwrite the newly
+entered keyring credential. Remove the deprecated Nix options after migration.
+
+For a URL managed outside Nix, set `urlEnvFile` plus `urlVar` instead of `url`.
+The file must contain only trusted routing input; credential env files are not
+supported by this module.
+
+### NixOS: `ssh-authorized`
+
+The NixOS module imports at system scope, not through Home Manager. A
+module-integration example — **not** a bootable system on its own; add it to a
+configuration that already has a filesystem, bootloader and
+`system.stateVersion`. Every alias in `trust` must be declared in `keys`, or
+eval fails on purpose:
+
+```nix
+{
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    # Replace the placeholder with the latest calendar release tag.
+    inspr-modules.url = "github:inspr-at/inspr-modules/v<YYMMDDhhmmss.0.0>";
+    inspr-modules.inputs.nixpkgs.follows = "nixpkgs";
+  };
+
+  outputs = { nixpkgs, inspr-modules, ... }: {
+    nixosConfigurations.your-host = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      modules = [
+        inspr-modules.nixosModules.ssh-authorized
+        ({ ... }: {
+          users.users.alice = { isNormalUser = true; };
+
+          inspr.ssh.authorized = {
+            enable = true;
+            keys = {
+              "alice@laptop" = "ssh-ed25519 AAAA...";     # your real public key
+              "alice@workstation" = "ssh-ed25519 AAAA...";
+            };
+            users.alice = {
+              trust = [ "alice@laptop" "alice@workstation" ];
+              force = true;   # the rendered list is authoritative
+            };
+          };
+        })
+      ];
+    };
+  };
+}
+```
+
+This is the same shape the VM integration test boots (`tests/nixos-vm/`), and
+that test proves the **module** admits trusted keys and refuses untrusted,
+revoked and cross-user ones on a running sshd. It does not prove *your* keys:
+the option accepts any string, so a typo in a public key evaluates fine and
+fails only at login. Check with `ssh-keygen -l -f <(echo "<key>")` before you
+commit it; build-time key validation is on the roadmap. Full option reference: the header of
+[`modules/nixos/ssh-authorized.nix`](modules/nixos/ssh-authorized.nix).
+
+### NixOS: Aithema workspace service
+
+Import `nixosModules.aithema-workspace` (or the NixOS aggregate) and point it
+at a protected runtime file managed outside Nix:
+
+```nix
+{
+  services.inspr.aithemaWorkspace = {
+    enable = true;
+    configFile = "/run/secrets/aithema-workspace.json";
+  };
+}
+```
+
+The system manager must be able to read that source file. At service start,
+systemd copies it to a private credential path readable by the `aithema`
+service; the source path is never imported into the Nix store and the file
+contents are never rendered into the unit or command line. A runtime preflight
+checks only that `dataDir` matches the module-managed persistent directory and
+fails with a generic diagnostic. Keep the source root-owned and mode `0600`
+(or use an equivalent secrets materializer).
+
+The file uses Aithema's published runtime schema. A production configuration
+must use `mode: "production"`, a real `jwt-jwks` identity, an approved provider
+registry/policy, and `dataDir: "/var/lib/aithema-workspace"`. The runtime itself
+rejects incomplete identity/provider configuration, mock production providers,
+and non-persistent production storage; this module does not manufacture an
+identity or fallback provider.
+
+Networking also stays operator-owned. Aithema defaults production listening to
+loopback; set `listenHost` and `listenPort` in the protected JSON when a private
+listener is required. The module opens no firewall ports. Behind a TLS reverse
+proxy, set `publicOrigin` to the browser-visible origin and optionally set a
+canonical `publicBasePath` such as `/aithema`; the proxy must preserve that
+prefix. Readiness is then at `{publicBasePath}/health`. The proxy, certificates,
+OIDC client/redirect registration, provider reachability, and customer
+acceptance remain separate consumer responsibilities.
+
+Speech input remains controlled by the protected runtime JSON when
+`services.inspr.aithemaWorkspace.speech` is unset; it stays disabled when speech is
+absent there. The nullable option accepts only the non-secret adapter fields `kind`,
+`providerId`, `model`, `allowedModels`, `endpoint`, `acceptedMediaTypes`, and bounded
+`limits`. When present, the module writes those values as a public Nix-store JSON
+sidecar and passes its path as `--speech-config`; provider credentials remain in the
+protected Aithema runtime configuration and are never accepted by this option. The
+sidecar cannot be combined with protected inline speech because the coordinated CLI
+rejects a speech source collision. The selected package must advertise the
+`supportsSpeechConfig` capability and provide the coordinated `--speech-config FILE`
+interface before this option can be used; the default package remains compatible
+when the option is null.
+
+## Architecture notes — the atelier pattern
+
+These modules emerged from the INSPR onboarding sessions documented in the (private) `inspr` umbrella repo. The design pattern is **the atelier** (formerly called "Pattern β" in older docs — same architecture, more memorable name).
+
+**Atelier metaphor:** imagine a master's workshop where the *tools* (mechanics) are publicly shared, but each *artist's commissions* (per-context values) stay private to that artist. INSPR is structured the same way:
+
+- **The atelier — universal mechanics** (this library: how to materialize secrets, how to compose git includeIfs, how to declare Paimos instance routing). Public, OSS, and licensed under AGPL-3.0-only. Reusable across every context.
+- **Each studio — per-context values** (your flake: identities, instance URLs, fleet patterns). Private to that context. Never shared between studios.
+
+A "studio" (context flake) is anything that consumes inspr-modules + provides its own values: an operator's personal host configuration, a family flake, future product flakes — each declares its own identity, hosts, and secrets, and gets the rest for free from the shared atelier.
+
+## Testing
+
+Test suite lives under `tests/` and is exposed via `flake.checks.<system>.*`:
+
+```bash
+nix flake check --all-systems         # run every test on every supported system
+nix build .#checks.aarch64-darwin.secrets-audit-functional --print-build-logs
+```
+
+### Tests today
+
+| Check | Coverage |
+|---|---|
+| `design-frontier-gallery` | Deterministic five-lens local gallery generation; UUIDv7 and honest preflight-unavailable states; HTML escaping and URL-safe entries; sandbox, symlink, ownership, current-model-evidence, distinct-model and output-clobber boundaries. |
+| `license-surface` | Canonical AGPLv3 text, exact AGPL-3.0-only declarations across public/source/doctrine surfaces, and Nix package metadata for shipped utilities |
+| `repository-location-surface` | Canonical INSPR organization links, clone guidance, and Pharos container default, with configurable host-configuration checkout paths |
+| `work-attribution-doctrine` | Keeps the always-on kernel, non-Claude mirror, full reference, product gauntlet, and design-frontier dispatcher aligned on ticket-first work authorization, actual session UUID attribution, single-tracker routing and value-free markers. |
+| `model-role-doctrine` | Kernel, mirror, DEV pack and bundled skills route model choice through `paimos model resolve <role>`; no concrete model identifier appears in doctrine, commands or skills (CHANGELOG and the design-frontier lens excepted). Reusable for consumers: `tests/model-role-doctrine.sh --lint <root> <paths…>` (INSPR-463) |
+| `secrets-audit-functional` | Drift detection logic (clean / declared-missing / orphan / commented-out fixtures); `--help` regression test for [INSPR-50](https://github.com/inspr-at/inspr-modules/commit/8fa4b37) (PATH-leak-in-help symptom that prompted the writeShellApplication migration) |
+| `inspr-cli-functional` | Sources a synthetic rendered `fleet.conf` with Bash and proves quotes, command substitutions, backticks, backslashes, spaces, newlines, and dollar expansions remain literal values without executing; null/empty configuration remains assignment-free. Verifies unset repository checks SKIP and configured checkout paths load after fleet.conf. |
+| `paimos-config-functional` | Executes synthetic activations to prove legacy `api_key`, missing files, and unset/empty URL variables preserve the prior config; diagnostics resist shell interpolation; jq encoding safely preserves quoted and multiline routing URLs. Never reads a real user config or credential. |
+| `consent-gate` | Core: manifest validation (fail closed), tier selection, bound per-entry decision records without identifiers, partial grants, per-entry expiry and category revisions, six-calendar-month refusals, GPC/DNT over older grants with immediate and retried persistence, session and URL revocation, dropped and throwing accessors, instance-bound load-once vs remembered embed services, scoped storage cleanup, crawler handling, Consent Mode key derivation, the served-HTML guard. Renderer journeys under a minimal in-memory DOM (`tests/consent-gate-dom.mjs`): first visit, accept/reject, expiry before load-once and always-allow, observed signal with and without working storage, embed-only teardown, revocation marker across documents, settings selections, served srcdoc, crawlers. |
+| `aithema-workspace-package-proof` | Builds the immutable runtime package, checks installed `--help`, then starts a synthetic test-mode server outside its source tree and proves loopback health plus graceful SIGTERM shutdown. The pinned 0.10 package advertises `supportsSpeechConfig`, so the proof also starts it with a non-secret mock speech sidecar and checks the rendered speech controls/model. NixOS activation remains a Linux-side proof. |
+| `module-eval` (since INSPR-72) | 128 sub-tests across the Home Manager and NixOS modules, run via `lib.evalModules` + stub HM and NixOS harnesses (`tests/module-eval/harness.nix`). Verifies: assertions and throws fire when they should, required options stay required, deprecations warn, shell-active fleet values are encoded, Paimos literal/env URL output stays nested under `instances` without credential references, rollout/failure guards precede replacement, git include counts match declarations, SSH authorization stays deterministic, and the Aithema service remains disabled/fail-closed with protected config and durable ownership. Runs entirely at flake-eval time—no activation, real HM, or network. |
+
+### Local dev (without nix sandbox)
+
+```bash
+nix build .#secrets-audit
+./tests/secrets-audit/run-tests.sh
+```
+
+### Roadmap
+
+- ~~Module-eval tests for HM modules~~ — **shipped (INSPR-72)**, see above.
+- ~~NixOS VM integration tests~~ — **shipped for `ssh-authorized`**: `checks.<linux-system>.nixos-vm-ssh-authorized` boots a server and a client and proves sshd admits the trusted key and refuses untrusted, revoked and cross-user keys. Linux-only (needs a KVM builder with the `nixos-test` feature); on macOS the check is simply absent. It caught a real behaviour on first run — OpenSSH's per-source auth penalties — that no eval test could see. Remaining modules are still eval-only.
+
+## Versioning + deprecation policy
+
+Releases use INSPR Calendar Versioning: UTC `YYMMDDhhmmss.0.0`, with tags
+named `vYYMMDDhhmmss.0.0`. Earlier SemVer and CalVer2 releases are archived
+privately; new reservations declare `inspr-calver-3` (`INSPR-CalVer3`) with
+the same coordinate as CalVer2. Consumers of the archived history must re-pin
+to the first release of this clean history. General rules and migration gates
+are in the [Versioning Doctrine](docs/AGENTS-VERSIONING.md).
+
+[`RELEASE.json`](RELEASE.json) remains the sole release-coordinate source. Its
+stable-channel sequence and migration anchor are retained from the archived
+history; the history reset does not reset or re-reserve a release coordinate.
+
+Release preparation (Python 3, offline):
+
+```sh
+python3 scripts/reserve-release.py validate
+python3 scripts/reserve-release.py reserve
+python3 scripts/reserve-release.py show
+```
+
+Run `reserve` once from the latest stable metadata in the coordinator's
+serialized release lane. It records UTC now, increments the sequence and
+prints the exact tag and CHANGELOG heading; `show` reuses that reservation.
+The helper never tags, pushes or publishes.
+
+Tags are annotated and named `vYYMMDDhhmmss.0.0`; signing is optional.
+If a tag is signed, verify it. Record the tag → commit mapping and the
+source-archive digest as immutability evidence on INSPR-458.
+
+Consumers select a published tag or exact commit and retain the resolved
+commit in `flake.lock` or the `doctrine` gitlink. Examples use calendar-tag
+placeholders; substitute the latest published release. Update both consumption paths together when both exist, then run
+`scripts/doctrine-check.sh --multipath-only` in the consumer.
+
+Rollback re-pins a prior immutable tag or commit, verifies its recorded mapping
+and source-archive digest, and records a deployment event. It leaves release
+metadata, ordering and existing tags unchanged.
+
+Option renames retain a **deprecation window**: deprecated options stay aliases
+with eval warnings, and replacements/removals are documented in CHANGELOG.
+Legacy promises of at least one MINOR cycle and removal at the next MAJOR
+require owner review before translation to calendar releases. New deprecations
+require at least one published release before an announced breaking removal.
+
+## Recovery scenarios
+
+What to do when things go wrong:
+
+| Scenario | What you'll see | Recovery |
+|---|---|---|
+| **User SSH key changes** (e.g., regenerated id_ed25519) | `agent-secrets` activation fails: `age: cannot decrypt …` | Re-rekey the .age files: add the new pubkey to your host configuration's `secrets/secrets.nix` recipients, then `cd secrets && agenix --rekey`. The OLD key continues to decrypt until you remove it. |
+| **Activation half-completes** (e.g., one `.age` file is corrupt) | Partial decrypt; `set -e` exit; doctor flags missing secrets | The relock-trap ensures the dir is still 0500 outside activation. Fix the corrupt `.age` file (or remove its declaration) and re-run `home-manager switch`. |
+| **Headscale / control server is down** | `inspr-doctor` flags `headscale_reachable` ✗ | Tailnet keeps working with last-known peers; no immediate action. Wait for control plane to recover. |
+| **Manual edit to `~/Secrets/age/decrypted/agents/`** | Directory is 0500 → write fails OR (if you chmod'd) overwritten on next switch | Don't manually edit. The dir is activation-managed. Re-encrypt the source `.age` file via `agenix -e`. |
+| **`paimos auth whoami` fails** | The OS-keyring credential (interactive) or `PAIMOS_API_KEY` runtime input (headless) may be missing/rotated | First confirm `paimos_instance_config` passes. Then re-authenticate interactively with `paimos auth login --url INSTANCE_URL --name INSTANCE_NAME` and enter the credential at the hidden prompt, or repair the headless runtime injection without printing the value. |
+| **Paimos activation refuses an existing legacy `api_key` config** | Home Manager stops before creating or replacing `config.yaml`; the old config remains unchanged | Before any new login, run `env -u PAIMOS_URL -u PAIMOS_API_KEY -u PPM_URL -u PPMAPIKEY paimos auth whoami` once to trigger the Paimos 4.8 migration, then retry Home Manager. Use interactive `paimos auth login` only after activation no longer reports the legacy field and only if auth still fails. |
+| **Your Paimos instance is down** | `paimos auth whoami` fails; doctor flags `paimos_auth` ✗ | Transient — wait. Local instance routing remains available. |
+| **Eval-time error: "hostname could not be determined"** | nix-rebuild fails immediately | Pass `hostname` via `extraSpecialArgs` in your homeConfigurations entry, OR set `inspr.secrets.agents.hostname = "your-host"` explicitly. |
+| **Eval-time error: "defaultInstance must be a key in instances"** | nix-rebuild fails immediately | Typo in `inspr.paimos-cli.defaultInstance`, or you set it but never declared the corresponding instance. Fix and re-eval. |
+| **First fresh host: `agent-secrets` discovery returns zero** | Activation succeeds but dir is empty | Either you forgot to set `inspr.secrets.agents.encryptedRoot`, OR your repo's secrets/agents subdir is empty / not git-tracked. (Untracked files are invisible to flake eval.) |
+
+## License
+
+The original work in this repository is licensed under
+[AGPL-3.0-only](./LICENSE). Improvements to this shared operating layer remain
+inspectable under the same terms, including when a modified version is used to
+provide network-accessible functionality. Independent consumer configuration,
+data, and third-party components retain their own licensing boundaries.
+
+## Status
+
+Extracted from a working NixOS + Home Manager fleet on 2026-05-02
+and used in production since.
+
+### Tested with
+
+| | |
+|---|---|
+| Nix | flakes enabled (`experimental-features = nix-command flakes`) |
+| nixpkgs | `nixos-unstable`, revision `15f4ee454b1dce334612fa6843b3e05cf546efab` (2026-04-30 UTC), as pinned in `flake.lock` |
+| Home Manager | stub module harness; no Home Manager release is pinned in this lock or claimed as tested |
+| Platforms | `aarch64-darwin`, `x86_64-darwin`, `x86_64-linux` |
+| Not tested | `aarch64-linux` |
+
+This is a test baseline, not a compatibility guarantee. Only the latest
+calendar release receives fixes. Pin its published tag or exact commit. See
+[Versioning + deprecation policy](#versioning--deprecation-policy).
+
+Roadmap:
+- NixOS counterparts for the remaining Home Manager modules — `ssh-authorized` has one and a VM test; `agent-secrets`, `paimos-config` and `git-identity` do not yet
+- 1Password tag-export integration (Phase 2 secrets graduation)
+- `ssh-authorized` keyring layout: file-per-key under `keys/<alias>.pub` for fleet scale; the inline form stays supported (INSPR-74)
+- `ssh-authorized` build-time validation: check each key with `ssh-keygen -l` at eval, to catch typos before activation (INSPR-75)
+- Remove the ignored `paimos-config` `apiKeyEnvFile` / `apiKeyVar` compatibility options after their one-release deprecation window (INSPR-225)
+
+## Running `inspr check` on your own fleet
+
+The CLI ships with **no fleet endpoints or repository paths baked in**. Checks
+such as nix on PATH, tailscale up and an SSH key present run anywhere.
+Others need to know *your* infrastructure or checkout paths, and those report
+**SKIP** until you tell it, rather than failing at you.
+
+Two ways to tell it. Copy [`examples/fleet.conf`](examples/fleet.conf):
+
+```bash
+mkdir -p ~/.config/inspr
+cp examples/fleet.conf ~/.config/inspr/fleet.conf
+$EDITOR ~/.config/inspr/fleet.conf
+```
+
+Or, if you use Home Manager, declare it and let the module render the file:
+
+```nix
+imports = [ inputs.inspr-modules.homeManagerModules.inspr-cli ];
+
+inspr.cli = {
+  enable = true;
+  fleet = {
+    nixcfgDir     = "/home/example/src/host-config";
+    insprDir      = "/home/example/src/inspr";
+    nixcfgRepoUrl = "https://git.example.org/you/host-config.git";
+    headscaleUrl   = "https://headscale.example.org";
+    tailnetName    = "headscale.example.org";
+    paimosUrl      = "https://tracker.example.org";
+    paimosInstance = "main";
+    pharosUrl      = "https://pharos.example.org";
+    pharosHost     = "manifest-host";
+    gitIdentityName  = "Someone Example";
+    gitIdentityEmail = "someone@example.com";
+  };
+};
+```
+
+Repository paths default to empty. Set `INSPR_NIXCFG_DIR` and `INSPR_DIR`
+through the environment or `fleet.conf`, or use `inspr.cli.fleet.nixcfgDir`
+and `insprDir` as absolute strings (not Nix paths, which copy the checkout to
+the store). Until configured, repository, drift and doctrine checks report
+SKIP. `INSPR_NIXCFG_REPO_URL` / `nixcfgRepoUrl` enables exact host-config
+clone hints; unset uses generic advice. `inspr post-deploy --nixcfg-dir`
+overrides the configured host-config path; an unset path skips checkout-dependent
+checks. Onboarding uses configured paths, and `--vision` needs `INSPR_DIR`.
+
+The public `nixcfgDir`, `nixcfgRepoUrl`, and `--nixcfg-dir` names refer to your
+chosen host-configuration checkout; they impose no repository name or location.
+
+### The check worth understanding
+
+`tailscale_control_url` compares your tailnet's name against `tailnetName`. It
+looks redundant next to "is tailscale up" — it isn't. A host can be up, logged
+in, and reachable while pointed at **Tailscale SaaS instead of your own
+Headscale**, and every other check passes in that state. Comparing the name is
+the only thing that catches it. That check exists because it happened.
+
+Nothing in this file is a credential. Every value is an endpoint, checkout
+path or public identity metadata, and the rendered file is world-readable;
+authentication lives in the OS keyring.
+
+## Running `inspr readiness` with a named profile
+
+`inspr check` answers "is this host onboarded onto the INSPR operating
+layer?". `inspr readiness` answers a narrower, project-scoped question:
+does **this** execution host, runtime, account, harness, and workspace
+currently match an operator-owned profile, with evidence that is safe to
+export? It is a prerequisite for later Paimos launch enforcement, not a
+compliance certificate, not a heal action, and not launch gating.
+
+First supported execution hosts are **NixOS with Home Manager** and **macOS
+with Home Manager**. `host_kind` records that class from observed Home
+Manager generation pointers; it does not treat Darwin alone as proof of
+activation. Activation of the expected generation is a separate required
+check when the operator includes `activated_generation`. Other onboarding
+remains `unavailable`, with next action `adopt_nix_home_manager`. The
+probe never activates Nix, never switches accounts, never starts a worker
+or model turn, and never treats browser-supplied JSON as proof.
+
+Copy [`examples/readiness-profile.json`](examples/readiness-profile.json)
+and fill in **your** opaque identities and expected digests. Then:
+
+```bash
+inspr readiness --profile /absolute/path/to/readiness.json --json
+```
+
+`--no-cache` remains accepted. Probes are bounded and always observe
+fresh evidence; leftover cache files cannot change a result. The optional
+`inputs.cache_dir` key remains accepted for profile compatibility but is
+ignored.
+
+An `exclusive_workspace` request requires `workspace_isolation` as a required
+check and an operator-supplied `paimos_readiness` binding. This binds the numeric
+project, current runtime ID/generation, account, immutable dispatch-profile
+version, workspace handle/identity/mode and baseline digest. Populate it from
+the approved Paimos lifecycle configuration; the example uses synthetic values.
+The CLI asks the owned daemon's private socket for the latest server-accepted
+receipt for that exact tuple through `paimos-agentd readiness-receipt`
+(classic receipt verb; the live supervisor package is `aeon-agentd` and does
+not yet expose this command — INSPR-483). It does
+not create a readiness intent, reserve a workspace or start a worker.
+
+The receipt must be unexpired, match the independently observed physical Git
+workspace identity and report managed workspace availability. Missing producers,
+old generations, stale observations, mismatches and occupied workspaces cannot
+produce `ready`. The exported result contains only closed reasons and digests,
+and expires no later than the accepted receipt. Old profiles remain parseable,
+but an exclusive-workspace request without this binding is unavailable.
+Explicit shared-mode probes without an exclusive request retain local Git
+provenance checks; they do not prove absence of other workers.
+
+This is availability of **Paimos-managed** work at the observation time. It
+cannot exclude unmanaged processes or prevent an intervening Start. Paimos's
+atomic Start-time reservation remains the final authority.
+
+Subprocess probes share one combined stdout+stderr byte budget (default
+65536) and a finite positive timeout. The deadline covers drain and
+termination of the owned session/process group, including same-group
+descendants that keep inherited pipes after the leader exits. Detached
+`setsid` processes are outside that group: the probe still returns by the
+deadline and closes its own pipes, but does not claim to kill them. A
+zero output cap allows empty output only. Invalid timeout or cap values
+are rejected as `invalid_command`.
+
+### Expected digest derivation (read-only)
+
+Digests are `sha256:` plus 64 lowercase hex characters. They are computed
+from the inputs below. Local paths and raw command output are never exported:
+
+| Profile field | Exact input to SHA-256 |
+|---|---|
+| `home_manager_generation_digest` | basename of the fully resolved `/nix/store/…-home-manager-generation` path (Home Manager `current-home` is usually one hop; `~/.local/state/nix/profiles/home-manager` is `home-manager → home-manager-N-link → store`) |
+| `nix_system_generation_digest` | basename of the fully resolved `/nix/store/…` system path (`/run/current-system` vs `/nix/var/nix/profiles/system` → `system-N-link` → store) |
+| `paimos_readiness.workspace_identity` | native Paimos physical identity: bare hex SHA-256 of `paimos:agentd-workspace:v1` + NUL + canonical Git top-level + NUL + canonical Git directory; observed independently, not inferred from the requested mode |
+| `workspace_identity_digest` | UTF-8 of `<head>\|worktree=<0\|1>\|mode=<exclusive\|shared>`, where `<head>` is `git rev-parse HEAD` and worktree is 1 when `--git-dir` differs from `--git-common-dir` |
+| `doctrine_kernel_digest` | bytes of the file named by `inputs.doctrine_kernel` |
+
+`expected.doctrine_loader_ref` is the operator-owned kernel `@-ref` that
+must appear in the loader file, using the generic doctrine pattern
+`@./…/AGENTS-KERNEL.md` (for example `@./doctrine/docs/AGENTS-KERNEL.md`
+in a consuming repo, or `@./docs/AGENTS-KERNEL.md` in this atelier).
+Customer profile-pack names are not hardcoded. Auto-loading
+`AGENTS-CORE.md` or `AGENTS-PROFILE-*` from that loader is legacy.
+
+A mismatch check includes the **observed** digest so you can compare.
+Copying that observed value into the profile is an explicit operator
+choice that the current generation, workspace, or kernel is the approved
+one. Drift is not approved automatically; keep the previous expected
+value until you intend to accept the new revision.
+
+Home Manager can materialize the same JSON without sourcing it as shell:
+
+```nix
+imports = [ inputs.inspr-modules.homeManagerModules.inspr-cli ];
+
+inspr.cli.readiness = {
+  enable = true;
+  profile = builtins.fromJSON (builtins.readFile ./readiness.json);
+};
+# then: inspr readiness --profile ~/.config/inspr/readiness.json --json
+```
+
+Compatibility: `inspr check`, `heal`, `onboard`, and `post-deploy` keep
+their existing flags and skip/fail behaviour. `inspr check --profile=`
+still selects the workstation/server **doctor** class; `inspr readiness
+--profile PATH` is a different flag on a different sub-command.
+
+What this command does **not** prove: live customer acceptance, Paimos
+launch gating, or a named-account match that required classic Paimos agentd
+`account/read` (retired with the personal classic tracker; Aeon-agentd has
+not replaced that probe — INSPR-483). Missing native integrations are reported as
+`unavailable` with a `missing_integration_*` reason; they are never
+fabricated as pass.
+
+## Checking that your wiring actually resolves
+
+Vendoring the doctrine is easy to get *almost* right, and almost-right fails
+silently: a dangling `@`-ref loads nothing without complaint, and a broken
+command symlink means the command simply does not appear — you type it, get
+nothing, and assume you misremembered the name.
+
+### Setting it up — the part that was missing
+
+The check assumes a specific layout, and until now nothing told you how to
+create it. From your repository root:
+
+```bash
+# 1. Vendor the doctrine at ./doctrine; the gitlink records the exact commit.
+# Replace the placeholder with the latest published calendar release tag.
+git submodule add https://github.com/inspr-at/inspr-modules.git doctrine
+git -C doctrine checkout 'v<YYMMDDhhmmss.0.0>'
+git add doctrine .gitmodules
+
+# 2. Load the kernel from your agent instruction file. @-refs resolve from the
+#    REPO ROOT, not from the file that contains them.
+printf '@./doctrine/docs/AGENTS-KERNEL.md\n' >> CLAUDE.md
+
+# 3. Optionally expose the doctrine's slash commands as symlinks.
+mkdir -p .claude/commands
+ln -s ../../doctrine/commands/dev.md .claude/commands/dev.md   # repeat per command you want
+
+# 4. Run it.
+./doctrine/scripts/doctrine-check.sh
+```
+
+`AGENTS.md` and `AGENTS-*.md` at the root are also scanned. Anything under
+`.claude/commands/` (or `+agents/commands/`) is scanned too, including
+`@`-refs *inside* those command files.
+
+Environment knobs, all optional:
+
+| variable | default | meaning |
+|---|---|---|
+| `DOCTRINE_MAX_BEHIND` | `3` | how many commits behind canonical a pin may be before it fails |
+| `DOCTRINE_UPSTREAMS` | `inspr-modules` plus the private doctrine upstream (see `scripts/doctrine-check.sh`) | which upstreams count as doctrine for the multi-path check |
+| `DOCTRINE_STRICT` | `0` | `1` makes "could not verify" (e.g. no network) exit 1 instead of reporting INCOMPLETE |
+
+The check **skips** assertions whose surface does not exist rather than
+failing them, so a green run on an empty repository proves nothing. Read the
+output; a `∘` line is a skip, not a pass.
+
+Five assertions: every `@`-ref resolves (including inside command files); every
+command is a live symlink (a regular file there is a copy, and copies drift);
+the doctrine pins are not far behind canonical; any declared command list
+matches what is wired; and where a repository consumes the same doctrine
+through more than one path (a submodule *and* a flake input), those paths agree
+bit-for-bit — a split there means agent sessions and hosts follow different
+rules.
+
+Add it to CI with [`examples/doctrine-check.yml`](examples/doctrine-check.yml).
+Note `submodules: recursive` in the checkout step — without it the check has
+nothing to resolve against and will report everything as broken.
+
+Consumer CI that owns only the same-upstream equality invariant can run the
+focused gate instead:
+
+```bash
+./doctrine/scripts/doctrine-check.sh --multipath-only
+```
+
+That mode runs assertion 5 and only its required index/`flake.lock` discovery.
+It does not resolve `@`-refs, inspect command symlinks, fetch or judge pin
+freshness, or compare declared commands. Indexed `doctrine` and
+`doctrine-private` gitlinks are discovered even when their checkout directories
+are absent, so CI may initialize only the public doctrine path needed to invoke
+the script. `--multipath-only` cannot be combined with `--warn`; unknown or
+conflicting arguments fail closed with exit 2.
+
+`--warn` downgrades failures to advisory, for adopting it on a repo that is not
+clean yet.
+
+### About `leak-guard.sh`
+
+The guard scans tracked working-tree files for generic credential shapes and
+private patterns supplied through `LEAK_GUARD_PATTERNS` (newline-separated
+extended regexes) and/or `LEAK_GUARD_PATTERNS_FILE` (a file of the same format).
+Both sources are optional locally and additive; blank lines and comments are
+ignored. An unreadable file or invalid regex fails closed. Private patterns
+belong outside the public tree. Trusted push and same-repository PR runs
+require the `LEAK_GUARD_PATTERNS` repository secret; fork PRs run generic-only
+with a notice.
+
+This is a post-push detector plus a PR check. It runs after pushed bytes reach
+the repository and does not gate local `git push`. It reads tracked paths with
+`git ls-files` but scans the working tree, so unstaged edits affect its result.
+Untracked files are outside that scan. Run from the git root with a non-empty
+scan set; unreadable tracked files fail closed. Diagnostics show file names,
+line numbers and pattern numbers, never matched content or private regexes.
+Reviewed `.leak-guard-allow` entries are counted. The guard reduces accidental
+disclosure; it is an incomplete control rather than a security guarantee.

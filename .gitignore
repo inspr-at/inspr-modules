@@ -1,0 +1,8 @@
+result
+result-*
+.direnv/
+.pre-commit-config.yaml.bak
+*.swp
+.DS_Store
+__pycache__/
+*.pyc

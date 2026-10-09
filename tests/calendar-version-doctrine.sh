@@ -1,0 +1,220 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root=${1:-$(cd "$(dirname "$0")/.." && pwd)}
+policy="$repo_root/docs/AGENTS-VERSIONING.md"
+index="$repo_root/docs/AGENTS-INDEX.md"
+readme="$repo_root/README.md"
+
+fail() {
+  printf 'calendar-version-doctrine: %s\n' "$*" >&2
+  exit 1
+}
+
+test -f "$policy" || fail "normative policy is missing"
+grep -Fq '[AGENTS-VERSIONING.md](AGENTS-VERSIONING.md)' "$index" \
+  || fail "canonical doctrine index does not link the policy"
+grep -Fq '[Versioning Doctrine](docs/AGENTS-VERSIONING.md)' "$readme" \
+  || fail "repository release policy does not link the gradual default"
+
+command="$repo_root/commands/inspr-versioning.md"
+map="$repo_root/commands/inspr.md"
+test -f "$command" || fail "inspr-versioning command is missing"
+grep -Fq '/inspr-versioning' "$map" || fail "/inspr map omits /inspr-versioning"
+grep -Fq '/ship-next' "$map" || fail "/inspr map omits /ship-next skill"
+grep -Fq '/tidyrepo' "$map" || fail "/inspr map omits /tidyrepo skill"
+grep -Fq 'AGENTS-VERSIONING.md' "$command" || fail "inspr-versioning command does not load the policy"
+grep -Fq 'reply **`ok`**' "$command" || fail "inspr-versioning command lacks the ok confirmation gate"
+
+for required in \
+  'inspr-calver-3' \
+  'INSPR Calendar Versioning 3' \
+  '### From CalVer2 to CalVer3' \
+  'New adoptions and new release reservations MUST declare `inspr-calver-3`' \
+  'MUST NOT be rewritten, retagged, or relabelled as' \
+  'MUST treat it as the same coordinate as `inspr-calver-3`' \
+  'does not repeat' \
+  'version_scheme   = inspr-calver-3' \
+  'inspr-calendar-v2' \
+  'inspr-calendar-v1' \
+  'YYMMDDhhmmss.0.0' \
+  'YY.MM.DD[.hh.mm.ss]' \
+  'There is no short form' \
+  'constant `0.0`' \
+  'syntactically valid Semantic Versioning 2.0.0' \
+  'not** SemVer-semantic' \
+  'MUST NOT append a prerelease' \
+  '32-bit integer' \
+  'All fields are based on **UTC**' \
+  'Work already in flight MUST finish under the scheme in force' \
+  'MUST NOT be renamed, rewritten, retagged' \
+  'MUST NOT patch v1 grammar deviations in place' \
+  'immutable, enumerated artifact set' \
+  'Immutability applies per artifact coordinate' \
+  'outputs MUST NOT be' \
+  'exact version, artifact' \
+  'release_sequence' \
+  'last_legacy_version' \
+  'first_calendar_version' \
+  'Shape is provably insufficient' \
+  'Generic utilities such as `sort -V` are not acceptable' \
+  '## Ecosystem exceptions' \
+  '## Value-free estate inventory' \
+  'trunkver.org' \
+  '### Display weights' \
+  '`v` 20, `YY` 100, `MM` 80, `DD` 100, `hh` 60' \
+  'lower `YY` below 100' \
+  'color-mix(in oklab, currentColor, <highlight> 80%)' \
+  'display design revision 3' \
+  'Weighting MUST NOT split, reorder, or annotate the' \
+  '### Scheme display labels' \
+  '| `inspr-calver-3` | `INSPR-CalVer3` |' \
+  '| `inspr-calendar-v2` | `INSPR-CalVer2` |' \
+  '| `inspr-calendar-v1` | `INSPR-CalVer1` |' \
+  '| `legacy` | `Legacy` |' \
+  'MUST show the doctrine label and MUST NOT invent one' \
+  'An unknown scheme' \
+  'never from the shape of the string'
+do
+  grep -Fq "$required" "$policy" || fail "missing normative surface: $required"
+done
+
+for retired in '| `INSPR-VER2` |' '| `INSPR-VER1` |' 'The machine scheme remains `inspr-calendar-v2`' 'All eight segment opacities'; do
+  if grep -Fq "$retired" "$policy"; then
+    fail "retired naming or presentation rule is back: $retired"
+  fi
+done
+
+if grep -Fq 'same version MUST NOT identify different bytes' "$policy"; then
+  fail "over-broad byte identity would forbid multi-platform release sets"
+fi
+
+python3 - "$policy" "$repo_root/docs/AGENTS-KERNEL.md" "$repo_root/AGENTS.md" <<'PY_ADOPTION'
+import pathlib, sys
+policy, kernel, mirror = [pathlib.Path(p).read_text() for p in sys.argv[1:]]
+adoption = policy.split('## Adoption at project start and before deployment\n', 1)[1].split('## Shared presentation', 1)[0]
+for outcome in ('New project', 'Existing adoption ticket (explicit)', 'No adoption ticket (implicit)', 'Already adopted', 'Blocked or excepted'):
+    assert '**' + outcome + ':**' in adoption, outcome
+for requirement in ('next normal deployment', 'proactively propose', 'recorded owner', 'never follow a mutable branch', 'designated PPM or PMA', 'trust context'):
+    assert requirement in adoption, requirement
+presentation = policy.split('## Shared presentation from INSPR Calendar Versioning\n', 1)[1].split('## Calendar coordinate', 1)[0]
+for requirement in ('packages/versioning/config/display.json', 'scripts/versioning-bundle.mjs', 'independently reviewed', 'every\nnormal build', '0.7 + 0.3 * configuredOpacity', 'reduced-motion', 'including the year', 'No runtime configuration fetch', 'current bundle CLI', 'global bundle digest alone does not verify a template', 'packages/versioning/config/schemes.json', 'inspr.version-scheme-labels.v2', 'inspr.calver-display.v3'):
+    assert requirement in presentation, requirement
+flat = ' '.join(presentation.split())
+for requirement in ('Pretty draws six segments', 'never draws the decorative `v` or the constant `.0.0`, neither at rest nor on reveal', 'A segment configured at 0 takes no width at rest', 'including one configured at 0', 'MUST carry the exact canonical version, `.0.0` included', 'MUST add the human-readable UTC date and time', 'On a device without hover, one tap reveals and copies', 'Native surfaces (desktop and mobile apps) MUST show at least the six-segment Pretty label', 'CLI output and logs print the plain canonical version'):
+    assert requirement in flat, requirement
+whole = ' '.join(policy.split())
+for requirement in ('a new reservation declaring `inspr-calendar-v2` is invalid', 'historical CalVer2 records stay valid and readable in every case'):
+    assert requirement in whole, requirement
+for surface in (kernel, mirror):
+    assert '**Version-bearing work:**' in surface
+    assert 'without one, propose and track adoption' in surface
+legacy = policy.split('#### Legacy display-v1 compatibility contract', 1)[1]
+assert 'do not apply to the shared presentation-v3 bundle above' in legacy
+assert 'Legacy display-v1' not in presentation
+print('calendar-version-adoption: routing, five outcomes and compatibility boundary ok')
+PY_ADOPTION
+
+python3 - <<'PY'
+import datetime
+import re
+
+# Canonical calendar grammar (inspr-calver-3, identical for inspr-calendar-v2),
+# verbatim from the doctrine.
+pattern = re.compile(
+    r"^(?:[1-9][0-9])(?:0[1-9]|1[0-2])(?:0[1-9]|[12][0-9]|3[01])"
+    r"(?:[01][0-9]|2[0-3])(?:[0-5][0-9])(?:[0-5][0-9])\.0\.0$"
+)
+
+# Official SemVer 2.0.0 grammar (semver.org, "Is there a suggested regular
+# expression"). Every canonical v2 coordinate MUST match it.
+semver = re.compile(
+    r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)"
+    r"(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)"
+    r"(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?"
+    r"(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$"
+)
+
+# Superseded inspr-calendar-v1 grammar; v2 parsers MUST reject it.
+legacy_v1 = re.compile(
+    r"^(?:[0-9]{2})\.(?:0[1-9]|1[0-2])\.(?:0[1-9]|[12][0-9]|3[01])"
+    r"(?:\.(?:[01][0-9]|2[0-3])\.(?:[0-5][0-9])\.(?:[0-5][0-9]))?$"
+)
+
+def parse(value: str) -> int:
+    if pattern.fullmatch(value) is None:
+        raise ValueError(value)
+    stamp = value.split(".")[0]
+    year, month, day = int(stamp[0:2]), int(stamp[2:4]), int(stamp[4:6])
+    hour, minute, second = int(stamp[6:8]), int(stamp[8:10]), int(stamp[10:12])
+    datetime.datetime(2000 + year, month, day, hour, minute, second,
+                      tzinfo=datetime.timezone.utc)
+    return int(stamp)
+
+valid = {
+    "260909113550.0.0": 260909113550,
+    "261231235959.0.0": 261231235959,
+    "280229120000.0.0": 280229120000,
+    "100101000000.0.0": 100101000000,
+    "991231235959.0.0": 991231235959,
+}
+for value, expected in valid.items():
+    actual = parse(value)
+    if actual != expected:
+        raise SystemExit(f"{value}: expected {expected}, got {actual}")
+    if semver.fullmatch(value) is None:
+        raise SystemExit(f"{value}: canonical v2 coordinate is not SemVer-syntactic")
+    if legacy_v1.fullmatch(value) is not None:
+        raise SystemExit(f"{value}: canonical v2 coordinate matches the v1 grammar")
+
+invalid = (
+    "26.09.09", "26.09.09.11.35.50", "26.09.08.17.06",      # v1 and v1-deviant
+    "5.21.0", "0.6.0",                                      # SemVer-legacy
+    "20260909113550.0.0", "2609091135.0.0", "260909113550",
+    "260909113550.0.1", "260909113550.1.0", "260909113550.0",
+    "260909113550.0.0-rc1", "260909113550.0.0+g39d0b59",
+    "260909240000.0.0", "260909116000.0.0", "260909113560.0.0",
+    "260229120000.0.0", "260431120000.0.0", "261301120000.0.0",
+    "090909113550.0.0", "000101000000.0.0",
+    "v260909113550.0.0", " 260909113550.0.0", "260909113550.0.0 ",
+    "260909113550.00.0", "260909113550.0.00",
+)
+for value in invalid:
+    try:
+        parse(value)
+    except ValueError:
+        continue
+    raise SystemExit(f"invalid calendar version accepted: {value}")
+
+# v1 strings must still be recognisable as v1 by a v1 parser, so a mixed-era
+# reader can discriminate on version_scheme without guessing from shape.
+for value in ("26.09.09", "26.09.09.11.35.50"):
+    if legacy_v1.fullmatch(value) is None:
+        raise SystemExit(f"{value}: v1 example no longer matches the v1 grammar")
+
+ordered = [
+    "260909113550.0.0",
+    "260909113551.0.0",
+    "260909235959.0.0",
+    "260910000000.0.0",
+    "261001000000.0.0",
+    "270101000000.0.0",
+]
+numeric = [parse(value) for value in ordered]
+if numeric != sorted(numeric) or len(set(numeric)) != len(numeric):
+    raise SystemExit("numeric calendar ordering is not strict")
+if ordered != sorted(ordered):
+    raise SystemExit("lexical order of canonical coordinates differs from numeric order")
+
+# SemVer precedence (MAJOR first, numeric) must agree with chronological order.
+sem_keys = [tuple(int(part) for part in value.split(".")) for value in ordered]
+if sem_keys != sorted(sem_keys):
+    raise SystemExit("SemVer precedence of canonical coordinates differs from chronological order")
+
+# Two-digit year keeps canonical v2 strings after a repository's existing v1
+# tags under plain string sorting (a human-readable property, not a comparator).
+if not ("26.09.09" < "260910000000.0.0" and "26.09.09.11.35.50" < "260910000000.0.0"):
+    raise SystemExit("v2 coordinates do not string-sort after existing v1 tags")
+PY
+
+printf '%s\n' 'calendar-version-doctrine: ok'

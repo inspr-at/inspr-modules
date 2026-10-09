@@ -1,0 +1,13 @@
+# leak-guard allowlist — one entry per line: <path>|<pattern-substring>|<reason>
+#
+# Every entry is a REVIEWED decision, not a silent exclusion. An entry that says
+# "tracked" is debt with a ticket, not an acceptance. The guard prints the count
+# of allowlisted matches on every run so this file cannot quietly grow.
+
+# Optional private patterns can overlap these public module interfaces.
+modules/home-manager/agent-secrets.nix|inspr/secrets|Canonical module path, not an operator identity or credential; required when private patterns include this shared path.
+docs/AGENTS-CORE.md|inspr/secrets|Safety rules name the canonical public module path; no operator identity or credential.
+pkgs/inspr/inspr.sh|inspr/secrets|CLI guidance for the same public module path; no credential values are rendered.
+
+# --- false positive: obviously synthetic test fixture ---
+tests/paimos-config-functional.nix|api[_-]?key|Fixture value is the literal string "synthetic-regression-marker" against legacy.example.invalid (a reserved TLD). Not a credential.

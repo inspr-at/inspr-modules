@@ -1,0 +1,58 @@
+/* consent-gate — reference styles. Every colour, radius, font and shadow is a
+   CSS custom property with a neutral fallback; a consuming surface maps them
+   to its own design tokens (see README) and never ships a vendor theme. The
+   two first-layer buttons share one rule so they stay equivalent by
+   construction. Text contrast targets WCAG AA 4.5:1 with the defaults. */
+
+.ic-bar {
+  position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%);
+  width: min(720px, calc(100% - 32px)); z-index: 60;
+  background: var(--ic-surface, #fff); color: var(--ic-ink, #1f2420);
+  border: 1px solid var(--ic-line, #d9d9d3); border-radius: var(--ic-radius, 12px);
+  box-shadow: var(--ic-shadow, 0 18px 44px rgba(0, 0, 0, .12));
+  padding: 16px 18px; font-family: var(--ic-font, inherit); font-size: 15px; line-height: 1.5;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .ic-bar { animation: ic-in .25s ease-out; }
+  @keyframes ic-in { from { opacity: 0; transform: translate(-50%, 12px); } to { opacity: 1; transform: translate(-50%, 0); } }
+}
+.ic-text { margin: 0 0 12px; }
+.ic-text a, .ic-mini a, .ic-link { color: var(--ic-accent, #2f6b4a); }
+.ic-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.ic-btn {
+  appearance: none; font: inherit; font-weight: 700; cursor: pointer;
+  color: var(--ic-ink, #1f2420); background: var(--ic-surface, #fff);
+  border: 1.5px solid var(--ic-ink, #1f2420); border-radius: var(--ic-radius-pill, 999px);
+  padding: 10px 18px; min-width: 140px;
+}
+.ic-btn:hover { background: var(--ic-surface-soft, #f4f4f0); }
+.ic-link, [data-consent-open] {
+  appearance: none; font: inherit; background: none; border: 0; padding: 4px 2px;
+  color: var(--ic-accent, #2f6b4a); text-decoration: underline; cursor: pointer;
+}
+.ic-btn:focus-visible, .ic-link:focus-visible, [data-consent-open]:focus-visible {
+  outline: 3px solid var(--ic-focus, #e7c574); outline-offset: 3px;
+}
+.ic-sheet {
+  border: 1px solid var(--ic-line, #d9d9d3); border-radius: var(--ic-radius, 12px);
+  background: var(--ic-surface, #fff); color: var(--ic-ink, #1f2420);
+  padding: 22px 24px; width: min(560px, calc(100% - 32px));
+  font-family: var(--ic-font, inherit); font-size: 15px; line-height: 1.5;
+  box-shadow: var(--ic-shadow-dialog, 0 28px 70px rgba(0, 0, 0, .34));
+}
+.ic-sheet::backdrop { background: rgba(0, 0, 0, .45); }
+.ic-sheet h2 { margin: 0 0 8px; font-family: var(--ic-font-heading, inherit); font-size: 26px; }
+.ic-row { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; align-items: start; margin: 12px 0; }
+.ic-row input { margin: 3px 0 0; width: 18px; height: 18px; }
+.ic-mini { margin: 12px 0 0; color: var(--ic-muted, #6b6f63); font-size: 13px; }
+.ic-embed {
+  border: 1px dashed var(--ic-line, #d9d9d3); border-radius: var(--ic-radius, 12px);
+  background: var(--ic-surface-soft, #f4f4f0); color: var(--ic-ink, #1f2420);
+  padding: 18px; font-family: var(--ic-font, inherit); font-size: 15px; line-height: 1.5;
+}
+.ic-embed-title { margin: 0 0 4px; font-weight: 700; }
+.ic-embed-text { margin: 0 0 12px; color: var(--ic-muted, #6b6f63); }
+@media (max-width: 620px) {
+  .ic-bar { bottom: 8px; width: calc(100% - 16px); }
+  .ic-btn { flex: 1 1 auto; }
+}

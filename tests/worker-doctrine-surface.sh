@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root=${1:?repository root is required}
+installed_root=${2:?installed worker-doctrine root is required}
+
+fail() {
+  printf 'worker-doctrine-surface: %s\n' "$*" >&2
+  exit 1
+}
+
+skill="$installed_root/SKILL.md"
+attribution="$installed_root/references/AGENTS.md"
+versioning="$installed_root/references/AGENTS-VERSIONING.md"
+display="$installed_root/references/calendar-version-display.json"
+
+test -f "$skill" || fail 'SKILL.md is missing'
+test -f "$attribution" || fail 'worker-attribution reference is missing'
+test -f "$versioning" || fail 'calendar-version reference is missing'
+test -f "$display" || fail 'calendar-version display data is missing'
+cmp -s "$repo_root/lib/calendar-version-display.json" "$display" \
+  || fail 'installed display-weights data drifted from canonical lib/calendar-version-display.json'
+
+cmp -s "$repo_root/AGENTS.md" "$attribution" \
+  || fail 'installed worker-attribution mirror drifted from canonical AGENTS.md'
+cmp -s "$repo_root/docs/AGENTS-VERSIONING.md" "$versioning" \
+  || fail 'installed calendar-version reference drifted from canonical doctrine'
+
+grep -Fq '[Worker attribution](references/AGENTS.md)' "$skill" \
+  || fail 'SKILL.md does not link the installed worker-attribution reference'
+grep -Fq '[Versioning doctrine](references/AGENTS-VERSIONING.md)' "$skill" \
+  || fail 'SKILL.md does not link the installed calendar-version reference'
+grep -Fq '[Display weights data](references/calendar-version-display.json)' "$skill" \
+  || fail 'SKILL.md does not link the installed display-weights data'
+grep -Fq 'I work on this — session: <session-name> (<session-UUID>); role: <builder|reviewer|operator>; started: <ISO-8601>' "$skill" \
+  || fail 'SKILL.md lacks the canonical value-free worker marker'
+grep -Fq 'designated PPM or PMA tracker, never both' "$attribution" \
+  || fail 'installed attribution reference lost the single tracker of record'
+grep -Fq 'inspr-calver-3' "$versioning" \
+  || fail 'installed versioning reference lost the calendar scheme identifier'
+grep -Fq 'YYMMDDhhmmss.0.0' "$versioning" \
+  || fail 'installed versioning reference lost the canonical calendar grammar'
+grep -Fq 'Work already in flight MUST finish under the scheme in force' "$versioning" \
+  || fail 'installed versioning reference lost the gradual-migration boundary'
+
+for required in \
+  'before every release/deployment' \
+  'absent ticket requires an explicit standard' \
+  'blocked explicit adoption needs owner deferral' \
+  'runtime never fetches mutable settings' \
+  'legacy' \
+  'all weights are adjustable'
+do
+  grep -Fq "$required" "$skill" || fail "worker adoption routing is missing: $required"
+done
+
+printf '%s\n' 'worker-doctrine-surface: ok'
