@@ -59,6 +59,9 @@ Before project bootstrap or release/deployment, read [AGENTS-VERSIONING.md](AGEN
 - 🟡 Update docs (README/RUNBOOK) when behavior or API changes — no ship without docs.
 - 🟡 After shipping anything claimed-as-done, do a structured C/H/M/O severity pass through the artifacts: "would this withstand a tough security and validity audit?".
 - 🟡 A claimed-as-done change must name its durable, inspectable artifact evidence. For code, record the repository plus commit or commit range; for deployments, bind the exact release/image/digest to a live behavior check; for documents and generated assets, name the durable artifact/version. Status prose, timestamps, and “tests passed” without the resulting artifact are not a completion trail.
+- 🟡 Functional test verdicts must be independent of host speed. Await observable state or completion, use barriers to prove ordering and control the clock for time-dependent behaviour. Test deadlines abort stalled waits. A deadline expiring cannot establish the expected behaviour.
+- 🟡 Run real performance budgets in an isolated timing lane outside required PR and merge checks. Run approved live-dependency smoke with uncontrolled timing in a non-blocking lane.
+- 🟡 Preserve the first failure when rerunning for diagnosis. Quarantine only with person approval recorded on the ticket, a named owner and a deadline under the repository policy.
 
 ## Pattern: model choice by role
 
